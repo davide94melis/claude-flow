@@ -115,7 +115,6 @@ Ultimo aggiornamento: `<data e ora>`
 |---|---|
 | Task totali | N |
 | Completate | 0 |
-| Mergiate | 0 |
 | In corso | 0 |
 | Da iniziare | N |
 | Bloccate | 0 |
@@ -123,10 +122,10 @@ Ultimo aggiornamento: `<data e ora>`
 
 ## Stato Task
 
-| ID | Stream | Attività | Owner | Progresso | Stato | Branch | Note |
-|---|---|---|---|---:|---|---|---|
-| T-001 | [stream] | [Nome] | [Dev] | 0% | Da iniziare | — | — |
-| T-002 | [stream] | [Nome] | [Dev] | 0% | Da iniziare | — | — |
+| ID | Attività | Owner | Progresso | Stato | Branch | Note |
+|---|---|---|---:|---|---|---|
+| T-001 | [Nome] | [Dev] | 0% | Da iniziare | — | — |
+| T-002 | [Nome] | [Dev] | 0% | Da iniziare | — | — |
 [tutte le task dal piano]
 
 ## Log Attività
@@ -147,7 +146,6 @@ Aggiorna il file di progresso a ogni cambio di stato significativo:
 - Quando una task passa a "In corso"
 - Quando un sottoagente completa una parte del lavoro (aggiorna la %)
 - Quando una task viene completata
-- Quando una task viene mergiata
 - Quando una task risulta bloccata
 
 Aggiorna sempre il campo "Ultimo aggiornamento" e aggiungi una riga al Log Attività.
@@ -171,36 +169,24 @@ Presenta le task assegnate allo sviluppatore in ordine di priorità (P0 > P1 > P
 
 Aspetta la conferma dello sviluppatore prima di iniziare qualsiasi lavoro.
 
+**Nota sulle merge task (T-MERGE-*)**: le merge task sono task speciali che non richiedono implementazione di codice. Quando l'executor incontra una merge task, guida lo sviluppatore attraverso il processo di merge: (1) merge del branch sorgente nel branch base, (2) verifica che la build compili correttamente, (3) mark come completata. Non vengono lanciati sottoagenti per le merge task.
+
 ### Controllo dipendenze
 
-Prima di iniziare una task, verifica le dipendenze dal file di progresso. La regola di sblocco dipende dallo **stream** delle task coinvolte (il campo Stream assegnato nel piano da br-analyzer):
-
-**Stesso stream** — La task corrente e la dipendenza appartengono allo stesso stream funzionale. Il codice è disponibile localmente perché le task dello stesso stream lavorano in sequenza sullo stesso flusso di branch. La dipendenza si sblocca quando lo stato è **"Completata"** (o "Mergiata").
-
-**Stream diverso** — La task corrente e la dipendenza appartengono a stream diversi. Il codice della dipendenza non è disponibile finché il branch non viene mergiato nel branch base condiviso. La dipendenza si sblocca solo quando lo stato è **"Mergiata"**.
+Prima di iniziare una task, verifica le dipendenze dal file di progresso. La regola è semplice: una dipendenza è soddisfatta quando il suo stato è **"Completata"**. Non serve nessun controllo sugli stream — le dipendenze cross-stream sono gestite tramite merge task esplicite inserite nel piano da br-analyzer.
 
 Logica di verifica per ogni dipendenza:
 
 1. Trova la task dipendenza nel progresso
-2. Confronta lo **stream** della dipendenza con lo stream della task corrente
-3. Se **stesso stream**: la dipendenza è soddisfatta se stato è "Completata" o "Mergiata"
-4. Se **stream diverso**: la dipendenza è soddisfatta solo se stato è "Mergiata"
+2. Verifica che lo stato sia "Completata"
+3. Se sì, la dipendenza è soddisfatta — procedi
 
 Se tutte le dipendenze sono soddisfatte, procedi normalmente.
 
 Se una dipendenza non è soddisfatta, avvisa e blocca:
 
-> La task **T-005** (`[stream task corrente]`) dipende da **T-003** (`[stream dipendenza]`).
->
-> [Se stesso stream e task non completata:]
+> La task **T-005** dipende da **T-003**.
 > T-003 risulta ancora [stato attuale]. Non posso procedere finché non è completata.
->
-> [Se stream diverso e task completata ma non mergiata:]
-> T-003 (`[stream]`) è completata, ma il branch non è ancora stato mergiato.
-> Essendo di uno stream diverso, il codice non è disponibile sul branch base condiviso. Serve il merge di `feature/<task-name>` prima di procedere.
->
-> [Se stream diverso e task non completata:]
-> T-003 (`[stream]`) è ancora [stato attuale]. Non posso procedere finché non è completata e mergiata.
 >
 > Vuoi:
 > 1. Passare a un'altra task senza dipendenze bloccanti?
@@ -332,35 +318,13 @@ Quando tutti i criteri sono soddisfatti:
 
 Aggiorna il file di progresso: stato "Completata", progresso 100%, note con riepilogo del lavoro svolto, log attività aggiornato.
 
-Dopo aver aggiornato il progresso, verifica se ci sono task di **altri stream** che dipendono dalla task appena completata. Se sì, avvisa:
-
-> **Nota**: le seguenti task di altri stream dipendono da T-001:
-> - T-007 (`stream-monitoraggio`, owner: [nome]) — bloccata in attesa del merge
-> - T-009 (`stream-reporting`, owner: [nome]) — bloccata in attesa del merge
->
-> Essendo di stream diversi, queste task si sbloccheranno solo dopo che il branch `feature/<task-name>` sarà stato mergiato nel branch base.
-> Quando hai fatto il merge, dimmi **"task mergiata"** e aggiorno lo stato.
-
-Se ci sono solo task dello **stesso stream** che dipendono da questa (o nessuna dipendenza), proponi direttamente la prossima task:
+Dopo aver aggiornato il progresso, proponi la prossima task disponibile:
 
 > Vuoi procedere con la prossima task **T-005 — [nome]**?
 
-### Conferma merge — Transizione a "Mergiata"
-
-Quando lo sviluppatore conferma che il branch di una task completata è stato mergiato (es. "task mergiata", "ho fatto il merge", "mergiato T-001"):
-
-1. Aggiorna lo stato della task nel progresso da "Completata" a **"Mergiata"**
-2. Aggiungi una riga al Log Attività: `[data] — T-001 mergiata nel branch base`
-3. Verifica se questo sblocca task di altri stream e comunicalo:
-
-> Task **T-001** segnata come **Mergiata**.
-> Task cross-stream sbloccate: T-007 (`stream-monitoraggio`), T-009 (`stream-reporting`) — ora lavorabili.
-
-Lo sviluppatore può confermare il merge in qualsiasi momento, anche dopo aver iniziato a lavorare altre task dello stesso stream (che non richiedevano quel merge).
-
 ### Completamento di tutte le task — Spostamento in `plans/done/`
 
-Dopo aver completato o mergiato una task, verifica nel file di progresso se **tutte** le task (non solo quelle dello sviluppatore corrente, ma tutte quelle nel piano) sono in stato "Completata" o "Mergiata". Se sì:
+Dopo aver completato una task, verifica nel file di progresso se **tutte** le task (non solo quelle dello sviluppatore corrente, ma tutte quelle nel piano) sono in stato "Completata". Se sì:
 
 ```bash
 mkdir -p plans/done
@@ -371,7 +335,7 @@ mv plans/in-progress/PROGRESSO_BR_*.md plans/done/
 
 Comunica:
 
-> Tutte le task del piano sono completate/mergiate. Report, piano e progresso spostati in `plans/done/`.
+> Tutte le task del piano sono completate. Report, piano e progresso spostati in `plans/done/`.
 
 ---
 

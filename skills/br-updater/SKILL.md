@@ -180,7 +180,7 @@ Aggiorna il piano preservando il progresso:
 - Aggiorna la descrizione con i nuovi requisiti
 - Se la task è "Da iniziare": aggiorna liberamente
 - Se la task è "In corso": aggiungi una nota `[AGGIORNATO <data>]: [cosa è cambiato]` in cima alla descrizione, senza cancellare il lavoro già fatto
-- Se la task è "Completata" o "Mergiata": crea una nuova task di adeguamento (es. `T-001-fix`) collegata alla originale
+- Se la task è "Completata": crea una nuova task di adeguamento (es. `T-001-fix`) collegata alla originale
 
 **Task nuove** (requisito nuovo):
 - Assegna un nuovo ID sequenziale che continua dalla numerazione esistente
@@ -192,7 +192,7 @@ Aggiorna il piano preservando il progresso:
 **Task da rimuovere** (requisito rimosso):
 - Se "Da iniziare": segna come `ANNULLATA` nel piano con motivazione, non cancellarla
 - Se "In corso": avvisa lo sviluppatore, segna come `SOSPESA` con motivazione
-- Se "Completata" o "Mergiata": lasciala nello stato attuale, aggiungi nota `[REQUISITO RIMOSSO <data>]`
+- Se "Completata": lasciala nello stato attuale, aggiungi nota `[REQUISITO RIMOSSO <data>]`
 
 **Aggiorna le sezioni del piano**:
 - Backlog operativo — aggiungi/modifica/annulla task
@@ -232,14 +232,14 @@ Al termine, presenta un riepilogo completo:
 >
 > **Attenzione**:
 > - [eventuali task in corso impattate — lo sviluppatore deve essere avvisato]
-> - [eventuali task completate/mergiate il cui requisito è stato rimosso]
+> - [eventuali task completate il cui requisito è stato rimosso]
 > - [rischi nuovi]
 
 ---
 
 ## Regole Fondamentali
 
-1. **Mai sovrascrivere il progresso** — le task completate/mergiate restano nel loro stato, quelle in corso restano in corso
+1. **Mai sovrascrivere il progresso** — le task completate restano nel loro stato, quelle in corso restano in corso
 2. **Mai cancellare** — i requisiti rimossi vengono segnati come RIMOSSO/ANNULLATA, non eliminati, per preservare la tracciabilità
 3. **Sempre chiedere conferma** — prima di applicare qualsiasi modifica, mostra il delta e aspetta conferma
 4. **Nuove task con ID sequenziali** — continua la numerazione esistente, non riusare ID di task annullate

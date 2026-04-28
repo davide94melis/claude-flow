@@ -272,7 +272,9 @@ Regole:
 - Uno stream può avere più owner (es. task BE e FE della stessa funzionalità)
 - Un owner può lavorare su più stream
 - Le task di Wave 0 (fondazioni) vanno tipicamente in uno stream dedicato `stream-fondazioni`
-- Lo stream determina la regola di sblocco delle dipendenze (vedi br-executor)
+- Lo stream è un campo organizzativo per raggruppare le task — NON ha ruolo nella logica di sblocco delle dipendenze dell'executor
+
+**Dipendenze cross-stream e merge task automatici**: quando una task in uno stream dipende da una task in un altro stream, br-analyzer inserisce automaticamente una **merge task** tra le due. La merge task rappresenta l'atto di mergiare il branch dello stream sorgente nel branch base condiviso. Questo rende esplicita la dipendenza: l'executor non deve conoscere la logica degli stream — tutte le dipendenze si sbloccano semplicemente quando lo stato è "Completata". All'interno dello stesso stream, le dipendenze dirette sono sufficienti e non serve alcuna merge task.
 
 [Lista degli stream identificati con descrizione, es:]
 - `stream-fondazioni` — entità, enum, migration condivise
@@ -288,10 +290,15 @@ Regole:
 
 [Una riga per ogni task]
 
+**Nota sulle merge task**: le task di tipo merge usano il formato ID `T-MERGE-NNN` (dove NNN è l'ID numerico della task sorgente che viene mergiata, es. `T-MERGE-005`). Hanno type "merge", effort ~0.5gg, e la descrizione specifica quale branch mergiare, in quale branch base, e di verificare la build dopo il merge.
+
 ## Ordine di esecuzione
 
 ### Wave 0 — Fondazioni (`stream-fondazioni`)
 - [task fondazionali che sbloccano tutto il resto]
+
+### Merge tasks (tra wave)
+- [merge task generate automaticamente per dipendenze cross-stream, es. T-MERGE-005]
 
 ### Wave 1
 - [Per ogni stream attivo in questa wave, lista task]
@@ -342,7 +349,15 @@ Regole:
 
 Quando scomponi il lavoro in task, questi principi guidano le decisioni:
 
-**Organizzazione in stream** — Raggruppa le task in stream funzionali coesi (es. `stream-booking`, `stream-monitoraggio`). Le task nello stesso stream condividono il contesto di codice e possono sbloccarsi tra loro senza merge. Le dipendenze cross-stream richiedono che il branch venga mergiato prima che la task dipendente possa iniziare. Questo guida sia la parallelizzazione che l'ordine di merge.
+**Organizzazione in stream** — Raggruppa le task in stream funzionali coesi (es. `stream-booking`, `stream-monitoraggio`). Le task nello stesso stream condividono il contesto di codice e possono dipendere direttamente tra loro. Per le dipendenze cross-stream, inserisci sempre una merge task esplicita tra la task sorgente e quella dipendente.
+
+**Merge task per dipendenze cross-stream** — Quando una task in stream-X dipende da una task in stream-Y, br-analyzer DEVE inserire una merge task tra di esse (es. `T-005` in `stream-fondazioni` -> `T-MERGE-005` -> `T-010` in `stream-booking`). La merge task:
+- Appartiene allo stream sorgente (stream-Y)
+- Ha come owner suggerito lo sviluppatore che ha completato la task sorgente
+- Ha effort ~0.5gg e type "merge"
+- La descrizione specifica: quale branch mergiare (`feature/<task-name>`), in quale branch base, verificare la build dopo il merge
+- All'interno dello stesso stream non serve alcuna merge task — la dipendenza diretta è sufficiente
+- Le merge task si collocano tipicamente tra le wave, fungendo da punto di sincronizzazione
 
 **Indipendenza massima** — Ogni task deve poter essere sviluppata in parallelo. Se due task condividono una dipendenza (es. una nuova entità DB), la task che crea la dipendenza va nella wave precedente e deve essere completata prima. Minimizza le dipendenze cross-stream: le fondazioni condivise vanno in `stream-fondazioni` completato e mergiato prima che gli altri stream inizino.
 
