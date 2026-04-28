@@ -184,6 +184,7 @@ Aggiorna il piano preservando il progresso:
 
 **Task nuove** (requisito nuovo):
 - Assegna un nuovo ID sequenziale che continua dalla numerazione esistente
+- Assegna lo **stream** appropriato: usa uno stream esistente se la task appartiene alla stessa area funzionale, oppure crea un nuovo stream se rappresenta una funzionalità nuova
 - Assegnale al developer più adatto in base a ruolo, seniority e carico attuale (dal progresso)
 - Inseriscile nella wave appropriata rispettando le dipendenze
 - Se il team è cambiato, ridistribuisci considerando i nuovi membri

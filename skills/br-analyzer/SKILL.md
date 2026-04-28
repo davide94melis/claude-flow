@@ -259,22 +259,42 @@ Assunzioni:
  - Mid: stream core a media-alta complessità
  - Junior: stream guidati, scope ben chiuso, con review frequente]
 
+## Definizione degli Stream
+
+Ogni stream rappresenta un flusso di lavoro funzionalmente coeso: un insieme di task che appartengono alla stessa area funzionale e lavorano sullo stesso branch o su branch sequenziali. Le task all'interno dello stesso stream condividono il contesto di codice — il completamento di una rende il codice disponibile localmente per la successiva senza bisogno di merge.
+
+Definisci gli stream basandoti sulle funzionalità del BR, non sulla struttura tecnica. Esempi:
+- `stream-booking` — tutte le task relative alla funzionalità Booking
+- `stream-monitoraggio` — tutte le task relative al Monitoraggio
+- `stream-fondazioni` — task di base che creano entità/enum/migration condivise
+
+Regole:
+- Uno stream può avere più owner (es. task BE e FE della stessa funzionalità)
+- Un owner può lavorare su più stream
+- Le task di Wave 0 (fondazioni) vanno tipicamente in uno stream dedicato `stream-fondazioni`
+- Lo stream determina la regola di sblocco delle dipendenze (vedi br-executor)
+
+[Lista degli stream identificati con descrizione, es:]
+- `stream-fondazioni` — entità, enum, migration condivise
+- `stream-booking` — funzionalità di gestione booking
+- `stream-monitoraggio` — dashboard e pratiche monitoraggio
+[...]
+
 ## Backlog operativo
 
-| ID | Owner | Area | Priorità | Attività | Descrizione | Dipendenze | Effort |
-|---|---|---|---:|---|---|---|---:|
-| `T-001` | `[Dev]` | BE/FE | P0/P1/P2 | [Nome task] | [Descrizione dettagliata, con riferimento ai gap del report, file da toccare, pattern da seguire] | [ID dipendenze o "Nessuna"] | `N gg` |
+| ID | Stream | Owner | Area | Priorità | Attività | Descrizione | Dipendenze | Effort |
+|---|---|---|---|---:|---|---|---|---:|
+| `T-001` | `stream-fondazioni` | `[Dev]` | BE/FE | P0/P1/P2 | [Nome task] | [Descrizione dettagliata, con riferimento ai gap del report, file da toccare, pattern da seguire] | [ID dipendenze o "Nessuna"] | `N gg` |
 
 [Una riga per ogni task]
 
 ## Ordine di esecuzione
 
-### Wave 0 — Fondazioni
+### Wave 0 — Fondazioni (`stream-fondazioni`)
 - [task fondazionali che sbloccano tutto il resto]
 
 ### Wave 1
-- Backend: [lista task]
-- Frontend: [lista task]
+- [Per ogni stream attivo in questa wave, lista task]
 
 ### Wave 2
 [...]
@@ -322,7 +342,9 @@ Assunzioni:
 
 Quando scomponi il lavoro in task, questi principi guidano le decisioni:
 
-**Indipendenza massima** — Ogni task deve poter essere sviluppata in parallelo. Se due task condividono una dipendenza (es. una nuova entità DB), la task che crea la dipendenza va nella wave precedente e deve essere completata prima.
+**Organizzazione in stream** — Raggruppa le task in stream funzionali coesi (es. `stream-booking`, `stream-monitoraggio`). Le task nello stesso stream condividono il contesto di codice e possono sbloccarsi tra loro senza merge. Le dipendenze cross-stream richiedono che il branch venga mergiato prima che la task dipendente possa iniziare. Questo guida sia la parallelizzazione che l'ordine di merge.
+
+**Indipendenza massima** — Ogni task deve poter essere sviluppata in parallelo. Se due task condividono una dipendenza (es. una nuova entità DB), la task che crea la dipendenza va nella wave precedente e deve essere completata prima. Minimizza le dipendenze cross-stream: le fondazioni condivise vanno in `stream-fondazioni` completato e mergiato prima che gli altri stream inizino.
 
 **Assegnazione per competenza e seniority** — Task BE a sviluppatori BE, FE a FE. Task complesse o architetturali ai senior/mid. Task ripetitive o con scope ben chiuso ai junior, sempre con review assegnata. I senior non vanno caricati di implementazione continua: il loro valore è nel design, review, e sblocco tecnico.
 

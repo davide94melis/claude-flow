@@ -123,10 +123,10 @@ Ultimo aggiornamento: `<data e ora>`
 
 ## Stato Task
 
-| ID | Attività | Owner | Progresso | Stato | Branch | Note |
-|---|---|---|---:|---|---|---|
-| T-001 | [Nome] | [Dev] | 0% | Da iniziare | — | — |
-| T-002 | [Nome] | [Dev] | 0% | Da iniziare | — | — |
+| ID | Stream | Attività | Owner | Progresso | Stato | Branch | Note |
+|---|---|---|---|---:|---|---|---|
+| T-001 | [stream] | [Nome] | [Dev] | 0% | Da iniziare | — | — |
+| T-002 | [stream] | [Nome] | [Dev] | 0% | Da iniziare | — | — |
 [tutte le task dal piano]
 
 ## Log Attività
@@ -173,34 +173,34 @@ Aspetta la conferma dello sviluppatore prima di iniziare qualsiasi lavoro.
 
 ### Controllo dipendenze
 
-Prima di iniziare una task, verifica le dipendenze dal file di progresso. La regola di sblocco dipende dalla relazione tra gli owner:
+Prima di iniziare una task, verifica le dipendenze dal file di progresso. La regola di sblocco dipende dallo **stream** delle task coinvolte (il campo Stream assegnato nel piano da br-analyzer):
 
-**Stesso owner** — La task dipendente è assegnata allo stesso sviluppatore della dipendenza. Il codice è già disponibile localmente (stesso PC, branch accessibile). La dipendenza si sblocca quando lo stato è **"Completata"** (o "Mergiata").
+**Stesso stream** — La task corrente e la dipendenza appartengono allo stesso stream funzionale. Il codice è disponibile localmente perché le task dello stesso stream lavorano in sequenza sullo stesso flusso di branch. La dipendenza si sblocca quando lo stato è **"Completata"** (o "Mergiata").
 
-**Owner diverso** — La task dipendente è assegnata a uno sviluppatore diverso. Il codice della dipendenza non è disponibile localmente finché il branch non viene mergiato nel branch base condiviso. La dipendenza si sblocca solo quando lo stato è **"Mergiata"**.
+**Stream diverso** — La task corrente e la dipendenza appartengono a stream diversi. Il codice della dipendenza non è disponibile finché il branch non viene mergiato nel branch base condiviso. La dipendenza si sblocca solo quando lo stato è **"Mergiata"**.
 
 Logica di verifica per ogni dipendenza:
 
 1. Trova la task dipendenza nel progresso
-2. Confronta l'owner della dipendenza con l'owner della task corrente
-3. Se **stesso owner**: la dipendenza è soddisfatta se stato è "Completata" o "Mergiata"
-4. Se **owner diverso**: la dipendenza è soddisfatta solo se stato è "Mergiata"
+2. Confronta lo **stream** della dipendenza con lo stream della task corrente
+3. Se **stesso stream**: la dipendenza è soddisfatta se stato è "Completata" o "Mergiata"
+4. Se **stream diverso**: la dipendenza è soddisfatta solo se stato è "Mergiata"
 
 Se tutte le dipendenze sono soddisfatte, procedi normalmente.
 
 Se una dipendenza non è soddisfatta, avvisa e blocca:
 
-> La task **T-005** dipende da **T-003** (owner: [nome owner T-003]).
+> La task **T-005** (`[stream task corrente]`) dipende da **T-003** (`[stream dipendenza]`).
 >
-> [Se stesso owner e task non completata:]
+> [Se stesso stream e task non completata:]
 > T-003 risulta ancora [stato attuale]. Non posso procedere finché non è completata.
 >
-> [Se owner diverso e task completata ma non mergiata:]
-> T-003 è completata da [nome owner], ma il branch non è ancora stato mergiato.
-> Il codice non è disponibile sul branch base condiviso. Serve il merge di `feature/<task-name>` prima di procedere.
+> [Se stream diverso e task completata ma non mergiata:]
+> T-003 (`[stream]`) è completata, ma il branch non è ancora stato mergiato.
+> Essendo di uno stream diverso, il codice non è disponibile sul branch base condiviso. Serve il merge di `feature/<task-name>` prima di procedere.
 >
-> [Se owner diverso e task non completata:]
-> T-003 è ancora [stato attuale] ed è assegnata a [nome owner]. Non posso procedere finché non è completata e mergiata.
+> [Se stream diverso e task non completata:]
+> T-003 (`[stream]`) è ancora [stato attuale]. Non posso procedere finché non è completata e mergiata.
 >
 > Vuoi:
 > 1. Passare a un'altra task senza dipendenze bloccanti?
@@ -332,16 +332,16 @@ Quando tutti i criteri sono soddisfatti:
 
 Aggiorna il file di progresso: stato "Completata", progresso 100%, note con riepilogo del lavoro svolto, log attività aggiornato.
 
-Dopo aver aggiornato il progresso, verifica se ci sono task di **altri sviluppatori** che dipendono dalla task appena completata. Se sì, avvisa:
+Dopo aver aggiornato il progresso, verifica se ci sono task di **altri stream** che dipendono dalla task appena completata. Se sì, avvisa:
 
-> **Nota**: le seguenti task di altri sviluppatori dipendono da T-001:
-> - T-007 (owner: [nome]) — attualmente bloccata in attesa del merge
-> - T-009 (owner: [nome]) — attualmente bloccata in attesa del merge
+> **Nota**: le seguenti task di altri stream dipendono da T-001:
+> - T-007 (`stream-monitoraggio`, owner: [nome]) — bloccata in attesa del merge
+> - T-009 (`stream-reporting`, owner: [nome]) — bloccata in attesa del merge
 >
-> Queste task si sbloccheranno solo dopo che il branch `feature/<task-name>` sarà stato mergiato nel branch base.
+> Essendo di stream diversi, queste task si sbloccheranno solo dopo che il branch `feature/<task-name>` sarà stato mergiato nel branch base.
 > Quando hai fatto il merge, dimmi **"task mergiata"** e aggiorno lo stato.
 
-Se non ci sono task di altri sviluppatori che dipendono da questa, proponi direttamente la prossima task:
+Se ci sono solo task dello **stesso stream** che dipendono da questa (o nessuna dipendenza), proponi direttamente la prossima task:
 
 > Vuoi procedere con la prossima task **T-005 — [nome]**?
 
@@ -351,12 +351,12 @@ Quando lo sviluppatore conferma che il branch di una task completata è stato me
 
 1. Aggiorna lo stato della task nel progresso da "Completata" a **"Mergiata"**
 2. Aggiungi una riga al Log Attività: `[data] — T-001 mergiata nel branch base`
-3. Verifica se questo sblocca task di altri sviluppatori e comunicalo:
+3. Verifica se questo sblocca task di altri stream e comunicalo:
 
 > Task **T-001** segnata come **Mergiata**.
-> Task sbloccate: T-007 (owner: [nome]), T-009 (owner: [nome]) — ora lavorabili.
+> Task cross-stream sbloccate: T-007 (`stream-monitoraggio`), T-009 (`stream-reporting`) — ora lavorabili.
 
-Lo sviluppatore può confermare il merge in qualsiasi momento, anche dopo aver iniziato a lavorare altre sue task (che non richiedevano quel merge).
+Lo sviluppatore può confermare il merge in qualsiasi momento, anche dopo aver iniziato a lavorare altre task dello stesso stream (che non richiedevano quel merge).
 
 ### Completamento di tutte le task — Spostamento in `plans/done/`
 

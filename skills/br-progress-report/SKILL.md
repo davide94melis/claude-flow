@@ -90,18 +90,19 @@ Tabella principale con tutte le task:
 | Colonna | Larghezza | Contenuto |
 |---|---|---|
 | A — ID | 10 | ID task (es. T-001) |
-| B — Attività | 30 | Nome della task |
-| C — Descrizione | 60 | Descrizione completa dal piano |
-| D — Owner | 18 | Sviluppatore assegnato |
-| E — Area | 8 | BE / FE / BE+FE |
-| F — Priorità | 10 | P0 / P1 / P2 |
-| G — Wave | 10 | Wave 0 / 1 / 2 / ... |
-| H — Dipendenze | 15 | ID task dipendenze |
-| I — Effort | 10 | Giorni stimati |
-| J — Branch | 25 | Nome branch |
-| K — Progresso | 12 | Percentuale (0-100%) |
-| L — Stato | 15 | Da iniziare / In corso / Completata / Mergiata / Bloccata / Annullata / Sospesa |
-| M — Note | 40 | Note dal progresso |
+| B — Stream | 18 | Stream funzionale (es. stream-booking) |
+| C — Attività | 30 | Nome della task |
+| D — Descrizione | 60 | Descrizione completa dal piano |
+| E — Owner | 18 | Sviluppatore assegnato |
+| F — Area | 8 | BE / FE / BE+FE |
+| G — Priorità | 10 | P0 / P1 / P2 |
+| H — Wave | 10 | Wave 0 / 1 / 2 / ... |
+| I — Dipendenze | 15 | ID task dipendenze |
+| J — Effort | 10 | Giorni stimati |
+| K — Branch | 25 | Nome branch |
+| L — Progresso | 12 | Percentuale (0-100%) |
+| M — Stato | 15 | Da iniziare / In corso / Completata / Mergiata / Bloccata / Annullata / Sospesa |
+| N — Note | 40 | Note dal progresso |
 
 Formattazione:
 - Header in grassetto con sfondo grigio scuro e testo bianco

@@ -124,7 +124,8 @@ Crea la struttura `plans/todo/`, `plans/in-progress/`, `plans/done/` e genera du
 - Obiettivo (massimizzare parallelismo)
 - Strategia di esecuzione (fondazioni, stream paralleli, integrazione)
 - Distribuzione team consigliata (per competenza e seniority)
-- Backlog operativo in tabella: ID, Owner, Area, Priorita, Attivita, Descrizione dettagliata, Dipendenze, Effort
+- Definizione degli stream funzionali (es. `stream-booking`, `stream-monitoraggio`, `stream-fondazioni`)
+- Backlog operativo in tabella: ID, Stream, Owner, Area, Priorita, Attivita, Descrizione dettagliata, Dipendenze, Effort
 - Ordine di esecuzione per wave (Wave 0 fondazioni, Wave 1..N sviluppo, Wave finale integrazione/UAT)
 - Dipendenze critiche
 - Piano per persona con lista task e note su pairing/review
@@ -135,7 +136,8 @@ Crea la struttura `plans/todo/`, `plans/in-progress/`, `plans/done/` e genera du
 
 ### Principi per la Creazione delle Task
 
-- **Indipendenza massima**: ogni task deve poter essere sviluppata in parallelo. Le dipendenze condivise vanno nella wave precedente.
+- **Organizzazione in stream**: le task sono raggruppate in stream funzionali coesi. Le task nello stesso stream condividono il contesto di codice e si sbloccano senza merge. Le dipendenze cross-stream richiedono merge. Le fondazioni condivise vanno in `stream-fondazioni`.
+- **Indipendenza massima**: ogni task deve poter essere sviluppata in parallelo. Le dipendenze condivise vanno nella wave precedente. Minimizzare le dipendenze cross-stream.
 - **Assegnazione per competenza e seniority**: task BE a sviluppatori BE, FE a FE. Task complesse ai senior/mid, task con scope chiuso ai junior con review assegnata. I senior non vanno caricati di implementazione continua.
 - **Granularita giusta**: ogni task completabile in 1-5 giorni. Troppo grande: spezzala. Troppo piccola (< 2 ore): accorpala.
 - **Branch convention**: ogni task ha un branch `feature/<task-name>` dal branch principale della feature. Ordine di merge basato sulle dipendenze.
@@ -186,10 +188,10 @@ Aggiorna il progresso a ogni cambio di stato significativo: task che passa a "In
 
 **Selezione task**: presenta le task assegnate allo sviluppatore in ordine di priorita (P0 > P1 > P2) e wave, chiede conferma prima di iniziare.
 
-**Controllo dipendenze — logica smart per stream**: la regola di sblocco dipende dalla relazione tra gli owner delle task:
+**Controllo dipendenze — logica basata sullo stream**: la regola di sblocco dipende dallo **stream** delle task (campo assegnato nel piano da br-analyzer), non dall'owner:
 
-- **Stesso owner** (stesso stream): la dipendenza si sblocca quando lo stato e **"Completata"** o "Mergiata". Il codice e gia disponibile localmente perche lo sviluppatore ha lavorato la task precedente sullo stesso PC.
-- **Owner diverso** (cross-stream): la dipendenza si sblocca solo quando lo stato e **"Mergiata"**. Il codice non e disponibile localmente finche il branch non viene mergiato nel branch base condiviso.
+- **Stesso stream**: la dipendenza si sblocca quando lo stato e **"Completata"** o "Mergiata". Il codice e disponibile localmente perche le task dello stesso stream lavorano in sequenza sullo stesso flusso di branch.
+- **Stream diverso**: la dipendenza si sblocca solo quando lo stato e **"Mergiata"**. Il codice non e disponibile finche il branch non viene mergiato nel branch base condiviso — anche se l'owner e lo stesso sviluppatore.
 
 Se le dipendenze non sono soddisfatte, blocca e propone alternative: passare a un'altra task senza dipendenze bloccanti, oppure attendere.
 
@@ -213,9 +215,9 @@ Se le dipendenze non sono soddisfatte, blocca e propone alternative: passare a u
 - Test unitari scritti e tutti verdi
 - Build compila senza errori
 
-Al completamento, aggiorna il progresso a 100% con stato "Completata". Se ci sono task di altri sviluppatori che dipendono da questa, avvisa che si sbloccheranno solo dopo il merge. Propone la prossima task dello stesso stream (che non richiede merge per sbloccarsi).
+Al completamento, aggiorna il progresso a 100% con stato "Completata". Se ci sono task di **altri stream** che dipendono da questa, avvisa che si sbloccheranno solo dopo il merge. Propone la prossima task dello stesso stream (che non richiede merge per sbloccarsi).
 
-**Conferma merge — transizione a "Mergiata"**: quando lo sviluppatore conferma che il branch e stato mergiato nel branch base (es. "task mergiata", "ho fatto il merge"), lo stato passa da "Completata" a "Mergiata" e le task cross-stream dipendenti vengono sbloccate. Il merge puo essere confermato in qualsiasi momento, anche dopo aver iniziato altre task dello stesso stream.
+**Conferma merge — transizione a "Mergiata"**: quando lo sviluppatore conferma che il branch e stato mergiato nel branch base (es. "task mergiata", "ho fatto il merge"), lo stato passa da "Completata" a "Mergiata" e le task **cross-stream** dipendenti vengono sbloccate. Il merge puo essere confermato in qualsiasi momento, anche dopo aver iniziato altre task dello stesso stream.
 
 **Spostamento in done**: quando tutte le task del piano (non solo quelle dello sviluppatore) sono in stato "Completata" o "Mergiata", sposta tutti i file in `plans/done/`.
 
@@ -342,6 +344,7 @@ Usa Python con `openpyxl`. Il file contiene 3 fogli:
 | Colonna | Contenuto |
 |---|---|
 | ID | ID task (es. T-001) |
+| Stream | Stream funzionale (es. stream-booking) |
 | Attivita | Nome della task |
 | Descrizione | Descrizione completa dal piano |
 | Owner | Sviluppatore assegnato |
@@ -419,12 +422,12 @@ Da iniziare → In corso → Completata → Mergiata
 
 ### Regola di sblocco dipendenze
 
-La transizione da "Completata" a "Mergiata" e fondamentale per il flusso multi-sviluppatore:
+La transizione da "Completata" a "Mergiata" e fondamentale per il flusso multi-stream:
 
-- **Stesso owner**: la task dipendente si sblocca gia a "Completata", perche il codice e disponibile localmente sullo stesso PC.
-- **Owner diverso**: la task dipendente si sblocca solo a "Mergiata", perche l'altro sviluppatore non ha il codice finche il branch non viene mergiato nel branch base condiviso.
+- **Stesso stream**: la task dipendente si sblocca gia a "Completata", perche le task dello stesso stream lavorano in sequenza sullo stesso flusso di branch e il codice e disponibile localmente.
+- **Stream diverso**: la task dipendente si sblocca solo a "Mergiata", perche il codice non e disponibile sul branch di un altro stream finche non viene mergiato nel branch base condiviso — anche se l'owner e lo stesso sviluppatore.
 
-Questo evita che uno sviluppatore inizi a lavorare su codice che non e ancora disponibile sul suo branch.
+Questo evita che si inizi a lavorare su codice che non e ancora disponibile sul branch dello stream corrente.
 
 ---
 
