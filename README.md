@@ -1,8 +1,18 @@
 # Claude Flow — BR Skills per Claude Code
 
-Suite di skill per Claude Code che automatizzano il ciclo di vita dei Business Requirements: dall'analisi gap all'esecuzione task, con aggiornamento incrementale e reporting Excel.
+Suite di skill per Claude Code che automatizzano il ciclo di vita dei Business Requirements: dalla review della documentazione funzionale all'analisi gap, dall'esecuzione task all'aggiornamento incrementale e reporting Excel.
 
 ## Skills
+
+### br-reviewer
+
+Verifica la qualita, coerenza e completezza della documentazione funzionale di un BR *prima* dell'analisi tecnica. Produce un report duale:
+- **Parte 1 — Per il team funzionale**: problemi da chiarire (bloccanti e non), con domande precise
+- **Parte 2 — Per il team tecnico**: assunzioni di default e disallineamenti col codice
+
+Esegue anche un check leggero contro il codice per trovare disallineamenti terminologici e strutturali.
+
+**Trigger**: `rivedi il br`, `review del br`, `controlla la documentazione`, `verifica il br`
 
 ### br-analyzer
 
@@ -44,6 +54,10 @@ cp -r skills/br-* ~/.claude/skills/
 Aggiungi i trigger nel tuo `~/.claude/CLAUDE.md`:
 
 ```markdown
+# br-reviewer
+- **br-reviewer** (`~/.claude/skills/br-reviewer/SKILL.md`) - review qualita della documentazione funzionale prima dell'analisi tecnica. Trigger: "rivedi il br", "review del br", "controlla la documentazione"
+When the user says "rivedi il br", "review del br", "controlla la documentazione", "verifica il br", or similar phrases about reviewing BR documentation quality, invoke the Skill tool with `skill: "br-reviewer"` before doing anything else.
+
 # br-analyzer
 - **br-analyzer** (`~/.claude/skills/br-analyzer/SKILL.md`) - analisi gap tra BR e codice + piano di implementazione. Trigger: "abbiamo un nuovo br"
 When the user says "abbiamo un nuovo br" (or similar phrases about a new business requirement), invoke the Skill tool with `skill: "br-analyzer"` before doing anything else.
@@ -71,21 +85,47 @@ When the user says "genera il report excel", "aggiorna l'excel", "stato avanzame
 
 Per la documentazione dettagliata di ogni skill (fasi operative, regole, formati di output, gestione situazioni speciali), consulta **[BR_SKILLS_DOCUMENTATION.md](BR_SKILLS_DOCUMENTATION.md)**.
 
+## Struttura Cartelle
+
+I file di ogni BR sono organizzati in una cartella dedicata con formato `<YYYY-MM-DD>_<nome-br>/`. La cartella si sposta come unita tra le tre aree:
+
+```
+plans/
+├── todo/                              <-- br-reviewer e br-analyzer creano i report qui
+│   └── 2026-04-28_booking-v2/
+│       ├── br-docs-converted/         <-- documentazione convertita in MD
+│       ├── REVIEW_BR.md               <-- output di br-reviewer
+│       ├── GAP_REPORT_BR.md           <-- output di br-analyzer
+│       └── PIANO_IMPLEMENTAZIONE_BR.md
+├── in-progress/                       <-- br-executor sposta qui la cartella all'avvio
+│   └── 2026-04-28_booking-v2/
+│       ├── ...tutto il contenuto...
+│       └── PROGRESSO_BR.md            <-- creato da br-executor
+└── done/                              <-- br-executor sposta qui al completamento
+    └── 2026-04-28_booking-v2/
+        └── AVANZAMENTO_BR.xlsx        <-- creato da br-progress-report
+```
+
+Tutte le skill mantengono retrocompatibilita con il vecchio formato flat (es. `GAP_REPORT_BR_2026-04-28.md`).
+
 ## Flusso di lavoro
 
 ```
-BR nuovo ──→ br-analyzer ──→ Gap Report + Piano
-                                    │
-                                    ▼
-                              br-executor ──→ Implementazione task
-                                    │
-                                    ▼
-                          br-progress-report ──→ Excel avanzamento
-                                    │
-              BR aggiornato ──→ br-updater ──→ Aggiorna report/piano
-                                    │
-                                    ▼
-                              br-executor ──→ Lavora task aggiornate
+BR nuovo ──→ br-reviewer ──→ Review qualita documentazione
+                  │
+                  ▼
+            br-analyzer ──→ Gap Report + Piano
+                  │
+                  ▼
+            br-executor ──→ Implementazione task
+                  │
+                  ▼
+        br-progress-report ──→ Excel avanzamento
+                  │
+    BR aggiornato ──→ br-updater ──→ Aggiorna report/piano
+                  │
+                  ▼
+            br-executor ──→ Lavora task aggiornate
 ```
 
 ## Licenza

@@ -1,6 +1,6 @@
 # BR Skills Suite — Documentazione Completa
 
-Suite di 4 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement: dall'analisi iniziale all'esecuzione delle task, dalla gestione degli aggiornamenti alla reportistica Excel.
+Suite di 5 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement: dalla review della documentazione funzionale all'analisi gap, dall'esecuzione delle task alla gestione degli aggiornamenti e alla reportistica Excel.
 
 ## Architettura del Flusso
 
@@ -8,15 +8,21 @@ Suite di 4 skill complementari per Claude Code che automatizzano l'intero ciclo 
 BR / Documentazione
         |
         v
-  [br-analyzer]  ──>  plans/todo/
+  [br-reviewer]   ──>  plans/todo/<data>_<nome>/
         |                  |
-        |            GAP_REPORT_BR_*.md
-        |            PIANO_IMPLEMENTAZIONE_BR_*.md
+        |            REVIEW_BR.md
+        |            br-docs-converted/
         |
         v
-  [br-executor]  ──>  plans/in-progress/
+  [br-analyzer]   ──>  plans/todo/<data>_<nome>/
         |                  |
-        |            + PROGRESSO_BR_*.md
+        |            GAP_REPORT_BR.md
+        |            PIANO_IMPLEMENTAZIONE_BR.md
+        |
+        v
+  [br-executor]   ──>  plans/in-progress/<data>_<nome>/
+        |                  |
+        |            + PROGRESSO_BR.md
         |
         |   (se BR aggiornato)
         |         |
@@ -27,27 +33,110 @@ BR / Documentazione
         |   (per reportistica)
         |         |
         |         v
-        |   [br-progress-report]  ──>  AVANZAMENTO_BR_*.xlsx
+        |   [br-progress-report]  ──>  AVANZAMENTO_BR.xlsx
         |
         v
   (tutte le task completate)
         |
         v
-                       plans/done/
+                       plans/done/<data>_<nome>/
 ```
 
 ## Struttura Cartelle
 
+Ogni BR ha la propria cartella con formato `<YYYY-MM-DD>_<nome-br>/`. La cartella si sposta come unita tra le tre aree:
+
 ```
 plans/
-├── todo/              <-- br-analyzer crea report e piano qui
-├── in-progress/       <-- br-executor li sposta qui all'avvio + crea progresso + excel
-└── done/              <-- br-executor li sposta qui al completamento di tutte le task
+├── todo/                              <-- br-reviewer e br-analyzer creano i report qui
+│   └── 2026-04-28_booking-v2/
+│       ├── br-docs-converted/         <-- documentazione convertita in MD (da br-reviewer)
+│       ├── REVIEW_BR.md               <-- output di br-reviewer
+│       ├── GAP_REPORT_BR.md           <-- output di br-analyzer
+│       └── PIANO_IMPLEMENTAZIONE_BR.md
+├── in-progress/                       <-- br-executor sposta qui la cartella all'avvio
+│   └── 2026-04-28_booking-v2/
+│       ├── ...tutto il contenuto...
+│       └── PROGRESSO_BR.md            <-- creato da br-executor
+└── done/                              <-- br-executor sposta qui al completamento
+    └── 2026-04-28_booking-v2/
+        └── AVANZAMENTO_BR.xlsx        <-- creato da br-progress-report
 ```
+
+Tutte le skill mantengono retrocompatibilita con il vecchio formato flat (es. `GAP_REPORT_BR_2026-04-28.md`).
 
 ---
 
-## 1. BR Analyzer
+## 1. BR Reviewer
+
+**Skill**: `br-reviewer`
+**Path**: `~/.claude/skills/br-reviewer/SKILL.md`
+**Trigger**: "rivedi il br", "review del br", "controlla la documentazione", "verifica il br"
+
+### Scopo
+
+Validare la qualita, coerenza e completezza della documentazione funzionale di un BR *prima* dell'analisi tecnica (br-analyzer). Produce un report duale:
+- **Parte 1 — Per il team funzionale**: elenca i problemi trovati (bloccanti e non) con domande precise a cui serve risposta
+- **Parte 2 — Per il team tecnico**: assunzioni di default che il team adottera in assenza di chiarimenti, e disallineamenti tra terminologia/strutture del BR e del codice
+
+Esegue anche un check leggero contro il codice per trovare disallineamenti terminologici e strutturali — non una gap analysis completa (quella la fa br-analyzer), ma problemi di documentazione visibili solo confrontando col codebase.
+
+### Flusso Operativo
+
+La skill opera in 4 fasi sequenziali.
+
+#### Fase 1 — Raccolta Input
+
+Pone 3 domande una alla volta:
+
+1. **Nome del BR** — identificativo per la cartella (es. "booking-v2" crea `plans/todo/2026-04-28_booking-v2/`)
+2. **Documentazione** — path ai file del BR. Accetta MD, PDF, DOCX, XLSX, PPTX, immagini.
+3. **Codebase coinvolti** — nome, sigla, path per ogni repository. Servono per il check leggero contro il codice.
+
+Prima di procedere, ricapitola tutti gli input e chiede conferma.
+
+#### Fase 2 — Conversione Documentazione in MD
+
+Stessa logica di conversione delle altre skill (doc-to-markdown per DOCX/DOC, markitdown per PDF/PPTX/XLSX, copia diretta per MD, Read per immagini). I file convertiti vanno nella cartella del BR: `plans/todo/<data>_<nome>/br-docs-converted/`.
+
+Questa fase viene eseguita da br-reviewer: br-analyzer non la ripete se trova i file gia convertiti.
+
+#### Fase 3 — Analisi della Documentazione
+
+Tre livelli di analisi:
+
+1. **Analisi intra-documento** — coerenza interna, completezza dei flussi (caso felice + eccezioni + errori), chiarezza dei requisiti, definizione delle regole di business
+2. **Analisi inter-documento** — BR vs mockup (corrispondenza elementi visuali/funzionali), BR vs specifiche tecniche, coerenza terminologica tra tutti i documenti
+3. **Check leggero contro il codice** — verifica superficiale di entita/modelli dati, enum/costanti, API/endpoint, flussi e stati gia implementati
+
+Ogni problema viene classificato per categoria e gravita:
+
+| Categoria | Descrizione |
+|---|---|
+| **Incoerenza** | Contraddizioni tra parti della documentazione |
+| **Gap funzionale** | Pezzi mancanti nella descrizione del comportamento |
+| **Ambiguita** | Punti interpretabili in piu modi |
+| **Riferimento mancante** | Dipendenze esterne non specificate |
+| **Disallineamento col codice** | Il BR presuppone strutture/terminologie diverse da quelle nel codice |
+
+#### Fase 4 — Generazione Output
+
+Genera `REVIEW_BR.md` nella cartella del BR con:
+- Esito sintetico (qualita complessiva, conteggio problemi, presenza bloccanti)
+- **Parte 1 — Per il team funzionale**: problemi bloccanti e non bloccanti con domande precise
+- **Parte 2 — Per il team tecnico**: tabella assunzioni proposte con rischio e costo di correzione, tabella disallineamenti col codice
+- **Riepilogo per br-analyzer**: sezione tecnica consumata automaticamente da br-analyzer per incorporare le assunzioni nel piano
+
+Se ci sono bloccanti, consiglia di attendere chiarimenti dal funzionale prima di procedere con br-analyzer, ma la decisione e dell'utente.
+
+### Dipendenze
+
+- `doc-to-markdown` skill (`~/.claude/skills/doc-to-markdown/`)
+- `markitdown` (via pip o uvx)
+
+---
+
+## 2. BR Analyzer
 
 **Skill**: `br-analyzer`
 **Path**: `~/.claude/skills/br-analyzer/SKILL.md`
@@ -55,7 +144,7 @@ plans/
 
 ### Scopo
 
-Analizzare un nuovo Business Requirement confrontandolo con i codebase esistenti del progetto, identificare tutti i gap tra documentazione e codice, e produrre un piano di implementazione con task indipendenti assegnabili a sviluppatori muniti di Claude Code.
+Analizzare un nuovo Business Requirement confrontandolo con i codebase esistenti del progetto, identificare tutti i gap tra documentazione e codice, e produrre un piano di implementazione con task indipendenti assegnabili a sviluppatori muniti di Claude Code. Se br-reviewer e stato eseguito prima, ne legge le assunzioni e salta la conversione dei documenti.
 
 ### Flusso Operativo
 
@@ -142,7 +231,7 @@ Crea la struttura `plans/todo/`, `plans/in-progress/`, `plans/done/` e genera du
 
 ---
 
-## 2. BR Executor
+## 3. BR Executor
 
 **Skill**: `br-executor`
 **Path**: `~/.claude/skills/br-executor/SKILL.md`
@@ -225,7 +314,7 @@ Al completamento, aggiorna il progresso a 100% con stato "Completata" e propone 
 
 ---
 
-## 3. BR Updater
+## 4. BR Updater
 
 **Skill**: `br-updater`
 **Path**: `~/.claude/skills/br-updater/SKILL.md`
@@ -295,7 +384,7 @@ Presenta riepilogo completo: file aggiornati, task aggiunte/modificate/annullate
 
 ---
 
-## 4. BR Progress Report
+## 5. BR Progress Report
 
 **Skill**: `br-progress-report`
 **Path**: `~/.claude/skills/br-progress-report/SKILL.md`
@@ -422,6 +511,7 @@ Le dipendenze cross-stream sono gestite tramite **merge task esplicite** (`T-MER
 
 | Frase | Skill |
 |---|---|
+| "rivedi il br" / "review del br" / "controlla la documentazione" / "verifica il br" | br-reviewer |
 | "abbiamo un nuovo br" | br-analyzer |
 | "lavora il task" / "inizia a lavorare" / "esegui il piano" | br-executor |
 | "il br e stato aggiornato" / "aggiorna il piano" / "nuova versione del br" | br-updater |
