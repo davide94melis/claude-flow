@@ -67,6 +67,10 @@ When the user says "genera il report excel", "aggiorna l'excel", "stato avanzame
 - **markitdown** — per conversione PDF, PPTX, XLSX (`pip install 'markitdown[all]'`)
 - **openpyxl** — per generazione Excel (`pip install openpyxl`, usata da `br-progress-report`)
 
+## Documentazione completa
+
+Per la documentazione dettagliata di ogni skill (fasi operative, regole, formati di output, gestione situazioni speciali), consulta **[BR_SKILLS_DOCUMENTATION.md](BR_SKILLS_DOCUMENTATION.md)**.
+
 ## Flusso di lavoro
 
 ```
