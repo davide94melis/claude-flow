@@ -32,6 +32,14 @@ BR / Documentazione
         v
   (tutte le task completate)
         |
+        |   (merge branch → "Mergiata")
+        |         |
+        |         v
+        |   sblocca task cross-stream
+        |
+        v
+  (tutte le task completate/mergiate)
+        |
         v
                        plans/done/
 ```
@@ -172,13 +180,18 @@ Se il file non esiste, lo crea (`PROGRESSO_BR_<data>.md`) in `plans/in-progress/
 
 Se il file esiste, lo legge, sincronizza con il piano e mostra lo stato attuale delle task dello sviluppatore.
 
-Aggiorna il progresso a ogni cambio di stato significativo: task che passa a "In corso", sottoagente che completa una parte, task completata, task bloccata.
+Aggiorna il progresso a ogni cambio di stato significativo: task che passa a "In corso", sottoagente che completa una parte, task completata, task mergiata, task bloccata.
 
 #### Fase 3 — Lavorazione Task
 
 **Selezione task**: presenta le task assegnate allo sviluppatore in ordine di priorita (P0 > P1 > P2) e wave, chiede conferma prima di iniziare.
 
-**Controllo dipendenze**: verifica nel file di progresso che le dipendenze siano soddisfatte (stato "Completata"). Se non soddisfatte, blocca e propone alternative: passare a un'altra task senza dipendenze bloccanti, oppure attendere.
+**Controllo dipendenze — logica smart per stream**: la regola di sblocco dipende dalla relazione tra gli owner delle task:
+
+- **Stesso owner** (stesso stream): la dipendenza si sblocca quando lo stato e **"Completata"** o "Mergiata". Il codice e gia disponibile localmente perche lo sviluppatore ha lavorato la task precedente sullo stesso PC.
+- **Owner diverso** (cross-stream): la dipendenza si sblocca solo quando lo stato e **"Mergiata"**. Il codice non e disponibile localmente finche il branch non viene mergiato nel branch base condiviso.
+
+Se le dipendenze non sono soddisfatte, blocca e propone alternative: passare a un'altra task senza dipendenze bloccanti, oppure attendere.
 
 **Creazione branch**: crea il branch `feature/<task-name>` dalla base indicata nel piano, aggiorna il progresso.
 
@@ -200,9 +213,11 @@ Aggiorna il progresso a ogni cambio di stato significativo: task che passa a "In
 - Test unitari scritti e tutti verdi
 - Build compila senza errori
 
-Al completamento, aggiorna il progresso a 100% e propone la task successiva.
+Al completamento, aggiorna il progresso a 100% con stato "Completata". Se ci sono task di altri sviluppatori che dipendono da questa, avvisa che si sbloccheranno solo dopo il merge. Propone la prossima task dello stesso stream (che non richiede merge per sbloccarsi).
 
-**Spostamento in done**: quando tutte le task del piano (non solo quelle dello sviluppatore) sono al 100%, sposta tutti i file in `plans/done/`.
+**Conferma merge — transizione a "Mergiata"**: quando lo sviluppatore conferma che il branch e stato mergiato nel branch base (es. "task mergiata", "ho fatto il merge"), lo stato passa da "Completata" a "Mergiata" e le task cross-stream dipendenti vengono sbloccate. Il merge puo essere confermato in qualsiasi momento, anche dopo aver iniziato altre task dello stesso stream.
+
+**Spostamento in done**: quando tutte le task del piano (non solo quelle dello sviluppatore) sono in stato "Completata" o "Mergiata", sposta tutti i file in `plans/done/`.
 
 #### Fase 4 — Gestione Situazioni Speciali
 
@@ -267,12 +282,12 @@ Prima di modificare qualsiasi file, presenta il riepilogo dei delta (requisiti n
 - Task da modificare:
   - Se "Da iniziare": aggiornata liberamente
   - Se "In corso": nota `[AGGIORNATO <data>]` aggiunta in cima alla descrizione
-  - Se "Completata": nuova task di adeguamento (es. `T-001-fix`)
+  - Se "Completata" o "Mergiata": nuova task di adeguamento (es. `T-001-fix`)
 - Task nuove: ID sequenziale, assegnate per competenza e carico attuale, inserite nella wave corretta
 - Task da rimuovere:
   - Se "Da iniziare": segnata come ANNULLATA
   - Se "In corso": segnata come SOSPESA, sviluppatore avvisato
-  - Se "Completata": resta completata con nota `[REQUISITO RIMOSSO <data>]`
+  - Se "Completata" o "Mergiata": resta nello stato attuale con nota `[REQUISITO RIMOSSO <data>]`
 - Ricalcolo di wave, piano per persona, stima, rischi
 
 **Aggiornamento File di Progresso**: task nuove a 0%, task annullate/sospese aggiornate, metriche ricalcolate, log aggiornato.
@@ -283,11 +298,11 @@ Presenta riepilogo completo: file aggiornati, task aggiunte/modificate/annullate
 
 ### Regole Fondamentali
 
-1. Mai sovrascrivere il progresso
+1. Mai sovrascrivere il progresso (task completate/mergiate restano nel loro stato)
 2. Mai cancellare (sempre segnare come RIMOSSO/ANNULLATA per tracciabilita)
 3. Sempre chiedere conferma prima di applicare modifiche
 4. Nuove task con ID sequenziali (non riusare ID di task annullate)
-5. Segnalare sempre i conflitti con task in corso o completate
+5. Segnalare sempre i conflitti con task in corso, completate o mergiate
 
 ---
 
@@ -337,13 +352,13 @@ Usa Python con `openpyxl`. Il file contiene 3 fogli:
 | Effort | Giorni stimati |
 | Branch | Nome branch |
 | Progresso | Percentuale 0-100% |
-| Stato | Da iniziare / In corso / Completata / Bloccata / Annullata / Sospesa |
+| Stato | Da iniziare / In corso / Completata / Mergiata / Bloccata / Annullata / Sospesa |
 | Note | Note dal progresso |
 
 Formattazione:
 - Header in grassetto con sfondo grigio scuro e testo bianco
 - Progresso con colori condizionali: rosso (0%), arancione (1-49%), giallo (50-99%), verde (100%)
-- Stato con colori condizionali: verde (Completata), blu (In corso), rosso (Bloccata), grigio (Annullata/Sospesa)
+- Stato con colori condizionali: verde (Completata), verde intenso (Mergiata), blu (In corso), rosso (Bloccata), grigio (Annullata/Sospesa)
 - Filtri attivi su tutte le colonne
 - Righe alternate per leggibilita
 - Wrap text sulla colonna Descrizione
@@ -356,13 +371,14 @@ Formattazione:
 | Ruolo | BE / FE / Fullstack |
 | Seniority | Junior / Mid / Senior |
 | Task totali | Conteggio |
-| Completate | Conteggio |
+| Completate | Conteggio (include Completata + Mergiata) |
+| Mergiate | Conteggio (solo Mergiata) |
 | In corso | Conteggio |
 | Da iniziare | Conteggio |
 | Bloccate | Conteggio |
 | Progresso medio | Media % delle sue task |
 | Effort totale | Somma giorni stimati |
-| Effort completato | Somma giorni delle task completate |
+| Effort completato | Somma giorni delle task completate/mergiate |
 
 Riga "TOTALE" in fondo con le somme.
 
@@ -378,6 +394,37 @@ Salva `AVANZAMENTO_BR_<data>.xlsx` nella stessa cartella del piano. In modalita 
 ### Dipendenze
 
 - `openpyxl` (Python) — `pip install openpyxl`
+
+---
+
+## Ciclo di Vita delle Task
+
+```
+Da iniziare → In corso → Completata → Mergiata
+                  |                       |
+                  v                       v
+              Bloccata            (sblocca task
+                                  cross-stream)
+```
+
+| Stato | Significato |
+|---|---|
+| Da iniziare | Task non ancora avviata |
+| In corso | Sviluppatore sta lavorando la task |
+| Completata | Codice scritto, test verdi, build ok — pronta per review/merge |
+| Mergiata | Branch mergiato nel branch base condiviso — codice disponibile per tutti |
+| Bloccata | Dipendenza non soddisfatta o problema tecnico |
+| Annullata | Requisito rimosso dal BR (task non ancora iniziata) |
+| Sospesa | Requisito rimosso dal BR (task era in corso) |
+
+### Regola di sblocco dipendenze
+
+La transizione da "Completata" a "Mergiata" e fondamentale per il flusso multi-sviluppatore:
+
+- **Stesso owner**: la task dipendente si sblocca gia a "Completata", perche il codice e disponibile localmente sullo stesso PC.
+- **Owner diverso**: la task dipendente si sblocca solo a "Mergiata", perche l'altro sviluppatore non ha il codice finche il branch non viene mergiato nel branch base condiviso.
+
+Questo evita che uno sviluppatore inizi a lavorare su codice che non e ancora disponibile sul suo branch.
 
 ---
 

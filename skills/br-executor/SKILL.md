@@ -115,6 +115,7 @@ Ultimo aggiornamento: `<data e ora>`
 |---|---|
 | Task totali | N |
 | Completate | 0 |
+| Mergiate | 0 |
 | In corso | 0 |
 | Da iniziare | N |
 | Bloccate | 0 |
@@ -146,6 +147,7 @@ Aggiorna il file di progresso a ogni cambio di stato significativo:
 - Quando una task passa a "In corso"
 - Quando un sottoagente completa una parte del lavoro (aggiorna la %)
 - Quando una task viene completata
+- Quando una task viene mergiata
 - Quando una task risulta bloccata
 
 Aggiorna sempre il campo "Ultimo aggiornamento" e aggiungi una riga al Log Attività.
@@ -171,13 +173,34 @@ Aspetta la conferma dello sviluppatore prima di iniziare qualsiasi lavoro.
 
 ### Controllo dipendenze
 
-Prima di iniziare una task, verifica le dipendenze dal file di progresso:
+Prima di iniziare una task, verifica le dipendenze dal file di progresso. La regola di sblocco dipende dalla relazione tra gli owner:
 
-- **Dipendenze soddisfatte** (stato "Completata" nel progresso) — procedi normalmente
-- **Dipendenze non soddisfatte** — avvisa e blocca:
+**Stesso owner** — La task dipendente è assegnata allo stesso sviluppatore della dipendenza. Il codice è già disponibile localmente (stesso PC, branch accessibile). La dipendenza si sblocca quando lo stato è **"Completata"** (o "Mergiata").
 
-> La task **T-005** dipende da **T-003** che risulta ancora [stato attuale: In corso / Da iniziare / Bloccata].
-> Non posso procedere finché T-003 non è completata.
+**Owner diverso** — La task dipendente è assegnata a uno sviluppatore diverso. Il codice della dipendenza non è disponibile localmente finché il branch non viene mergiato nel branch base condiviso. La dipendenza si sblocca solo quando lo stato è **"Mergiata"**.
+
+Logica di verifica per ogni dipendenza:
+
+1. Trova la task dipendenza nel progresso
+2. Confronta l'owner della dipendenza con l'owner della task corrente
+3. Se **stesso owner**: la dipendenza è soddisfatta se stato è "Completata" o "Mergiata"
+4. Se **owner diverso**: la dipendenza è soddisfatta solo se stato è "Mergiata"
+
+Se tutte le dipendenze sono soddisfatte, procedi normalmente.
+
+Se una dipendenza non è soddisfatta, avvisa e blocca:
+
+> La task **T-005** dipende da **T-003** (owner: [nome owner T-003]).
+>
+> [Se stesso owner e task non completata:]
+> T-003 risulta ancora [stato attuale]. Non posso procedere finché non è completata.
+>
+> [Se owner diverso e task completata ma non mergiata:]
+> T-003 è completata da [nome owner], ma il branch non è ancora stato mergiato.
+> Il codice non è disponibile sul branch base condiviso. Serve il merge di `feature/<task-name>` prima di procedere.
+>
+> [Se owner diverso e task non completata:]
+> T-003 è ancora [stato attuale] ed è assegnata a [nome owner]. Non posso procedere finché non è completata e mergiata.
 >
 > Vuoi:
 > 1. Passare a un'altra task senza dipendenze bloccanti?
@@ -305,15 +328,39 @@ Quando tutti i criteri sono soddisfatti:
 > - [x] Build: compila
 > - [x] Codice documentato
 >
-> Aggiorno il file di progresso a 100%.
->
-> Vuoi procedere con la prossima task **T-005 — [nome]**?
+> Aggiorno il file di progresso a 100% — stato: **Completata**.
 
 Aggiorna il file di progresso: stato "Completata", progresso 100%, note con riepilogo del lavoro svolto, log attività aggiornato.
 
+Dopo aver aggiornato il progresso, verifica se ci sono task di **altri sviluppatori** che dipendono dalla task appena completata. Se sì, avvisa:
+
+> **Nota**: le seguenti task di altri sviluppatori dipendono da T-001:
+> - T-007 (owner: [nome]) — attualmente bloccata in attesa del merge
+> - T-009 (owner: [nome]) — attualmente bloccata in attesa del merge
+>
+> Queste task si sbloccheranno solo dopo che il branch `feature/<task-name>` sarà stato mergiato nel branch base.
+> Quando hai fatto il merge, dimmi **"task mergiata"** e aggiorno lo stato.
+
+Se non ci sono task di altri sviluppatori che dipendono da questa, proponi direttamente la prossima task:
+
+> Vuoi procedere con la prossima task **T-005 — [nome]**?
+
+### Conferma merge — Transizione a "Mergiata"
+
+Quando lo sviluppatore conferma che il branch di una task completata è stato mergiato (es. "task mergiata", "ho fatto il merge", "mergiato T-001"):
+
+1. Aggiorna lo stato della task nel progresso da "Completata" a **"Mergiata"**
+2. Aggiungi una riga al Log Attività: `[data] — T-001 mergiata nel branch base`
+3. Verifica se questo sblocca task di altri sviluppatori e comunicalo:
+
+> Task **T-001** segnata come **Mergiata**.
+> Task sbloccate: T-007 (owner: [nome]), T-009 (owner: [nome]) — ora lavorabili.
+
+Lo sviluppatore può confermare il merge in qualsiasi momento, anche dopo aver iniziato a lavorare altre sue task (che non richiedevano quel merge).
+
 ### Completamento di tutte le task — Spostamento in `plans/done/`
 
-Dopo aver completato una task, verifica nel file di progresso se **tutte** le task (non solo quelle dello sviluppatore corrente, ma tutte quelle nel piano) sono al 100%. Se sì:
+Dopo aver completato o mergiato una task, verifica nel file di progresso se **tutte** le task (non solo quelle dello sviluppatore corrente, ma tutte quelle nel piano) sono in stato "Completata" o "Mergiata". Se sì:
 
 ```bash
 mkdir -p plans/done
@@ -324,7 +371,7 @@ mv plans/in-progress/PROGRESSO_BR_*.md plans/done/
 
 Comunica:
 
-> Tutte le task del piano sono completate. Report, piano e progresso spostati in `plans/done/`.
+> Tutte le task del piano sono completate/mergiate. Report, piano e progresso spostati in `plans/done/`.
 
 ---
 

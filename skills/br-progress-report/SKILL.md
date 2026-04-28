@@ -72,7 +72,7 @@ Leggi il piano e il file di progresso. Estrai per ogni task:
 | Effort stimato | Piano — colonna Effort |
 | Branch | Progresso — colonna Branch (se presente) |
 | Progresso % | Progresso — colonna Progresso |
-| Stato | Progresso — colonna Stato (Da iniziare / In corso / Completata / Bloccata / Annullata / Sospesa) |
+| Stato | Progresso — colonna Stato (Da iniziare / In corso / Completata / Mergiata / Bloccata / Annullata / Sospesa) |
 | Note | Progresso — colonna Note |
 
 Se il file di progresso non esiste, imposta progresso a 0% e stato a "Da iniziare" per tutte le task.
@@ -100,7 +100,7 @@ Tabella principale con tutte le task:
 | I — Effort | 10 | Giorni stimati |
 | J — Branch | 25 | Nome branch |
 | K — Progresso | 12 | Percentuale (0-100%) |
-| L — Stato | 15 | Da iniziare / In corso / Completata / Bloccata / Annullata / Sospesa |
+| L — Stato | 15 | Da iniziare / In corso / Completata / Mergiata / Bloccata / Annullata / Sospesa |
 | M — Note | 40 | Note dal progresso |
 
 Formattazione:
@@ -112,6 +112,7 @@ Formattazione:
   - 100% → sfondo verde chiaro
 - Colonna L (Stato) con formattazione condizionale:
   - "Completata" → testo verde scuro, sfondo verde chiaro
+  - "Mergiata" → testo verde scuro, sfondo verde (più intenso di Completata, per distinguere)
   - "In corso" → testo blu scuro, sfondo blu chiaro
   - "Bloccata" → testo rosso scuro, sfondo rosso chiaro
   - "Annullata" / "Sospesa" → testo grigio, sfondo grigio chiaro
@@ -130,13 +131,14 @@ Riepilogo per ogni sviluppatore:
 | B — Ruolo | BE / FE / Fullstack |
 | C — Seniority | Junior / Mid / Senior |
 | D — Task totali | Conteggio |
-| E — Completate | Conteggio |
-| F — In corso | Conteggio |
-| G — Da iniziare | Conteggio |
-| H — Bloccate | Conteggio |
-| I — Progresso medio | Media % delle sue task |
-| J — Effort totale | Somma giorni stimati |
-| K — Effort completato | Somma giorni delle task completate |
+| E — Completate | Conteggio (include Completata + Mergiata) |
+| F — Mergiate | Conteggio (solo Mergiata) |
+| G — In corso | Conteggio |
+| H — Da iniziare | Conteggio |
+| I — Bloccate | Conteggio |
+| J — Progresso medio | Media % delle sue task |
+| K — Effort totale | Somma giorni stimati |
+| L — Effort completato | Somma giorni delle task completate/mergiate |
 
 Stessa formattazione header del Foglio 1.
 In fondo alla tabella, una riga "TOTALE" con le somme.
@@ -153,7 +155,7 @@ Ultimo aggiornamento progresso: [data dal file progresso]
 STATO COMPLESSIVO
 ─────────────────
 Task totali:        N
-Completate:         N  (xx%)
+Completate:         N  (xx%)  [di cui Mergiate: N]
 In corso:           N  (xx%)
 Da iniziare:        N  (xx%)
 Bloccate:           N  (xx%)
@@ -164,7 +166,7 @@ Progresso complessivo: xx%
 EFFORT
 ──────
 Effort totale stimato:    N gg/uomo
-Effort completato:        N gg/uomo  (xx%)
+Effort completato:        N gg/uomo  (xx%)  [completate + mergiate]
 Effort rimanente:         N gg/uomo
 
 PER WAVE
@@ -217,7 +219,7 @@ Lo script deve:
 > Excel [creato / aggiornato]: `plans/in-progress/AVANZAMENTO_BR_2026-04-24.xlsx`
 >
 > Riepilogo:
-> - Task totali: N (X completate, Y in corso, Z da iniziare)
+> - Task totali: N (X completate di cui M mergiate, Y in corso, Z da iniziare)
 > - Progresso complessivo: xx%
 > - [eventuali task bloccate da segnalare]
 
