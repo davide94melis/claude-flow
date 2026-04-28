@@ -1,6 +1,6 @@
 ---
 name: br-updater
-description: Aggiorna gap report e piano di implementazione quando il BR o la documentazione viene modificata. Confronta la nuova documentazione con quella precedente, identifica i delta, e aggiorna report e piano preservando il progresso delle task già completate o in corso. Usa questa skill quando l'utente dice "il br è stato aggiornato", "nuova versione del br", "aggiorna il piano", "documentazione aggiornata", "c'è un aggiornamento al br", "mockup aggiornati", "nuova versione documentazione", o qualsiasi variazione che implichi una modifica alla documentazione di un BR già analizzato.
+description: Aggiorna gap report e piano di implementazione quando il BR o la documentazione viene modificata. Confronta la nuova documentazione con quella precedente, identifica i delta, e aggiorna report e piano preservando il progresso delle task già completate o in corso. Supporta qualsiasi composizione di repository — le sigle e i nomi vengono letti dinamicamente dai file esistenti. Usa questa skill quando l'utente dice "il br è stato aggiornato", "nuova versione del br", "aggiorna il piano", "documentazione aggiornata", "c'è un aggiornamento al br", "mockup aggiornati", "nuova versione documentazione", o qualsiasi variazione che implichi una modifica alla documentazione di un BR già analizzato.
 ---
 
 # BR Updater — Aggiornamento Report e Piano su Documentazione Modificata
@@ -50,11 +50,12 @@ Leggi tutti i file. Estrai lo stato attuale completo: task, progresso, codebase,
 >
 > Accetto MD, PDF, DOCX, XLSX, PPTX e immagini.
 
-### Domanda 3 — Codebase
+### Domanda 3 — Repository
 
-> I path dei codebase sono cambiati rispetto all'analisi precedente?
+> Le repository coinvolte o i loro path sono cambiati rispetto all'analisi precedente?
 > - Se **no**, uso quelli già nel report.
-> - Se **sì**, dammi i path aggiornati.
+> - Se **sì**, dimmi le modifiche (path cambiati, repo aggiunte, repo rimosse).
+> - Se ci sono **nuove repository** non presenti nel report precedente, dammi: nome, sigla e path.
 
 ### Domanda 4 — Team
 
@@ -69,7 +70,7 @@ Leggi tutti i file. Estrai lo stato attuale completo: task, progresso, codebase,
 > - Piano base: [path]
 > - Progresso: [path o "non presente"]
 > - Documenti aggiornati: [lista]
-> - Codebase: [invariati / aggiornati]
+> - Repository: [invariate / aggiornate — dettaglio modifiche]
 > - Team: [invariato / modifiche]
 >
 > Procedo con l'analisi dei delta?

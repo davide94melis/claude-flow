@@ -1,6 +1,6 @@
 ---
 name: br-progress-report
-description: Genera o aggiorna un file Excel con il riepilogo completo delle task, progressi e avanzamenti per sviluppatore a partire dal piano e dal file di progresso di br-analyzer/br-executor. Usa questa skill quando l'utente dice "genera il report excel", "aggiorna l'excel", "stato avanzamento excel", "esporta il progresso", "report avanzamento", "excel dei progressi", "aggiorna il foglio", "com'è la situazione delle task", o qualsiasi variazione che implichi la necessità di un report Excel sullo stato di avanzamento delle task di un piano BR.
+description: Genera o aggiorna un file Excel con il riepilogo completo delle task, progressi e avanzamenti per sviluppatore a partire dal piano e dal file di progresso di br-analyzer/br-executor. Supporta qualsiasi composizione di repository — i nomi e le sigle vengono letti dinamicamente dal piano. Usa questa skill quando l'utente dice "genera il report excel", "aggiorna l'excel", "stato avanzamento excel", "esporta il progresso", "report avanzamento", "excel dei progressi", "aggiorna il foglio", "com'è la situazione delle task", o qualsiasi variazione che implichi la necessità di un report Excel sullo stato di avanzamento delle task di un piano BR.
 ---
 
 # BR Progress Report — Export Excel Avanzamento Task
@@ -94,7 +94,7 @@ Tabella principale con tutte le task:
 | C — Attività | 30 | Nome della task |
 | D — Descrizione | 60 | Descrizione completa dal piano |
 | E — Owner | 18 | Sviluppatore assegnato |
-| F — Area | 8 | BE / FE / BE+FE |
+| F — Area | 8 | Sigla/e delle repo coinvolte (es. BE, FE, BE+FE, GW, ecc.) |
 | G — Priorità | 10 | P0 / P1 / P2 |
 | H — Wave | 10 | Wave 0 / 1 / 2 / ... |
 | I — Dipendenze | 15 | ID task dipendenze |
@@ -128,7 +128,7 @@ Riepilogo per ogni sviluppatore:
 | Colonna | Contenuto |
 |---|---|
 | A — Sviluppatore | Nome/ID |
-| B — Ruolo | BE / FE / Fullstack |
+| B — Ruolo | Area/sigle repo (come definite nel piano) |
 | C — Seniority | Junior / Mid / Senior |
 | D — Task totali | Conteggio |
 | E — Completate | Conteggio |

@@ -1,6 +1,6 @@
 ---
 name: br-executor
-description: Esegue i task del piano di implementazione generato da br-analyzer. Ogni sviluppatore/agente usa questa skill per lavorare le proprie task assegnate, con sottoagenti Claude che implementano codice e test mentre l'agente principale coordina, verifica e traccia il progresso. Usa questa skill quando l'utente dice "lavora il task", "inizia a lavorare", "esegui il piano", "sono lo sviluppatore X", "devo lavorare le mie task", "task executor", "esegui task", o qualsiasi variazione che implichi l'inizio della lavorazione di task da un piano di implementazione BR. Attivala anche quando l'utente menziona un file di progresso o chiede di riprendere il lavoro su task assegnate.
+description: Esegue i task del piano di implementazione generato da br-analyzer. Ogni sviluppatore/agente usa questa skill per lavorare le proprie task assegnate, con sottoagenti Claude che implementano codice e test mentre l'agente principale coordina, verifica e traccia il progresso. Supporta qualsiasi composizione di repository — il progetto può avere una o più repo con nomi arbitrari. Usa questa skill quando l'utente dice "lavora il task", "inizia a lavorare", "esegui il piano", "sono lo sviluppatore X", "devo lavorare le mie task", "task executor", "esegui task", o qualsiasi variazione che implichi l'inizio della lavorazione di task da un piano di implementazione BR. Attivala anche quando l'utente menziona un file di progresso o chiede di riprendere il lavoro su task assegnate.
 ---
 
 # BR Executor — Esecuzione Task da Piano di Implementazione
@@ -51,15 +51,14 @@ Il file di progresso viene creato (o cercato) direttamente in `plans/in-progress
 
 ### Domanda 2 — Path dei codebase locali
 
-Dal report e dal piano, estrai i nomi dei codebase referenziati (es. BE, FE, Document Manager, Email Manager). Per ognuno, chiedi il path locale:
+Dal report e dal piano, estrai tutti i nomi e le sigle dei codebase/repository referenziati. Per ognuno, chiedi il path locale:
 
-> I file di br-analyzer fanno riferimento a questi codebase:
-> - **Backend (BE)** — path originale: `<path dal report>`
-> - **Frontend (FE)** — path originale: `<path dal report>`
-> - [altri se presenti]
+> I file di br-analyzer fanno riferimento a queste repository:
+> [per ogni repo trovata nei file:]
+> - **<Nome> (<SIGLA>)** — path originale: `<path dal report>`
 >
-> Siccome lavori su un PC diverso, dammi i path locali di ogni codebase che hai disponibile.
-> Se un codebase non ti serve per le tue task, dimmelo.
+> Siccome lavori su un PC diverso, dammi i path locali di ogni repository che hai disponibile.
+> Se una repo non ti serve per le tue task, dimmelo.
 
 ### Domanda 3 — Path della documentazione locale
 
@@ -84,8 +83,9 @@ Dopo l'identificazione, mostra le task assegnate a quello sviluppatore con il lo
 ### Riepilogo e conferma
 
 > Riepilogo:
-> - Sviluppatore: [nome] ([ruolo] [seniority])
-> - Codebase disponibili: [lista con path locali]
+> - Sviluppatore: [nome] ([ruolo/area] [seniority])
+> - Repository disponibili:
+>   [per ognuna: Nome (SIGLA) → path locale]
 > - Documentazione disponibile: [lista con path locali]
 > - Task assegnate: [N task]
 >

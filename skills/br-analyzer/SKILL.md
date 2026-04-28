@@ -1,6 +1,6 @@
 ---
 name: br-analyzer
-description: Analizza un nuovo Business Requirement (BR) confrontandolo con i codebase esistenti (BE, FE, Document Manager, Email Manager), genera un gap report dettagliato per funzionalità e un piano di implementazione con task indipendenti assegnate a sviluppatori muniti di Claude Code. Usa questa skill quando l'utente dice "abbiamo un nuovo br", "nuovo br", "c'è un br nuovo", "analizza il br", "gap analysis br", "nuovo business requirement", o qualsiasi variazione che implichi l'arrivo di un nuovo documento di requisiti da analizzare e pianificare. Attivala anche quando l'utente menziona la necessità di confrontare documentazione di requisiti con il codice per trovare cosa manca e pianificare lo sviluppo.
+description: Analizza un nuovo Business Requirement (BR) confrontandolo con i codebase esistenti del progetto, genera un gap report dettagliato per funzionalità e un piano di implementazione con task indipendenti assegnate a sviluppatori muniti di Claude Code. Usa questa skill quando l'utente dice "abbiamo un nuovo br", "nuovo br", "c'è un br nuovo", "analizza il br", "gap analysis br", "nuovo business requirement", o qualsiasi variazione che implichi l'arrivo di un nuovo documento di requisiti da analizzare e pianificare. Attivala anche quando l'utente menziona la necessità di confrontare documentazione di requisiti con il codice per trovare cosa manca e pianificare lo sviluppo.
 ---
 
 # BR Analyzer — Gap Report & Piano di Implementazione
@@ -21,15 +21,20 @@ Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 
 ### Domanda 1 — Codebase
 
-> Quali sono i path dei codebase coinvolti in questo BR? Servono i path per:
-> - **Backend (BE)**
-> - **Frontend (FE)**
-> - **Document Manager (DM)**
-> - **Email Manager (EM)**
+> Quali sono le repository/codebase coinvolte in questo BR?
+> Per ognuna, dammi:
+> - **Nome** (es. "back-end", "front-end", "api-gateway", "mobile-app", "notification-service" — qualsiasi nome che identifichi la repo)
+> - **Sigla** (un'abbreviazione breve, es. "BE", "FE", "GW", "MOB", "NS" — verrà usata nelle tabelle e nei report)
+> - **Path** (il path locale al codebase)
 >
-> Se qualcuno non è coinvolto, dimmelo e lo escludo dall'analisi.
+> Elenca tutte quelle coinvolte, senza limiti. Se una repo non è coinvolta nel BR, non includerla.
+>
+> Esempio:
+> - Back-end (BE) → `/path/to/backend`
+> - Front-end (FE) → `/path/to/frontend`
+> - Notification Service (NS) → `/path/to/notifications`
 
-Salva i path forniti. Se l'utente dice che un codebase non è coinvolto, escludilo dalle fasi successive.
+Salva i nomi, le sigle e i path forniti. Usa le sigle dell'utente in tutto il report e nel piano. Se l'utente fornisce una sola repo, è perfettamente valido — non forzare una lista lunga.
 
 ### Domanda 2 — Documentazione
 
@@ -43,18 +48,19 @@ Salva i path forniti. Se l'utente dice che un codebase non è coinvolto, escludi
 ### Domanda 3 — Team di sviluppo
 
 > Chi lavorerà all'implementazione? Per ogni sviluppatore dimmi:
-> - **Nome** (o identificativo, es. "Marco", "BE-Senior")
-> - **Ruolo**: BE / FE / Fullstack
+> - **Nome** (o identificativo, es. "Marco", "Dev-Senior")
+> - **Ruolo/Area**: su quali repository lavora (usa le sigle definite prima, es. "BE", "FE", "BE+FE", "GW+NS", o qualsiasi combinazione)
 > - **Seniority**: Junior / Mid / Senior
 >
-> Esempio: "Marco - BE senior, Luca - FE mid, Anna - BE junior"
+> Esempio: "Marco - BE senior, Luca - FE mid, Anna - BE+GW junior"
 
 ### Prima di procedere
 
 Dopo aver raccolto tutti gli input, ricapitola quello che hai ricevuto e chiedi conferma:
 
 > Riepilogo:
-> - Codebase: [lista con path]
+> - Repository coinvolte:
+>   [per ognuna: Nome (SIGLA) → path]
 > - Documentazione: [lista con path]
 > - Team: [lista con ruolo e seniority]
 >
@@ -129,7 +135,7 @@ Per ogni codebase fornito, analizza:
 - **API/Controller**: endpoint esposti, payload, validazioni
 - **Servizi**: logica di business, workflow, macchine a stati
 - **Repository**: query, viste, materializzazioni
-- **Frontend** (se FE): componenti, routing, modelli, i18n, servizi
+- **Frontend** (se applicabile): componenti, routing, modelli, i18n, servizi
 - **Configurazione**: properties, feature flag, sicurezza
 
 Usa gli agent di tipo `Explore` per parallelizzare l'esplorazione dei diversi codebase quando possibile.
@@ -150,7 +156,7 @@ Per ogni gap, documenta:
 - **Cosa richiede il BR** (con riferimento a sezione/pagina del documento)
 - **Cosa esiste nel codice** (con path esatti a file/classi/metodi)
 - **Cosa manca o è diverso** (con dettaglio sufficiente per implementare)
-- **Moduli coinvolti** (BE, FE, DM, EM)
+- **Repository coinvolte** (usa le sigle fornite dall'utente)
 - **Complessità stimata** (Bassa / Media / Alta)
 
 Il livello di dettaglio deve essere sufficiente perché un agente Claude Code, leggendo solo il gap report, possa capire esattamente cosa va fatto senza dover rileggere il BR originale.
@@ -179,9 +185,8 @@ Struttura:
 Data verifica: `<data>`
 
 Branch verificato:
-- FE: `<branch>`
-- BE: `<branch>`
-[altri codebase se presenti]
+[per ogni repo coinvolta:]
+- <SIGLA>: `<branch>`
 
 Perimetro documentale verificato:
 - BR: `<path>`
@@ -189,9 +194,8 @@ Perimetro documentale verificato:
 [altri documenti]
 
 Codebase verificati:
-- FE: `<path>`
-- BE: `<path>`
-[altri codebase]
+[per ogni repo coinvolta:]
+- <SIGLA> (<nome completo>): `<path>`
 
 ## Esito sintetico
 
@@ -199,11 +203,13 @@ Codebase verificati:
 
 ## Matrice di verifica
 
-| Requisito | FE | BE | Stato | Evidenze | Gap |
-|---|---|---|---|---|---|
-| [Requisito dal BR] | [Implementato/Non implementato/N/A] | [Implementato/Non implementato/N/A] | [Coperto/Parziale/Mancante/Discrepanza/Da chiarire] | [Path esatti a file e classi rilevanti, sia FE che BE] | [Descrizione precisa del gap, o "Nessuno"] |
+Genera dinamicamente una colonna per ogni repository coinvolta, usando le sigle fornite dall'utente.
 
-[Una riga per ogni requisito identificato, raggruppate per funzionalità]
+| Requisito | <SIGLA_1> | <SIGLA_2> | ... <SIGLA_N> | Stato | Evidenze | Gap |
+|---|---|---|---|---|---|---|
+| [Requisito dal BR] | [Implementato/Non implementato/N/A] | [Implementato/Non implementato/N/A] | ... | [Coperto/Parziale/Mancante/Discrepanza/Da chiarire] | [Path esatti a file e classi rilevanti, per ogni repo] | [Descrizione precisa del gap, o "Nessuno"] |
+
+[Una riga per ogni requisito identificato, raggruppate per funzionalità. Se il progetto ha una sola repo, la matrice avrà una sola colonna repo.]
 
 ## Gap aperti reali
 
@@ -324,8 +330,8 @@ Regole:
 ## Stima complessiva
 
 ### Effort
-- Backend: circa `N gg/uomo`
-- Frontend: circa `N gg/uomo`
+[per ogni repository/area coinvolta:]
+- <SIGLA>: circa `N gg/uomo`
 - Integrazione e UAT: circa `N gg/uomo`
 
 ### Durata calendario realistica
@@ -361,7 +367,7 @@ Quando scomponi il lavoro in task, questi principi guidano le decisioni:
 
 **Indipendenza massima** — Ogni task deve poter essere sviluppata in parallelo. Se due task condividono una dipendenza (es. una nuova entità DB), la task che crea la dipendenza va nella wave precedente e deve essere completata prima. Minimizza le dipendenze cross-stream: le fondazioni condivise vanno in `stream-fondazioni` completato e mergiato prima che gli altri stream inizino.
 
-**Assegnazione per competenza e seniority** — Task BE a sviluppatori BE, FE a FE. Task complesse o architetturali ai senior/mid. Task ripetitive o con scope ben chiuso ai junior, sempre con review assegnata. I senior non vanno caricati di implementazione continua: il loro valore è nel design, review, e sblocco tecnico.
+**Assegnazione per competenza e seniority** — Assegna le task agli sviluppatori in base alla loro area di competenza e alla repository coinvolta. Task complesse o architetturali ai senior/mid. Task ripetitive o con scope ben chiuso ai junior, sempre con review assegnata. I senior non vanno caricati di implementazione continua: il loro valore è nel design, review, e sblocco tecnico.
 
 **Granularità giusta** — Ogni task deve essere completabile in 1-5 giorni. Troppo grande: spezzala. Troppo piccola (< 2 ore): accorpala con task correlate.
 
