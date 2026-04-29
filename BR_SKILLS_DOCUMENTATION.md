@@ -1,6 +1,6 @@
 # BR Skills Suite — Documentazione Completa
 
-Suite di 5 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement: dalla review della documentazione funzionale all'analisi gap, dall'esecuzione delle task alla gestione degli aggiornamenti e alla reportistica Excel.
+Suite di 6 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement: dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione delle task, dalla gestione degli aggiornamenti alla reportistica Excel.
 
 ## Architettura del Flusso
 
@@ -11,7 +11,12 @@ BR / Documentazione
   [br-reviewer]   ──>  plans/todo/<data>_<nome>/
         |                  |
         |            REVIEW_BR.md
+        |            REVIEW_BR.docx
         |            br-docs-converted/
+        |
+        v
+  [br-clarify]    ──>  aggiorna REVIEW_BR.md/.docx
+        |               con risposte del funzionale
         |
         v
   [br-analyzer]   ──>  plans/todo/<data>_<nome>/
@@ -51,7 +56,8 @@ plans/
 ├── todo/                              <-- br-reviewer e br-analyzer creano i report qui
 │   └── 2026-04-28_booking-v2/
 │       ├── br-docs-converted/         <-- documentazione convertita in MD (da br-reviewer)
-│       ├── REVIEW_BR.md               <-- output di br-reviewer
+│       ├── REVIEW_BR.md               <-- output di br-reviewer (aggiornato da br-clarify)
+│       ├── REVIEW_BR.docx             <-- output di br-reviewer (per il funzionale)
 │       ├── GAP_REPORT_BR.md           <-- output di br-analyzer
 │       └── PIANO_IMPLEMENTAZIONE_BR.md
 ├── in-progress/                       <-- br-executor sposta qui la cartella all'avvio
@@ -127,16 +133,85 @@ Genera `REVIEW_BR.md` nella cartella del BR con:
 - **Parte 2 — Per il team tecnico**: tabella assunzioni proposte con rischio e costo di correzione, tabella disallineamenti col codice
 - **Riepilogo per br-analyzer**: sezione tecnica consumata automaticamente da br-analyzer per incorporare le assunzioni nel piano
 
-Se ci sono bloccanti, consiglia di attendere chiarimenti dal funzionale prima di procedere con br-analyzer, ma la decisione e dell'utente.
+Dopo il MD, genera automaticamente `REVIEW_BR.docx` con pandoc. Il DOCX contiene placeholder "*(inserire qui la risposta)*" sotto ogni domanda, pronti per la compilazione da parte del funzionale.
+
+Se ci sono bloccanti, consiglia di attendere chiarimenti dal funzionale prima di procedere con br-analyzer, ma la decisione e dell'utente. Suggerisce di usare `br-clarify` quando arrivano le risposte.
 
 ### Dipendenze
 
 - `doc-to-markdown` skill (`~/.claude/skills/doc-to-markdown/`)
 - `markitdown` (via pip o uvx)
+- `pandoc` — per generazione REVIEW_BR.docx
 
 ---
 
-## 2. BR Analyzer
+## 2. BR Clarify
+
+**Skill**: `br-clarify`
+**Path**: `~/.claude/skills/br-clarify/SKILL.md`
+**Trigger**: "chiarimenti ricevuti", "risposte ricevute", "il funzionale ha risposto", "ho le risposte"
+
+### Scopo
+
+Gestire le risposte del team funzionale alle domande sollevate da br-reviewer nel REVIEW_BR.md. Aggiorna il report con le risposte, ri-valuta i bloccanti e le assunzioni, e rigenera il DOCX. Supporta risposte parziali e round multipli.
+
+### Flusso Operativo
+
+#### Fase 1 — Auto-detect REVIEW_BR.md
+
+Cerca automaticamente `plans/todo/*/REVIEW_BR.md` e `plans/in-progress/*/REVIEW_BR.md`. Se ne trova uno lo propone, se piu di uno chiede quale usare, se nessuno informa che serve prima br-reviewer. Analizza lo stato: quante domande hanno gia risposta e quante sono ancora aperte.
+
+#### Fase 2 — Modalita Input
+
+Supporta due modalita:
+
+1. **DOCX compilato**: il funzionale ha compilato il REVIEW_BR.docx inserendo le risposte sotto i placeholder. La skill converte il DOCX con pandoc, confronta con l'originale per rilevare le risposte, e le presenta all'utente per conferma.
+
+2. **Conversazione**: la skill presenta ogni domanda aperta una alla volta (prima i bloccanti, poi i non bloccanti). L'utente riporta la risposta o dice "salta" per le domande ancora senza risposta.
+
+Le due modalita possono combinarsi: dopo aver processato il DOCX, la skill chiede se ci sono risposte aggiuntive da riportare a voce.
+
+#### Fase 3 — Rivalutazione
+
+Per ogni risposta ricevuta:
+
+- **Bloccanti**: valuta se la risposta risolve il problema. Se si, lo stato diventa "Si → **RISOLTO**". Se la risposta e parziale o ambigua, resta bloccante con nota esplicativa e eventuale domanda di follow-up.
+- **Non bloccanti**: confronta la risposta con l'assunzione proposta. L'assunzione viene classificata come **Confermata** (il funzionale concorda), **Rigettata** (il funzionale da un'indicazione diversa — la risposta del funzionale prevale), o resta **In attesa** (nessuna risposta).
+
+Prima di modificare i file, presenta il riepilogo completo della rivalutazione e aspetta conferma.
+
+#### Fase 4 — Aggiornamento Output
+
+Aggiorna REVIEW_BR.md:
+- Aggiunge "Risposta del funzionale" e "Data risposta" a ogni problema risposto
+- Aggiorna la tabella assunzioni con colonne "Stato" e "Risposta funzionale"
+- Sostituisce la sezione "Riepilogo per br-analyzer" con formato arricchito: bloccanti risolti con sintesi risposta, bloccanti ancora aperti, stato di ogni assunzione (confermata/rigettata/in attesa), marcatore "Ultimo aggiornamento: \<data\> (br-clarify)"
+
+Rigenera REVIEW_BR.docx con pandoc.
+
+#### Round Multipli
+
+La skill puo essere eseguita piu volte sullo stesso REVIEW_BR.md. A ogni esecuzione:
+- Rileva le domande gia risposte e presenta solo quelle ancora aperte
+- Non sovrascrive mai risposte precedenti
+- Se tutte le domande hanno risposta, informa che il review e completo
+
+### Regole Fondamentali
+
+1. Mai modificare le domande o le categorie originali
+2. Mai sovrascrivere risposte precedenti
+3. Sempre chiedere conferma prima di scrivere
+4. Sempre rigenerare il DOCX dopo ogni modifica al MD
+5. Non interpretare le risposte — riportarle cosi come sono, la rivalutazione e presentata all'utente per conferma
+
+### Dipendenze
+
+- `pandoc` — per conversione DOCX↔MD e rigenerazione DOCX
+- `br-reviewer` — deve essere stato eseguito prima
+
+---
+
+## 3. BR Analyzer
 
 **Skill**: `br-analyzer`
 **Path**: `~/.claude/skills/br-analyzer/SKILL.md`
@@ -231,7 +306,7 @@ Crea la struttura `plans/todo/`, `plans/in-progress/`, `plans/done/` e genera du
 
 ---
 
-## 3. BR Executor
+## 4. BR Executor
 
 **Skill**: `br-executor`
 **Path**: `~/.claude/skills/br-executor/SKILL.md`
@@ -314,7 +389,7 @@ Al completamento, aggiorna il progresso a 100% con stato "Completata" e propone 
 
 ---
 
-## 4. BR Updater
+## 5. BR Updater
 
 **Skill**: `br-updater`
 **Path**: `~/.claude/skills/br-updater/SKILL.md`
@@ -384,7 +459,7 @@ Presenta riepilogo completo: file aggiornati, task aggiunte/modificate/annullate
 
 ---
 
-## 5. BR Progress Report
+## 6. BR Progress Report
 
 **Skill**: `br-progress-report`
 **Path**: `~/.claude/skills/br-progress-report/SKILL.md`
@@ -503,8 +578,9 @@ Le dipendenze cross-stream sono gestite tramite **merge task esplicite** (`T-MER
 
 | Dipendenza | Usata da | Installazione |
 |---|---|---|
-| `doc-to-markdown` skill | br-analyzer, br-updater | gia installata in `~/.claude/skills/doc-to-markdown/` |
-| `markitdown` | br-analyzer, br-updater | `pip install 'markitdown[all]'` oppure via `uvx` |
+| `doc-to-markdown` skill | br-reviewer, br-analyzer, br-updater | gia installata in `~/.claude/skills/doc-to-markdown/` |
+| `markitdown` | br-reviewer, br-analyzer, br-updater | `pip install 'markitdown[all]'` oppure via `uvx` |
+| `pandoc` | br-reviewer, br-clarify | disponibile su PATH |
 | `openpyxl` | br-progress-report | `pip install openpyxl` |
 
 ## Trigger Registrati (CLAUDE.md)
@@ -512,6 +588,7 @@ Le dipendenze cross-stream sono gestite tramite **merge task esplicite** (`T-MER
 | Frase | Skill |
 |---|---|
 | "rivedi il br" / "review del br" / "controlla la documentazione" / "verifica il br" | br-reviewer |
+| "chiarimenti ricevuti" / "risposte ricevute" / "il funzionale ha risposto" / "ho le risposte" | br-clarify |
 | "abbiamo un nuovo br" | br-analyzer |
 | "lavora il task" / "inizia a lavorare" / "esegui il piano" | br-executor |
 | "il br e stato aggiornato" / "aggiorna il piano" / "nuova versione del br" | br-updater |

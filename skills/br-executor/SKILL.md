@@ -17,7 +17,21 @@ Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 
 ### Domanda 1 — File del piano
 
-Prima di chiedere, verifica se esiste la struttura `plans/` nella working directory. Se trovi file in `plans/todo/`, `plans/in-progress/` o `plans/done/`, proponili direttamente:
+Prima di chiedere, verifica se esiste la struttura `plans/` nella working directory. Cerca cartelle BR nelle tre aree:
+
+```bash
+ls -d plans/todo/*/ plans/in-progress/*/ plans/done/*/ 2>/dev/null
+```
+
+**Se trovi cartelle BR**, elencale e proponi:
+
+> Ho trovato queste cartelle BR:
+> - `plans/todo/2026-04-28_booking-v2/` (contiene GAP_REPORT_BR.md, PIANO_IMPLEMENTAZIONE_BR.md)
+> - `plans/in-progress/2026-04-15_monitoraggio/` (contiene PROGRESSO_BR.md)
+>
+> Quale vuoi lavorare? Oppure dammi i path manualmente.
+
+**Se trovi file flat** (retrocompatibilita' con vecchio formato):
 
 > Ho trovato questi file nella cartella `plans/`:
 > - `plans/todo/GAP_REPORT_BR_2026-04-24.md`
@@ -25,12 +39,12 @@ Prima di chiedere, verifica se esiste la struttura `plans/` nella working direct
 >
 > Uso questi? Oppure dammi i path manualmente.
 
-Se non trovi nulla, chiedi:
+**Se non trovi nulla**, chiedi:
 
 > Per iniziare mi servono i file generati da br-analyzer:
-> 1. **Gap Report** — il file `GAP_REPORT_BR_*.md`
-> 2. **Piano di Implementazione** — il file `PIANO_IMPLEMENTAZIONE_BR_*.md`
-> 3. **File di Progresso** — se esiste già un file `PROGRESSO_BR_*.md`, dammi il path. Se non esiste ancora, lo creo io.
+> 1. **Gap Report** — il file `GAP_REPORT_BR.md`
+> 2. **Piano di Implementazione** — il file `PIANO_IMPLEMENTAZIONE_BR.md`
+> 3. **File di Progresso** — se esiste gia' un file `PROGRESSO_BR.md`, dammi il path. Se non esiste ancora, lo creo io.
 
 Leggi tutti i file forniti. Estrai dal gap report e dal piano:
 - La lista di tutti i codebase menzionati (con i path originali)
@@ -39,7 +53,14 @@ Leggi tutti i file forniti. Estrai dal gap report e dal piano:
 
 ### Spostamento in `plans/in-progress/`
 
-Quando lo sviluppatore conferma e la lavorazione sta per iniziare, sposta report e piano da `plans/todo/` a `plans/in-progress/` (se non sono già lì):
+Quando lo sviluppatore conferma e la lavorazione sta per iniziare, sposta l'intera cartella del BR da `plans/todo/` a `plans/in-progress/` (se non e' gia' li'):
+
+```bash
+mkdir -p plans/in-progress
+mv "plans/todo/<YYYY-MM-DD>_<nome>/" "plans/in-progress/" 2>/dev/null
+```
+
+Se stai lavorando con file flat (retrocompatibilita'), sposta i singoli file come prima:
 
 ```bash
 mkdir -p plans/in-progress
@@ -47,7 +68,7 @@ mv plans/todo/GAP_REPORT_BR_*.md plans/in-progress/ 2>/dev/null
 mv plans/todo/PIANO_IMPLEMENTAZIONE_BR_*.md plans/in-progress/ 2>/dev/null
 ```
 
-Il file di progresso viene creato (o cercato) direttamente in `plans/in-progress/`.
+Il file di progresso viene creato (o cercato) dentro la cartella del BR in `plans/in-progress/`.
 
 ### Domanda 2 — Path dei codebase locali
 
@@ -101,7 +122,7 @@ Procedi solo dopo la conferma.
 
 ### Se il file non esiste — Crealo
 
-Crea il file `PROGRESSO_BR_<YYYY-MM-DD>.md` nella stessa directory del piano di implementazione, con questa struttura:
+Crea il file `PROGRESSO_BR.md` nella stessa cartella del BR (es. `plans/in-progress/<YYYY-MM-DD>_<nome>/PROGRESSO_BR.md`), con questa struttura:
 
 ```
 # Progresso Implementazione [Nome BR]
@@ -324,7 +345,14 @@ Dopo aver aggiornato il progresso, proponi la prossima task disponibile:
 
 ### Completamento di tutte le task — Spostamento in `plans/done/`
 
-Dopo aver completato una task, verifica nel file di progresso se **tutte** le task (non solo quelle dello sviluppatore corrente, ma tutte quelle nel piano) sono in stato "Completata". Se sì:
+Dopo aver completato una task, verifica nel file di progresso se **tutte** le task (non solo quelle dello sviluppatore corrente, ma tutte quelle nel piano) sono in stato "Completata". Se si':
+
+```bash
+mkdir -p plans/done
+mv "plans/in-progress/<YYYY-MM-DD>_<nome>/" "plans/done/" 2>/dev/null
+```
+
+Se stai lavorando con file flat (retrocompatibilita'):
 
 ```bash
 mkdir -p plans/done
@@ -335,7 +363,7 @@ mv plans/in-progress/PROGRESSO_BR_*.md plans/done/
 
 Comunica:
 
-> Tutte le task del piano sono completate. Report, piano e progresso spostati in `plans/done/`.
+> Tutte le task del piano sono completate. Cartella del BR spostata in `plans/done/`.
 
 ---
 

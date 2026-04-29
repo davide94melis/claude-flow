@@ -1,6 +1,6 @@
 # Claude Flow — BR Skills per Claude Code
 
-Suite di skill per Claude Code che automatizzano il ciclo di vita dei Business Requirements: dalla review della documentazione funzionale all'analisi gap, dall'esecuzione task all'aggiornamento incrementale e reporting Excel.
+Suite di 6 skill per Claude Code che automatizzano il ciclo di vita dei Business Requirements: dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione task, dall'aggiornamento incrementale al reporting Excel.
 
 ## Skills
 
@@ -12,7 +12,19 @@ Verifica la qualita, coerenza e completezza della documentazione funzionale di u
 
 Esegue anche un check leggero contro il codice per trovare disallineamenti terminologici e strutturali.
 
+Genera anche un DOCX con placeholder per le risposte, pronto per essere inviato al team funzionale.
+
 **Trigger**: `rivedi il br`, `review del br`, `controlla la documentazione`, `verifica il br`
+
+### br-clarify
+
+Gestisce le risposte del team funzionale alle domande sollevate nel review. Supporta due modalita di input:
+- **DOCX compilato**: il funzionale compila il REVIEW_BR.docx e lo restituisce
+- **Conversazione**: l'utente riporta le risposte a voce
+
+Aggiorna il REVIEW_BR.md con le risposte, ri-valuta bloccanti e assunzioni, e rigenera il DOCX. Puo essere eseguita piu volte per risposte parziali.
+
+**Trigger**: `chiarimenti ricevuti`, `risposte ricevute`, `il funzionale ha risposto`, `ho le risposte`
 
 ### br-analyzer
 
@@ -58,6 +70,10 @@ Aggiungi i trigger nel tuo `~/.claude/CLAUDE.md`:
 - **br-reviewer** (`~/.claude/skills/br-reviewer/SKILL.md`) - review qualita della documentazione funzionale prima dell'analisi tecnica. Trigger: "rivedi il br", "review del br", "controlla la documentazione"
 When the user says "rivedi il br", "review del br", "controlla la documentazione", "verifica il br", or similar phrases about reviewing BR documentation quality, invoke the Skill tool with `skill: "br-reviewer"` before doing anything else.
 
+# br-clarify
+- **br-clarify** (`~/.claude/skills/br-clarify/SKILL.md`) - gestisce le risposte del funzionale alle domande del review BR. Trigger: "chiarimenti ricevuti", "risposte ricevute", "il funzionale ha risposto", "ho le risposte"
+When the user says "chiarimenti ricevuti", "risposte ricevute", "aggiorna con i chiarimenti", "il funzionale ha risposto", "ho le risposte", or similar phrases about receiving functional team responses, invoke the Skill tool with `skill: "br-clarify"` before doing anything else.
+
 # br-analyzer
 - **br-analyzer** (`~/.claude/skills/br-analyzer/SKILL.md`) - analisi gap tra BR e codice + piano di implementazione. Trigger: "abbiamo un nuovo br"
 When the user says "abbiamo un nuovo br" (or similar phrases about a new business requirement), invoke the Skill tool with `skill: "br-analyzer"` before doing anything else.
@@ -77,8 +93,9 @@ When the user says "genera il report excel", "aggiorna l'excel", "stato avanzame
 
 ## Dipendenze
 
-- **doc-to-markdown** skill (`~/.claude/skills/doc-to-markdown/`) — per conversione DOCX/DOC (usata da `br-analyzer` e `br-updater`)
+- **doc-to-markdown** skill (`~/.claude/skills/doc-to-markdown/`) — per conversione DOCX/DOC (usata da `br-reviewer`, `br-analyzer` e `br-updater`)
 - **markitdown** — per conversione PDF, PPTX, XLSX (`pip install 'markitdown[all]'`)
+- **pandoc** — per generazione DOCX e conversione DOCX→MD (usata da `br-reviewer` e `br-clarify`)
 - **openpyxl** — per generazione Excel (`pip install openpyxl`, usata da `br-progress-report`)
 
 ## Documentazione completa
@@ -95,6 +112,7 @@ plans/
 │   └── 2026-04-28_booking-v2/
 │       ├── br-docs-converted/         <-- documentazione convertita in MD
 │       ├── REVIEW_BR.md               <-- output di br-reviewer
+│       ├── REVIEW_BR.docx             <-- output di br-reviewer (per il funzionale)
 │       ├── GAP_REPORT_BR.md           <-- output di br-analyzer
 │       └── PIANO_IMPLEMENTAZIONE_BR.md
 ├── in-progress/                       <-- br-executor sposta qui la cartella all'avvio
@@ -111,7 +129,10 @@ Tutte le skill mantengono retrocompatibilita con il vecchio formato flat (es. `G
 ## Flusso di lavoro
 
 ```
-BR nuovo ──→ br-reviewer ──→ Review qualita documentazione
+BR nuovo ──→ br-reviewer ──→ Review qualita documentazione + DOCX
+                  │
+                  ▼
+             br-clarify ──→ Risposte funzionale → aggiorna review
                   │
                   ▼
             br-analyzer ──→ Gap Report + Piano

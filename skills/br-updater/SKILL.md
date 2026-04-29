@@ -17,13 +17,24 @@ Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 
 ### Domanda 1 — File esistenti
 
-Cerca automaticamente nella struttura `plans/`:
+Cerca automaticamente cartelle BR nella struttura `plans/`:
 
 ```bash
-ls plans/in-progress/ plans/todo/ 2>/dev/null
+ls -d plans/in-progress/*/ plans/todo/*/ 2>/dev/null
 ```
 
-Se trovi file, proponili:
+**Se trovi cartelle BR**, elencale con il loro contenuto:
+
+> Ho trovato questa cartella BR:
+> - `plans/in-progress/2026-04-28_booking-v2/`
+>   - `GAP_REPORT_BR.md`
+>   - `PIANO_IMPLEMENTAZIONE_BR.md`
+>   - `PROGRESSO_BR.md`
+>   - `REVIEW_BR.md`
+>
+> Uso questa come base? Oppure dammi i path manualmente.
+
+**Se trovi file flat** (retrocompatibilita'):
 
 > Ho trovato questi file:
 > - `plans/in-progress/GAP_REPORT_BR_2026-04-24.md`
@@ -32,7 +43,7 @@ Se trovi file, proponili:
 >
 > Uso questi come base? Oppure dammi i path manualmente.
 
-Se non trovi nulla, chiedi:
+**Se non trovi nulla**, chiedi:
 
 > Dammi i path dei file da aggiornare:
 > 1. **Gap Report** esistente
@@ -88,7 +99,7 @@ Converti i nuovi documenti in MD (stessa procedura di `br-analyzer`):
 - MD → copia diretta
 - Immagini → Read diretto
 
-Salva in `br-docs-converted/` sovrascrivendo i file precedenti dove applicabile.
+Salva nella cartella `br-docs-converted/` dentro la cartella del BR (es. `plans/in-progress/<YYYY-MM-DD>_<nome>/br-docs-converted/`), sovrascrivendo i file precedenti dove applicabile. Se stai lavorando con file flat, salva in `br-docs-converted/` nella working directory corrente.
 
 ### 2.2 — Identificazione delta
 

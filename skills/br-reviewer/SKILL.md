@@ -9,8 +9,8 @@ Questa skill si posiziona *prima* di `br-analyzer` nel flusso BR. Analizza la do
 
 Il flusso BR completo:
 ```
-br-reviewer → br-analyzer → br-executor → br-updater
-                                         ↘ br-progress-report
+br-reviewer → br-clarify → br-analyzer → br-executor → br-updater
+                                                      ↘ br-progress-report
 ```
 
 Il processo si compone di 4 fasi:
@@ -213,6 +213,7 @@ nella documentazione.
 - **Problema**: [descrizione chiara, comprensibile dal funzionale]
 - **Impatto**: [perche' senza risposta non si puo' procedere]
 - **Domanda per il funzionale**: [domanda precisa a cui serve risposta]
+- **Risposta:** *(inserire qui la risposta)*
 
 #### 2. [...]
 
@@ -225,6 +226,7 @@ nella documentazione.
 - **Dove**: [...]
 - **Problema**: [...]
 - **Domanda per il funzionale**: [domanda precisa]
+- **Risposta:** *(inserire qui la risposta)*
 - **Nota**: se non arriva chiarimento, il team tecnico procedera'
   con l'assunzione indicata nella Parte 2.
 
@@ -267,27 +269,46 @@ Assunzioni confermate: [lista A-XXX delle assunzioni validate dall'utente]
 Bloccanti aperti: [lista dei bloccanti non ancora risolti, se si procede comunque]
 ```
 
+### Generazione REVIEW_BR.docx
+
+Dopo aver generato REVIEW_BR.md, converti in DOCX per facilitare la compilazione da parte del team funzionale:
+
+```bash
+pandoc -f markdown -t docx "plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.md" -o "plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.docx"
+```
+
+Entrambi i file (MD e DOCX) vengono salvati nella cartella del BR. Il DOCX contiene i placeholder "*(inserire qui la risposta)*" sotto ogni domanda, pronti per la compilazione.
+
 ### Presentazione all'utente
 
-Dopo aver generato il report, presentalo all'utente per revisione. L'utente puo' chiedere modifiche al report. Quando l'utente conferma:
+Dopo aver generato report e DOCX, presentali all'utente per revisione. L'utente puo' chiedere modifiche al report. Quando l'utente conferma:
 
 **Se non ci sono bloccanti:**
 
 > Review completata. Nessun bloccante trovato.
 >
-> Il report e' salvato in `plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.md`.
-> Puoi inviare la **Parte 1** al team funzionale per i chiarimenti.
+> I report sono salvati in `plans/todo/<YYYY-MM-DD>_<nome>/`:
+> - `REVIEW_BR.md` — versione markdown
+> - `REVIEW_BR.docx` — versione Word, pronta per la compilazione
 >
+> Puoi inviare il **DOCX** al team funzionale: contiene i placeholder per le risposte sotto ogni domanda.
+>
+> Quando ricevi le risposte, usa `br-clarify` per integrarle nel review.
 > Quando vuoi, puoi procedere con `br-analyzer` per l'analisi tecnica — le assunzioni verranno incorporate automaticamente.
 
 **Se ci sono bloccanti:**
 
 > Review completata. Ci sono **N problemi bloccanti** ancora aperti.
 >
-> Il report e' salvato in `plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.md`.
-> Puoi inviare la **Parte 1** al team funzionale per i chiarimenti.
+> I report sono salvati in `plans/todo/<YYYY-MM-DD>_<nome>/`:
+> - `REVIEW_BR.md` — versione markdown
+> - `REVIEW_BR.docx` — versione Word, pronta per la compilazione
+>
+> Puoi inviare il **DOCX** al team funzionale: contiene i placeholder per le risposte sotto ogni domanda.
 >
 > **Ti consiglio di attendere chiarimenti dal funzionale prima di procedere con l'analisi tecnica** — il rischio e' di pianificare lavoro su basi fragili che dovra' essere rifatto.
+>
+> Quando ricevi le risposte, usa `br-clarify` per integrarle nel review.
 >
 > Pero' la decisione e' tua: se vuoi procedere comunque con `br-analyzer`, le assunzioni proposte verranno incorporate nel piano e i bloccanti aperti saranno segnalati.
 
@@ -295,5 +316,6 @@ Dopo aver generato il report, presentalo all'utente per revisione. L'utente puo'
 
 ## Dipendenze
 
-- **`doc-to-markdown`** skill (`~/.claude/skills/doc-to-markdown/`) — per conversione DOCX/DOC
+- **`doc-to-markdown`** skill (`~/.claude/skills/doc-to-markdown/`) — per conversione DOCX/DOC in input
 - **`markitdown`** — per conversione PDF, PPTX, XLSX (installato come dipendenza di doc-to-markdown, oppure via `pip install 'markitdown[all]'` o `uvx`)
+- **`pandoc`** — per generazione REVIEW_BR.docx. Deve essere disponibile su PATH.

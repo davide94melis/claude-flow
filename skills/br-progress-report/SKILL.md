@@ -13,18 +13,27 @@ Questa skill genera o aggiorna un file Excel con il riepilogo completo delle tas
 
 ### Ricerca automatica
 
-Cerca i file sorgente nella struttura `plans/`, in ordine di priorità:
+Cerca cartelle BR nella struttura `plans/`, in ordine di priorita':
 
 ```bash
-ls plans/in-progress/ plans/todo/ plans/done/ 2>/dev/null
+ls -d plans/in-progress/*/ plans/todo/*/ plans/done/*/ 2>/dev/null
 ```
 
 Serve trovare:
-- **Piano di Implementazione** (`PIANO_IMPLEMENTAZIONE_BR_*.md`) — obbligatorio
-- **File di Progresso** (`PROGRESSO_BR_*.md`) — opzionale, se non esiste le task partono tutte da 0%
-- **Gap Report** (`GAP_REPORT_BR_*.md`) — opzionale, usato per arricchire le descrizioni
+- **Piano di Implementazione** (`PIANO_IMPLEMENTAZIONE_BR.md`) — obbligatorio
+- **File di Progresso** (`PROGRESSO_BR.md`) — opzionale, se non esiste le task partono tutte da 0%
+- **Gap Report** (`GAP_REPORT_BR.md`) — opzionale, usato per arricchire le descrizioni
 
-Se trovi file, proponili:
+**Se trovi cartelle BR**, proponile:
+
+> Ho trovato:
+> - `plans/in-progress/2026-04-28_booking-v2/`
+>   - `PIANO_IMPLEMENTAZIONE_BR.md`
+>   - `PROGRESSO_BR.md`
+>
+> Uso questa cartella per generare l'Excel?
+
+**Se trovi file flat** (retrocompatibilita'):
 
 > Ho trovato:
 > - `plans/in-progress/PIANO_IMPLEMENTAZIONE_BR_2026-04-24.md`
@@ -36,9 +45,13 @@ Se non trovi nulla, chiedi i path manualmente.
 
 ### Verifica Excel esistente
 
-Cerca nella stessa cartella del piano se esiste già un file Excel:
+Cerca nella stessa cartella del BR se esiste gia' un file Excel:
 
 ```bash
+# Se struttura a cartelle
+ls plans/in-progress/*/AVANZAMENTO_BR.xlsx plans/todo/*/AVANZAMENTO_BR.xlsx plans/done/*/AVANZAMENTO_BR.xlsx 2>/dev/null
+
+# Retrocompatibilita' flat
 ls plans/in-progress/AVANZAMENTO_BR_*.xlsx plans/todo/AVANZAMENTO_BR_*.xlsx plans/done/AVANZAMENTO_BR_*.xlsx 2>/dev/null
 ```
 
@@ -184,8 +197,9 @@ Formatta questa sezione come testo leggibile, non come tabella. Usa merge di cel
 
 ### Nome e posizione file
 
-Salva nella stessa cartella del piano:
-- **Creazione**: `AVANZAMENTO_BR_<YYYY-MM-DD>.xlsx`
+Salva nella stessa cartella del BR:
+- **Se struttura a cartelle**: `plans/<stato>/<YYYY-MM-DD>_<nome>/AVANZAMENTO_BR.xlsx`
+- **Se flat (retrocompatibilita')**: `plans/<stato>/AVANZAMENTO_BR_<YYYY-MM-DD>.xlsx`
 - **Aggiornamento**: sovrascrivi il file esistente
 
 ### Modalità aggiornamento

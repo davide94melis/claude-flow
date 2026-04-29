@@ -7,17 +7,63 @@ description: Analizza un nuovo Business Requirement (BR) confrontandolo con i co
 
 Questa skill guida l'analisi di un nuovo Business Requirement: dal confronto con i codebase al piano di sviluppo con task indipendenti per un team di sviluppatori, ognuno munito di Claude Code.
 
+Il flusso BR completo:
+```
+br-reviewer → br-clarify → br-analyzer → br-executor → br-updater
+                                                      ↘ br-progress-report
+```
+
 Il processo si compone di 4 fasi:
 1. **Raccolta input** (domande conversazionali, una alla volta)
-2. **Conversione documentazione** (tutti i documenti vengono convertiti in MD per ridurre il contesto)
+2. **Conversione documentazione** (solo se `br-reviewer` non e' stato eseguito prima — se trova `br-docs-converted/` nella cartella del BR, salta questa fase)
 3. **Analisi gap** (confronto documentazione vs codice)
-4. **Generazione output** (2 file MD: gap report + piano di implementazione)
+4. **Generazione output** (2 file MD: gap report + piano di implementazione, nella cartella del BR)
 
 ---
 
 ## Fase 1 — Raccolta Input
 
-Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva. Non anticipare domande e non procedere finché l'utente non ha risposto.
+Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva. Non anticipare domande e non procedere finche' l'utente non ha risposto.
+
+### Domanda 0 — Cartella BR esistente
+
+Prima di chiedere qualsiasi cosa, verifica se esiste una cartella BR in `plans/todo/` con un `REVIEW_BR.md` (segno che `br-reviewer` e' stato eseguito):
+
+```bash
+ls plans/todo/*/REVIEW_BR.md 2>/dev/null
+```
+
+**Se trovi una cartella con REVIEW_BR.md**, proponila:
+
+> Ho trovato una cartella BR con review gia' completata:
+> - `plans/todo/2026-04-28_booking-v2/REVIEW_BR.md`
+> - Documentazione convertita in `br-docs-converted/`
+>
+> Uso questa come base? Le assunzioni dalla review verranno incorporate nel piano.
+
+Se l'utente conferma:
+- Leggi il `REVIEW_BR.md`, in particolare la sezione "Riepilogo per br-analyzer"
+- Controlla se `br-clarify` e' stato eseguito: cerca "Ultimo aggiornamento:" con "(br-clarify)" nel riepilogo
+- **Se br-clarify e' stato eseguito**:
+  - Estrai i bloccanti risolti → usali come fatti certi nell'analisi gap
+  - Estrai le assunzioni confermate dal funzionale → usale come fatti
+  - Estrai le assunzioni rigettate → usa la risposta del funzionale al posto dell'assunzione
+  - Estrai le assunzioni adottate senza risposta → usale con rischio segnalato
+  - Mostra all'utente: "Review con chiarimenti: N bloccanti risolti, M assunzioni confermate, K bloccanti ancora aperti"
+  - I bloccanti ancora aperti vengono segnalati come "Da chiarire" nel gap report
+- **Se br-clarify NON e' stato eseguito**:
+  - Usa la sezione "Riepilogo per br-analyzer" nella sua forma originale (assunzioni confermate dall'utente e bloccanti aperti)
+- Usa i file in `br-docs-converted/` per l'analisi (salta la Fase 2)
+- Salta le domande su documentazione e codebase — leggile dal REVIEW_BR.md
+- Procedi direttamente alla Domanda 3 (Team di sviluppo)
+
+**Se non trovi nulla**, chiedi il nome del BR:
+
+> Come vuoi chiamare questo BR? Il nome verra' usato per creare la cartella di lavoro.
+>
+> Esempio: "booking-v2", "monitoraggio-dashboard", "auth-refactor"
+
+Poi procedi con le domande successive.
 
 ### Domanda 1 — Codebase
 
@@ -72,28 +118,36 @@ Procedi solo dopo la conferma.
 
 ## Fase 2 — Conversione Documentazione in Markdown
 
-Prima di iniziare l'analisi, converti tutti i documenti non-MD in formato Markdown. Questo riduce significativamente il contesto necessario e rende i documenti più leggibili per l'analisi.
+**Se `br-reviewer` e' stato eseguito** e la cartella `br-docs-converted/` esiste gia' nella cartella del BR (`plans/todo/<data>_<nome>/br-docs-converted/`), **salta completamente questa fase** e vai alla Fase 3. La conversione e' gia' stata fatta da br-reviewer.
+
+**Se `br-reviewer` non e' stato eseguito**, converti tutti i documenti non-MD in formato Markdown. Questo riduce significativamente il contesto necessario e rende i documenti piu' leggibili per l'analisi.
 
 ### Procedura di conversione
 
-Crea una cartella `br-docs-converted/` nella working directory corrente. Per ogni file di documentazione fornito:
+Crea la cartella del BR e la sottocartella per i documenti convertiti:
+
+```bash
+mkdir -p "plans/todo/<YYYY-MM-DD>_<nome>/br-docs-converted"
+```
+
+Per ogni file di documentazione fornito:
 
 **File `.docx` / `.doc`** — Usa la skill `doc-to-markdown` installata in `~/.claude/skills/doc-to-markdown/`:
 ```bash
 python3 ~/.claude/skills/doc-to-markdown/convert_word_to_markdown.py "<path-file>"
 ```
-Sposta il file `.md` risultante e l'eventuale cartella `_images/` in `br-docs-converted/`.
+Sposta il file `.md` risultante e l'eventuale cartella `_images/` in `plans/todo/<YYYY-MM-DD>_<nome>/br-docs-converted/`.
 
 **File `.pdf` / `.pptx` / `.xlsx`** — Usa `markitdown` (la stessa dipendenza di doc-to-markdown):
 ```bash
 # Se markitdown è disponibile globalmente
-markitdown "<path-file>" > "br-docs-converted/<nome-file>.md"
+markitdown "<path-file>" > "plans/todo/<YYYY-MM-DD>_<nome>/br-docs-converted/<nome-file>.md"
 
 # Altrimenti via uvx
-uvx markitdown "<path-file>" > "br-docs-converted/<nome-file>.md"
+uvx markitdown "<path-file>" > "plans/todo/<YYYY-MM-DD>_<nome>/br-docs-converted/<nome-file>.md"
 ```
 
-**File `.md`** — Copia direttamente in `br-docs-converted/`.
+**File `.md`** — Copia direttamente in `plans/todo/<YYYY-MM-DD>_<nome>/br-docs-converted/`.
 
 **Immagini (mockup `.png`, `.jpg`, ecc.)** — Non convertire. Leggile con Read (supporto multimodale) durante la fase di analisi e descrivi nel dettaglio cosa vedi.
 
@@ -118,7 +172,7 @@ Da questo punto in poi, l'analisi lavora sui file MD convertiti in `br-docs-conv
 
 ### 3.1 — Lettura della documentazione
 
-Leggi integralmente ogni documento MD convertito nella cartella `br-docs-converted/`. Per le immagini (mockup), usa Read sul file originale e descrivi nel dettaglio cosa vedi, mappando le UI ai componenti da implementare.
+Leggi integralmente ogni documento MD convertito nella cartella `br-docs-converted/` (dentro la cartella del BR). Per le immagini (mockup), usa Read sul file originale e descrivi nel dettaglio cosa vedi, mappando le UI ai componenti da implementare.
 
 Da ogni documento, estrai:
 - Ogni requisito funzionale (cosa deve fare il sistema)
@@ -165,17 +219,17 @@ Il livello di dettaglio deve essere sufficiente perché un agente Claude Code, l
 
 ## Fase 4 — Generazione Output
 
-Crea la struttura di cartelle `plans/` nella working directory corrente (se non esiste già):
+Se la cartella del BR non esiste ancora (br-reviewer non eseguito), creala:
 
 ```bash
-mkdir -p plans/todo plans/in-progress plans/done
+mkdir -p "plans/todo/<YYYY-MM-DD>_<nome>" plans/in-progress plans/done
 ```
 
-Genera entrambi i file nella cartella `plans/todo/`. Questo è lo stato iniziale: i file restano in `todo/` finché uno sviluppatore non avvia la lavorazione con `br-executor`, che li sposta in `in-progress/`, e infine in `done/` al completamento di tutte le task.
+Genera entrambi i file nella cartella del BR in `plans/todo/`. Questo e' lo stato iniziale: la cartella intera si sposta in `in-progress/` quando uno sviluppatore avvia la lavorazione con `br-executor`, e in `done/` al completamento di tutte le task.
 
 ### 4.1 — Gap Report
 
-**Path file**: `plans/todo/GAP_REPORT_BR_<YYYY-MM-DD>.md`
+**Path file**: `plans/todo/<YYYY-MM-DD>_<nome>/GAP_REPORT_BR.md`
 
 Struttura:
 
@@ -197,9 +251,33 @@ Codebase verificati:
 [per ogni repo coinvolta:]
 - <SIGLA> (<nome completo>): `<path>`
 
+## Assunzioni da review
+
+[Se br-reviewer non e' stato eseguito:]
+Nessuna review preventiva eseguita.
+
+[Se br-reviewer eseguito ma br-clarify NON eseguito:]
+Assunzioni confermate dall'utente: [lista A-XXX dal REVIEW_BR.md]
+Bloccanti aperti: [lista dal REVIEW_BR.md, segnalati come "Da chiarire" nei gap]
+
+[Se br-clarify e' stato eseguito:]
+Bloccanti risolti (risposte del funzionale, usate come fatti nell'analisi):
+- [B1] [Titolo] → [sintesi risposta]
+[...]
+
+Bloccanti ancora aperti (segnalati come "Da chiarire" nei gap):
+- [BN] [Titolo]
+[...]
+
+Assunzioni confermate dal funzionale (usate come fatti): A-001, A-003
+Assunzioni rigettate dal funzionale (usata la risposta al posto dell'assunzione):
+- A-005: "[risposta corretta del funzionale]"
+[...]
+Assunzioni adottate senza risposta (usate con rischio segnalato): A-002, A-004
+
 ## Esito sintetico
 
-[2-3 frasi che riassumono lo stato complessivo: cosa è coperto, dove sono i gap principali]
+[2-3 frasi che riassumono lo stato complessivo: cosa e' coperto, dove sono i gap principali]
 
 ## Matrice di verifica
 
@@ -234,7 +312,7 @@ Ogni riga della matrice e ogni gap aperto deve contenere path esatti ai file ril
 
 ### 4.2 — Piano di Implementazione
 
-**Path file**: `plans/todo/PIANO_IMPLEMENTAZIONE_BR_<YYYY-MM-DD>.md`
+**Path file**: `plans/todo/<YYYY-MM-DD>_<nome>/PIANO_IMPLEMENTAZIONE_BR.md`
 
 Struttura:
 
@@ -244,7 +322,8 @@ Struttura:
 Data: `<data>`
 
 Assunzioni:
-- [contesto, cosa è già completato, perimetro residuo]
+- [contesto, cosa e' gia' completato, perimetro residuo]
+- [se br-reviewer e' stato eseguito, includi qui tutte le assunzioni confermate dalla review, con riferimento al REVIEW_BR.md]
 - team disponibile:
   - [per ogni sviluppatore: ruolo e seniority]
 
@@ -379,5 +458,6 @@ Quando scomponi il lavoro in task, questi principi guidano le decisioni:
 
 ## Dipendenze
 
-- **`doc-to-markdown`** skill (`~/.claude/skills/doc-to-markdown/`) — per conversione DOCX/DOC
-- **`markitdown`** — per conversione PDF, PPTX, XLSX (installato come dipendenza di doc-to-markdown, oppure via `pip install 'markitdown[all]'` o `uvx`)
+- **`doc-to-markdown`** skill (`~/.claude/skills/doc-to-markdown/`) — per conversione DOCX/DOC (solo se br-reviewer non e' stato eseguito)
+- **`markitdown`** — per conversione PDF, PPTX, XLSX (solo se br-reviewer non e' stato eseguito)
+- **`br-reviewer`** — (opzionale ma consigliato) se eseguito prima, br-analyzer ne legge il REVIEW_BR.md e salta la conversione
