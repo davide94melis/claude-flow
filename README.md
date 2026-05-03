@@ -6,7 +6,7 @@ Suite di 6 skill per Claude Code che automatizzano il ciclo di vita dei Business
 
 ### br-reviewer
 
-Verifica la qualita, coerenza e completezza della documentazione funzionale di un BR *prima* dell'analisi tecnica. Produce un report duale:
+Verifica la qualità, coerenza e completezza della documentazione funzionale di un BR *prima* dell'analisi tecnica. Produce un report duale:
 - **Parte 1 — Per il team funzionale**: problemi da chiarire (bloccanti e non), con domande precise
 - **Parte 2 — Per il team tecnico**: assunzioni di default e disallineamenti col codice
 
@@ -22,14 +22,14 @@ Gestisce le risposte del team funzionale alle domande sollevate nel review. Supp
 - **DOCX compilato**: il funzionale compila il REVIEW_BR.docx e lo restituisce
 - **Conversazione**: l'utente riporta le risposte a voce
 
-Aggiorna il REVIEW_BR.md con le risposte, ri-valuta bloccanti e assunzioni, e rigenera il DOCX. Puo essere eseguita piu volte per risposte parziali.
+Aggiorna il REVIEW_BR.md con le risposte, ri-valuta bloccanti e assunzioni, e rigenera il DOCX. Può essere eseguita più volte per risposte parziali.
 
 **Trigger**: `chiarimenti ricevuti`, `risposte ricevute`, `il funzionale ha risposto`, `ho le risposte`
 
 ### br-analyzer
 
 Analizza un nuovo Business Requirement confrontandolo con i codebase esistenti (BE, FE, Document Manager, Email Manager). Genera:
-- **Gap Report** dettagliato per funzionalita
+- **Gap Report** dettagliato per funzionalità
 - **Piano di Implementazione** con task indipendenti assegnate a sviluppatori
 
 **Trigger**: `abbiamo un nuovo br`, `analizza il br`, `gap analysis br`
@@ -37,7 +37,7 @@ Analizza un nuovo Business Requirement confrontandolo con i codebase esistenti (
 ### br-executor
 
 Esegue i task dal piano generato da `br-analyzer`. Ogni sviluppatore usa questa skill per:
-- Lavorare le proprie task assegnate in ordine di priorita e dipendenze
+- Lavorare le proprie task assegnate in ordine di priorità e dipendenze
 - Delegare l'implementazione a sottoagenti Claude Code
 - Tracciare il progresso in un file condiviso
 
@@ -45,7 +45,7 @@ Esegue i task dal piano generato da `br-analyzer`. Ogni sviluppatore usa questa 
 
 ### br-updater
 
-Aggiorna gap report e piano quando il BR o la documentazione cambia. Confronta la nuova documentazione con quella precedente, identifica i delta e aggiorna i file preservando il progresso delle task gia completate o in corso.
+Aggiorna gap report e piano quando il BR o la documentazione cambia. Confronta la nuova documentazione con quella precedente, identifica i delta e aggiorna i file preservando il progresso delle task già completate o in corso.
 
 **Trigger**: `il br e stato aggiornato`, `aggiorna il piano`, `nuova versione del br`
 
@@ -104,7 +104,7 @@ Per la documentazione dettagliata di ogni skill (fasi operative, regole, formati
 
 ## Struttura Cartelle
 
-I file di ogni BR sono organizzati in una cartella dedicata con formato `<YYYY-MM-DD>_<nome-br>/`. La cartella si sposta come unita tra le tre aree:
+I file di ogni BR sono organizzati in una cartella dedicata con formato `<YYYY-MM-DD>_<nome-br>/`. La cartella si sposta come unità tra le tre aree:
 
 ```
 plans/
@@ -129,7 +129,7 @@ Tutte le skill mantengono retrocompatibilita con il vecchio formato flat (es. `G
 ## Flusso di lavoro
 
 ```
-BR nuovo ──→ br-reviewer ──→ Review qualita documentazione + DOCX
+BR nuovo ──→ br-reviewer ──→ Review qualità documentazione + DOCX
                   │
                   ▼
              br-clarify ──→ Risposte funzionale → aggiorna review
