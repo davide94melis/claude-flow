@@ -49,7 +49,7 @@ BR / Documentazione
 
 ## Struttura Cartelle
 
-Ogni BR ha la propria cartella con formato `<YYYY-MM-DD>_<nome-br>/`. La cartella si sposta come unita tra le tre aree:
+Ogni BR ha la propria cartella con formato `<YYYY-MM-DD>_<nome-br>/`. La cartella si sposta come unità tra le tre aree:
 
 ```
 plans/
@@ -69,7 +69,7 @@ plans/
         └── AVANZAMENTO_BR.xlsx        <-- creato da br-progress-report
 ```
 
-Tutte le skill mantengono retrocompatibilita con il vecchio formato flat (es. `GAP_REPORT_BR_2026-04-28.md`).
+Tutte le skill mantengono retrocompatibilità con il vecchio formato flat (es. `GAP_REPORT_BR_2026-04-28.md`).
 
 ---
 
@@ -81,9 +81,9 @@ Tutte le skill mantengono retrocompatibilita con il vecchio formato flat (es. `G
 
 ### Scopo
 
-Validare la qualita, coerenza e completezza della documentazione funzionale di un BR *prima* dell'analisi tecnica (br-analyzer). Produce un report duale:
+Validare la qualità, coerenza e completezza della documentazione funzionale di un BR *prima* dell'analisi tecnica (br-analyzer). Produce un report duale:
 - **Parte 1 — Per il team funzionale**: elenca i problemi trovati (bloccanti e non) con domande precise a cui serve risposta
-- **Parte 2 — Per il team tecnico**: assunzioni di default che il team adottera in assenza di chiarimenti, e disallineamenti tra terminologia/strutture del BR e del codice
+- **Parte 2 — Per il team tecnico**: assunzioni di default che il team adotterà in assenza di chiarimenti, e disallineamenti tra terminologia/strutture del BR e del codice
 
 Esegue anche un check leggero contro il codice per trovare disallineamenti terminologici e strutturali — non una gap analysis completa (quella la fa br-analyzer), ma problemi di documentazione visibili solo confrontando col codebase.
 
