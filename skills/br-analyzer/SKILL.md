@@ -369,9 +369,9 @@ Regole:
 
 ## Backlog operativo
 
-| ID | Stream | Owner | Area | Priorità | Attività | Descrizione | Dipendenze | Effort |
-|---|---|---|---|---:|---|---|---|---:|
-| `T-001` | `stream-fondazioni` | `[Dev]` | BE/FE | P0/P1/P2 | [Nome task] | [Descrizione dettagliata, con riferimento ai gap del report, file da toccare, pattern da seguire] | [ID dipendenze o "Nessuna"] | `N gg` |
+| ID | Stream | Owner | Area | Branch | Priorità | Attività | Descrizione | Dipendenze | Effort |
+|---|---|---|---|---|---:|---|---|---|---:|
+| `T-001` | `stream-fondazioni` | `[Dev]` | BE/FE | `feature/<br-name>-<slug>` | P0/P1/P2 | [Nome task] | [Descrizione dettagliata, con riferimento ai gap del report, file da toccare, pattern da seguire] | [ID dipendenze o "Nessuna"] | `N gg` |
 
 [Una riga per ogni task]
 
@@ -450,7 +450,7 @@ Quando scomponi il lavoro in task, questi principi guidano le decisioni:
 
 **Granularità giusta** — Ogni task deve essere completabile in 1-5 giorni. Troppo grande: spezzala. Troppo piccola (< 2 ore): accorpala con task correlate.
 
-**Branch convention** — Ogni task ha un branch `feature/<task-name>` creato dal branch principale della feature. Specifica l'ordine di merge basato sulle dipendenze.
+**Branch convention** — Ogni task ha un branch specificato nella colonna **Branch** del backlog. Il naming segue il pattern `feature/<br-name>-<slug-attivita>` (es. `feature/monitoring-enum-entities-core`). Per task multi-repo (Area = BE+FE), lo stesso nome branch viene usato in tutte le repo coinvolte. Per le merge task (T-MERGE-*), la colonna Branch e' `—` (non hanno un branch proprio). Specifica l'ordine di merge basato sulle dipendenze.
 
 **Autosufficiente per Claude Code** — Ogni task deve contenere abbastanza contesto perché un agente Claude Code possa implementarla leggendo solo la task e il gap report. Includi: file esatti da modificare/creare, pattern del progetto da seguire, criteri di completamento verificabili, e note specifiche (convenzioni, attenzioni, edge case).
 

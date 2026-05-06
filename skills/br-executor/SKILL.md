@@ -200,30 +200,36 @@ Questo e' necessario perche' ogni sviluppatore aggiorna il PROGRESSO sul proprio
 
 1. `git fetch origin` per sincronizzare i branch remoti
 
-2. Leggi il PROGRESSO dal branch base del piano:
+2. Leggi il PIANO_IMPLEMENTAZIONE_BR.md per estrarre:
+   - Gli ID di tutte le task (T-001, T-003, T-005, ...)
+   - Se il piano ha una colonna **Branch** nel backlog: estrai i nomi branch di ogni task
+   - Il nome del BR dalla cartella (es. `2026-05-04_monitoring` → `monitoring`)
+
+3. **Trova i branch remoti da controllare:**
+   - **Se il piano ha colonna Branch**: usa direttamente i nomi branch elencati nel piano. Per ogni branch con valore diverso da `—`, verifica che esista come remoto:
+     ```bash
+     git branch -r | grep "<branch-name>"
+     ```
+   - **Se il piano NON ha colonna Branch** (retrocompatibilita' con piani pre-esistenti): cerca tutti i branch remoti che contengono il nome del BR:
+     ```bash
+     git branch -r | grep -i "feature/<nome-br>"
+     ```
+
+4. Per ogni branch trovato, prova a leggere il PROGRESSO da 3 percorsi possibili (il file puo' essere in posizioni diverse a seconda dello stato):
    ```bash
-   git show origin/<base-branch>:<path-cartella-br>/PROGRESSO_BR.md
+   git show origin/<branch>:plans/in-progress/<cartella-br>/PROGRESSO_BR.md
+   git show origin/<branch>:plans/todo/<cartella-br>/PROGRESSO_BR.md
+   git show origin/<branch>:plans/done/<cartella-br>/PROGRESSO_BR.md
    ```
-   Se il file non esiste sul base branch, genera un baseline dal PIANO: tutte le task a 0%, stato "Da iniziare".
+   Usa il primo che funziona. Se nessuno funziona, skip quel branch.
 
-3. Leggi il PIANO_IMPLEMENTAZIONE_BR.md per estrarre gli ID di tutte le task (T-001, T-003, T-005, ...).
+5. Leggi anche il PROGRESSO dal branch base del piano (con gli stessi 3 percorsi). Se non esiste su nessun percorso, genera un baseline dal PIANO: tutte le task a 0%, stato "Da iniziare".
 
-4. Cerca i branch remoti corrispondenti alle task del piano:
-   ```bash
-   git branch -r | grep -E "feature/.*(T-001|T-003|T-005|...)"
-   ```
-   Usa gli ID task effettivi trovati nel piano.
-
-5. Per ogni branch trovato, leggi il PROGRESSO:
-   ```bash
-   git show origin/<branch>:<path-cartella-br>/PROGRESSO_BR.md
-   ```
-   Se `git show` fallisce (file non esiste su quel branch), skip.
-
-6. Aggrega per task:
-   - Per ogni task nel baseline, cerca la stessa task (match per ID) nelle versioni lette dai feature branch
-   - Se nella versione del feature branch la colonna **Branch** coincide con il nome del branch remoto (confronto stringa esatto dopo aver rimosso il prefisso `origin/`, es. `origin/feature/T-001-booking` diventa `feature/T-001-booking`), quella versione e' autoritativa — usala al posto della versione baseline
-   - Se nessun feature branch reclama la task, mantieni la versione del baseline
+6. Aggrega per task con la regola **"highest progress wins"**:
+   - Per ogni task, confronta le versioni da tutti i branch (incluso il baseline)
+   - Se una versione mostra "Completata" (100%), vince sempre
+   - Altrimenti, prendi la versione con il progresso % piu' alto
+   - Se due versioni hanno lo stesso %, prendi quella con lo stato piu' avanzato (In corso > Da iniziare)
 
 7. Ricalcola le metriche di riepilogo (task completate, in corso, progresso complessivo %) dalla vista aggregata.
 
@@ -262,24 +268,27 @@ Se una dipendenza non e' soddisfatta, avvisa e blocca:
 Quando la task e' confermata e le dipendenze sono soddisfatte, crea i branch in TUTTE le repo coinvolte.
 
 1. Identifica le repo coinvolte dalla colonna **Area** del piano (es. BE, FE, BE+FE, EM, DM)
-2. **Repo del piano** (la repo corrente, dove stai lavorando):
+2. **Determina il nome del branch:**
+   - Se il piano ha una colonna **Branch** con un valore per questa task → usa quel nome esatto
+   - Se il piano NON ha colonna Branch (retrocompatibilita') → genera il nome: `feature/<task-name>`
+3. **Repo del piano** (la repo corrente, dove stai lavorando):
    - Verifica il branch corrente e lo stato del repository
    - Crea il branch dal base branch del piano:
-     > Creo il branch `feature/<task-name>` dal branch `<branch-base>`.
+     > Creo il branch `<nome-branch>` dal branch `<branch-base>`.
    - Aggiorna il file di progresso con il nome del branch e lo stato "In corso"
 
-3. **Per ogni altra repo coinvolta** (identificata dalla colonna Area e dai path locali forniti in Fase 1):
+4. **Per ogni altra repo coinvolta** (identificata dalla colonna Area e dai path locali forniti in Fase 1):
    - Verifica il branch corrente nella repo esterna:
      ```bash
      git -C <path-repo-esterna> branch --show-current
      ```
-   - Crea il feature branch nella repo esterna:
+   - Crea il feature branch nella repo esterna con lo stesso nome:
      ```bash
-     git -C <path-repo-esterna> checkout -b feature/<task-name>
+     git -C <path-repo-esterna> checkout -b <nome-branch>
      ```
    - Comunica al developer:
      > Branch creato anche nella repo **<Nome> (<SIGLA>)**:
-     > `feature/<task-name>` da `<branch-corrente>`
+     > `<nome-branch>` da `<branch-corrente>`
      > Path: `<path-repo-esterna>`
 
 4. Se la task riguarda SOLO la repo del piano (es. Area = "BE" e il piano sta in BE), crea un solo branch come al punto 2.
