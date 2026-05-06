@@ -281,7 +281,7 @@ Crea la struttura `plans/todo/`, `plans/in-progress/`, `plans/done/` e genera du
 - Strategia di esecuzione (fondazioni, stream paralleli, integrazione)
 - Distribuzione team consigliata (per competenza e seniority)
 - Definizione degli stream funzionali (es. `stream-booking`, `stream-monitoraggio`, `stream-fondazioni`)
-- Backlog operativo in tabella: ID, Stream, Owner, Area, Priorita, Attivita, Descrizione dettagliata, Dipendenze, Effort
+- Backlog operativo in tabella: ID, Stream, Owner, Area, Branch, Priorita, Attivita, Descrizione dettagliata, Dipendenze, Effort
 - Ordine di esecuzione per wave (Wave 0 fondazioni, Wave 1..N sviluppo, Wave finale integrazione/UAT)
 - Dipendenze critiche
 - Piano per persona con lista task e note su pairing/review
@@ -296,7 +296,7 @@ Crea la struttura `plans/todo/`, `plans/in-progress/`, `plans/done/` e genera du
 - **Indipendenza massima**: ogni task deve poter essere sviluppata in parallelo. Le dipendenze condivise vanno nella wave precedente. Minimizzare le dipendenze cross-stream.
 - **Assegnazione per competenza e seniority**: task BE a sviluppatori BE, FE a FE. Task complesse ai senior/mid, task con scope chiuso ai junior con review assegnata. I senior non vanno caricati di implementazione continua.
 - **Granularita giusta**: ogni task completabile in 1-5 giorni. Troppo grande: spezzala. Troppo piccola (< 2 ore): accorpala.
-- **Branch convention**: ogni task ha un branch `feature/<task-name>` dal branch principale della feature. Ordine di merge basato sulle dipendenze.
+- **Branch convention**: ogni task ha un branch specificato nella colonna Branch del backlog, con naming `feature/<br-name>-<slug-attivita>`. Per task multi-repo (Area = BE+FE), lo stesso nome branch viene usato in tutte le repo. Per le merge task il branch e' `—`. Ordine di merge basato sulle dipendenze.
 - **Autosufficiente per Claude Code**: ogni task contiene file esatti da modificare/creare, pattern da seguire, criteri di completamento verificabili, note specifiche.
 
 ### Dipendenze
@@ -656,12 +656,18 @@ Quando piu' sviluppatori lavorano in parallelo su feature branch diversi, ognuno
 ### Algoritmo
 
 1. `git fetch origin` per sincronizzare i branch remoti
-2. Lettura del PROGRESSO dal branch base del piano (baseline). Se non esiste, genera un baseline dal PIANO con tutte le task a 0%.
-3. Lettura del PIANO per estrarre gli ID di tutte le task (T-001, T-003, ...)
-4. Ricerca dei feature branch remoti corrispondenti: `git branch -r | grep -E "feature/.*(T-001|T-003|...)"`
-5. Per ogni branch trovato, lettura del PROGRESSO via `git show origin/<branch>:<path>/PROGRESSO_BR.md`
-6. Aggregazione per task: per ogni task nel baseline, se la versione su un feature branch ha la colonna **Branch** che coincide con il nome del branch remoto (match esatto dopo rimozione prefisso `origin/`), quella versione e' autoritativa
+2. Lettura del PIANO per estrarre gli ID di tutte le task e, se presente, la colonna **Branch** con i nomi dei branch di ogni task. Estrazione del nome BR dalla cartella (es. `2026-05-04_monitoring` → `monitoring`).
+3. Ricerca dei feature branch remoti:
+   - **Se il piano ha colonna Branch**: usa direttamente i nomi branch dal piano
+   - **Se il piano NON ha colonna Branch** (retrocompatibilita'): cerca per pattern sul nome del BR: `git branch -r | grep -i "feature/<nome-br>"`
+4. Per ogni branch trovato, lettura del PROGRESSO provando 3 percorsi: `plans/in-progress/<br>/`, `plans/todo/<br>/`, `plans/done/<br>/` (usa il primo che funziona)
+5. Lettura del PROGRESSO dal branch base del piano (stessi 3 percorsi). Se non esiste, genera un baseline dal PIANO con tutte le task a 0%.
+6. Aggregazione per task con regola **"highest progress wins"**: per ogni task, la versione con il progresso piu' alto vince. Se una versione mostra "Completata" (100%), vince sempre.
 7. Ricalcolo metriche di riepilogo dalla vista aggregata
+
+### Colonna Branch nel Piano
+
+I piani generati da br-analyzer includono una colonna **Branch** nel backlog operativo che specifica il nome esatto del branch per ogni task (es. `feature/monitoring-enum-entities-core`). L'executor usa questo nome per creare i branch. Per le merge task, il valore e' `—`. Per piani creati prima di questa modifica, l'aggregazione usa il fallback per pattern sul nome del BR.
 
 ### Fallback
 

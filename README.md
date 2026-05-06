@@ -170,10 +170,12 @@ BR nuovo ──→ br-reviewer ──→ Review qualità documentazione + DOCX
 Quando piu' sviluppatori lavorano in parallelo su feature branch diversi, ognuno aggiorna il file PROGRESSO_BR.md sul proprio branch. Per garantire visibilita' del progresso a tutti senza attendere le merge, le skill di lettura (br-executor, br-pipeline, br-progress-report) eseguono un'**aggregazione cross-branch**:
 
 1. `git fetch origin` per sincronizzare
-2. Lettura del PROGRESSO dal branch base del piano (baseline)
-3. Identificazione dei feature branch remoti delle task dal piano
-4. Lettura del PROGRESSO da ogni feature branch via `git show`
-5. Aggregazione per task: ogni branch e' autoritativo per le task che ci lavorano sopra (match sulla colonna Branch)
+2. Lettura del piano per estrarre i nomi branch di ogni task (colonna Branch nel backlog) oppure il nome del BR per la ricerca per pattern (retrocompatibilita')
+3. Ricerca dei feature branch remoti corrispondenti
+4. Lettura del PROGRESSO da ogni feature branch via `git show`, provando 3 path possibili (`plans/in-progress/`, `plans/todo/`, `plans/done/`)
+5. Aggregazione per task: **"highest progress wins"** — per ogni task, la versione con il progresso piu' alto vince; se una versione mostra "Completata", vince sempre
+
+Il piano (generato da br-analyzer) include una colonna **Branch** nel backlog che specifica il nome esatto del branch per ogni task. Per piani creati prima di questa modifica, l'aggregazione cerca i branch per pattern sul nome del BR (retrocompatibilita').
 
 Il developer non cambia nulla nel suo workflow — basta pushare il feature branch. Il progresso diventa visibile a tutti senza merge.
 
