@@ -1,6 +1,6 @@
 # Claude Flow — BR Skills per Claude Code
 
-Suite di 6 skill per Claude Code che automatizzano il ciclo di vita dei Business Requirements: dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione task, dall'aggiornamento incrementale al reporting Excel.
+Suite di 7 skill per Claude Code che automatizzano il ciclo di vita dei Business Requirements: dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione task, dall'aggiornamento incrementale al reporting Excel, con un orchestratore pipeline che coordina il tutto.
 
 ## Skills
 
@@ -40,6 +40,8 @@ Esegue i task dal piano generato da `br-analyzer`. Ogni sviluppatore usa questa 
 - Lavorare le proprie task assegnate in ordine di priorità e dipendenze
 - Delegare l'implementazione a sottoagenti Claude Code
 - Tracciare il progresso in un file condiviso
+- **Creare branch in tutte le repo coinvolte** (non solo quella del piano)
+- **Verificare le dipendenze con aggregazione cross-branch** (vede il progresso di tutti i developer anche se lavorano su branch diversi)
 
 **Trigger**: `lavora il task`, `inizia a lavorare`, `esegui il piano`
 
@@ -51,9 +53,15 @@ Aggiorna gap report e piano quando il BR o la documentazione cambia. Confronta l
 
 ### br-progress-report
 
-Genera o aggiorna un file Excel (`.xlsx`) con il riepilogo completo delle task, progressi per sviluppatore e stato di avanzamento complessivo. L'Excel contiene 3 fogli: Task, Per Sviluppatore, Riepilogo.
+Genera o aggiorna un file Excel (`.xlsx`) con il riepilogo completo delle task, progressi per sviluppatore e stato di avanzamento complessivo. L'Excel contiene 3 fogli: Task, Per Sviluppatore, Riepilogo. **Aggrega il progresso da tutti i feature branch remoti** per mostrare dati aggiornati anche prima delle merge.
 
 **Trigger**: `genera il report excel`, `aggiorna l'excel`, `stato avanzamento`
+
+### br-pipeline
+
+Orchestratore unico per il ciclo di vita dei BR. Legge lo stato dal `manifest.json` di ogni BR, rileva il ruolo dell'utente (TL/PM o Dev) e mostra una dashboard con lo stato di ogni BR, proponendo il prossimo step e delegando alle skill appropriate. **Aggrega il progresso da tutti i feature branch remoti** per la dashboard.
+
+**Trigger**: `br-pipeline`, `pipeline br`, `le mie task`, `stato dei br`
 
 ## Installazione
 
@@ -62,6 +70,8 @@ Copia le cartelle delle skill nella directory `~/.claude/skills/`:
 ```bash
 cp -r skills/br-* ~/.claude/skills/
 ```
+
+Questo copia tutte le 7 skill (br-reviewer, br-clarify, br-analyzer, br-executor, br-updater, br-progress-report, br-pipeline).
 
 Aggiungi i trigger nel tuo `~/.claude/CLAUDE.md`:
 
@@ -89,6 +99,10 @@ When the user says "il br e stato aggiornato", "aggiorna il piano", "nuova versi
 # br-progress-report
 - **br-progress-report** (`~/.claude/skills/br-progress-report/SKILL.md`) - genera/aggiorna Excel con avanzamento task e progressi per sviluppatore. Trigger: "genera il report excel", "aggiorna l'excel", "stato avanzamento", "esporta il progresso"
 When the user says "genera il report excel", "aggiorna l'excel", "stato avanzamento", "esporta il progresso", or similar phrases about generating an Excel progress report, invoke the Skill tool with `skill: "br-progress-report"` before doing anything else.
+
+# br-pipeline
+- **br-pipeline** (`~/.claude/skills/br-pipeline/SKILL.md`) - pipeline POM completo per gestione BR con manifest JSON e viste per ruolo. Trigger: "br-pipeline", "pipeline br", "le mie task"
+When the user says "br-pipeline", "pipeline br", "le mie task", or similar phrases about the BR pipeline or viewing assigned tasks, invoke the Skill tool with `skill: "br-pipeline"` before doing anything else.
 ```
 
 ## Dipendenze
@@ -138,16 +152,30 @@ BR nuovo ──→ br-reviewer ──→ Review qualità documentazione + DOCX
             br-analyzer ──→ Gap Report + Piano
                   │
                   ▼
-            br-executor ──→ Implementazione task
+            br-executor ──→ Implementazione task (branch multi-repo)
                   │
                   ▼
-        br-progress-report ──→ Excel avanzamento
+        br-progress-report ──→ Excel avanzamento (aggregato cross-branch)
                   │
     BR aggiornato ──→ br-updater ──→ Aggiorna report/piano
                   │
                   ▼
             br-executor ──→ Lavora task aggiornate
 ```
+
+`br-pipeline` puo' essere usato come orchestratore unico: rileva lo stato di ogni BR e propone automaticamente il prossimo step, delegando alla skill appropriata.
+
+## Aggregazione Cross-Branch del Progresso
+
+Quando piu' sviluppatori lavorano in parallelo su feature branch diversi, ognuno aggiorna il file PROGRESSO_BR.md sul proprio branch. Per garantire visibilita' del progresso a tutti senza attendere le merge, le skill di lettura (br-executor, br-pipeline, br-progress-report) eseguono un'**aggregazione cross-branch**:
+
+1. `git fetch origin` per sincronizzare
+2. Lettura del PROGRESSO dal branch base del piano (baseline)
+3. Identificazione dei feature branch remoti delle task dal piano
+4. Lettura del PROGRESSO da ogni feature branch via `git show`
+5. Aggregazione per task: ogni branch e' autoritativo per le task che ci lavorano sopra (match sulla colonna Branch)
+
+Il developer non cambia nulla nel suo workflow — basta pushare il feature branch. Il progresso diventa visibile a tutti senza merge.
 
 ## Licenza
 

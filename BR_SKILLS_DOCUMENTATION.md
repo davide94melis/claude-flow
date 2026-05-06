@@ -1,6 +1,6 @@
 # BR Skills Suite — Documentazione Completa
 
-Suite di 6 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement: dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione delle task, dalla gestione degli aggiornamenti alla reportistica Excel.
+Suite di 7 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement: dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione delle task, dalla gestione degli aggiornamenti alla reportistica Excel, con un orchestratore pipeline che coordina il tutto.
 
 ## Architettura del Flusso
 
@@ -344,11 +344,11 @@ Aggiorna il progresso a ogni cambio di stato significativo: task che passa a "In
 
 **Selezione task**: presenta le task assegnate allo sviluppatore in ordine di priorita (P0 > P1 > P2) e wave, chiede conferma prima di iniziare.
 
-**Controllo dipendenze**: la regola e semplice — una dipendenza e soddisfatta quando il suo stato e **"Completata"**. Non serve nessun controllo sugli stream: le dipendenze cross-stream sono gestite tramite merge task esplicite (`T-MERGE-*`) inserite nel piano da br-analyzer. Le merge task (T-MERGE-*) sono task speciali: quando l'executor le incontra, guida lo sviluppatore nel merge del branch e nella verifica della build, senza lanciare sottoagenti per implementazione di codice.
+**Controllo dipendenze con aggregazione cross-branch**: prima di verificare le dipendenze, l'executor esegue un'aggregazione del progresso da tutti i feature branch remoti (vedi sezione "Aggregazione Cross-Branch del Progresso" in fondo). Questo permette di vedere se una dipendenza e stata completata da un altro sviluppatore sul suo branch, senza attendere la merge. La regola e semplice — una dipendenza e soddisfatta quando il suo stato nella vista aggregata e **"Completata"**. Non serve nessun controllo sugli stream: le dipendenze cross-stream sono gestite tramite merge task esplicite (`T-MERGE-*`) inserite nel piano da br-analyzer. Le merge task (T-MERGE-*) sono task speciali: quando l'executor le incontra, guida lo sviluppatore nel merge del branch e nella verifica della build, senza lanciare sottoagenti per implementazione di codice.
 
 Se le dipendenze non sono soddisfatte, blocca e propone alternative: passare a un'altra task senza dipendenze bloccanti, oppure attendere.
 
-**Creazione branch**: crea il branch `feature/<task-name>` dalla base indicata nel piano, aggiorna il progresso.
+**Creazione branch multi-repo**: identifica tutte le repo coinvolte dalla colonna Area del piano (es. BE, FE, BE+FE) e crea il feature branch `feature/<task-name>` in ognuna. Nella repo del piano crea il branch di tracking (con aggiornamento PROGRESSO), nelle repo esterne crea il branch di codice. Se la task riguarda solo la repo del piano, crea un solo branch.
 
 **Esecuzione con sottoagenti**: l'agente principale coordina, i sottoagenti implementano. Per ogni task:
 
@@ -359,7 +359,7 @@ Se le dipendenze non sono soddisfatte, blocca e propone alternative: passare a u
 
 **Verifica**: dopo ogni sottoagente controlla correttezza del codice, esistenza dei test, copertura dei casi principali, documentazione, esecuzione test e build.
 
-**Suggerimento commit**: non committa mai autonomamente. Quando un sotto-step e completo e verificato, avvisa lo sviluppatore con lista file, stato test/build e messaggio di commit suggerito. Aspetta conferma prima di proseguire.
+**Suggerimento commit con push reminder**: non committa mai autonomamente. Quando un sotto-step e completo e verificato, avvisa lo sviluppatore con suggerimenti separati per ogni repo coinvolta (lista file, stato test/build, messaggio di commit suggerito). Dopo il commit, suggerisce di pushare il branch per rendere il progresso visibile agli altri sviluppatori. Aspetta conferma prima di proseguire.
 
 **Completamento task**: una task e completa solo quando TUTTI i criteri sono soddisfatti:
 - Requisiti implementati (tutto cio che il gap report e il piano richiedono)
@@ -484,7 +484,7 @@ Verifica se esiste gia un file `AVANZAMENTO_BR_*.xlsx`:
 
 #### Fase 2 — Estrazione Dati
 
-Legge piano e progresso, estrae per ogni task: ID, nome attivita, descrizione completa, owner, area (BE/FE), priorita (P0/P1/P2), wave, dipendenze, effort stimato, branch, progresso %, stato, note.
+Prima di estrarre i dati, esegue un'**aggregazione cross-branch** del progresso (vedi sezione "Aggregazione Cross-Branch del Progresso" in fondo) per ottenere una vista aggiornata di tutte le task, anche quelle in lavorazione su branch non ancora mergiati. Dalla vista aggregata e dal piano, estrae per ogni task: ID, nome attivita, descrizione completa, owner, area (BE/FE), priorita (P0/P1/P2), wave, dipendenze, effort stimato, branch, progresso %, stato, note. Il foglio "Riepilogo" dell'Excel include anche il numero di branch remoti aggregati e il timestamp dell'ultimo fetch.
 
 #### Fase 3 — Generazione Excel
 
@@ -550,6 +550,58 @@ Salva `AVANZAMENTO_BR_<data>.xlsx` nella stessa cartella del piano. In modalita 
 
 ---
 
+## 7. BR Pipeline
+
+**Skill**: `br-pipeline`
+**Path**: `~/.claude/skills/br-pipeline/SKILL.md`
+**Trigger**: "br-pipeline", "pipeline br", "le mie task", "stato dei br"
+
+### Scopo
+
+Orchestratore unico per il ciclo di vita dei BR. Legge lo stato dal `manifest.json` di ogni BR nel repo, rileva il ruolo dell'utente (TL/PM o Dev) e mostra una dashboard con lo stato di ogni BR, proponendo il prossimo step e delegando alle skill appropriate (br-reviewer, br-clarify, br-analyzer, br-executor, br-updater, br-progress-report). La pipeline NON reimplementa la logica delle skill — propone e delega.
+
+### Flusso Pipeline
+
+```
+onboard --> review --> clarify --> analyze --> approve --> execute --> done
+                                                            |
+                                                         update
+```
+
+| Stage | Chi lo avvia | Skill delegata |
+|---|---|---|
+| onboard | Funzionale | — (creazione BR) |
+| review | TL/PM | br-reviewer |
+| clarify | Funzionale | br-clarify |
+| analyze | TL/PM | br-analyzer |
+| approve | TL/PM | — (gate esplicito) |
+| execute | Dev | br-executor |
+| update | TL/PM | br-updater |
+
+### Viste per Ruolo
+
+**TL/PM** — Dashboard completa di tutti i BR con stato, ultimo evento, azioni suggerite. Puo' lanciare review, analisi, approvare il piano.
+
+**Dev** — Solo le proprie task assegnate, filtrate tramite `.br-local.json`. Puo' procedere con l'esecuzione delle task.
+
+### Aggregazione Cross-Branch
+
+Prima di mostrare la dashboard, la pipeline esegue l'aggregazione cross-branch del progresso (vedi sezione dedicata) per mostrare dati aggiornati da tutti i feature branch remoti.
+
+### Manifest JSON
+
+Ogni BR ha un `manifest.json` in `brs/<nome-br>/` che funge da single source of truth: stato pipeline, codebase, documenti, team, review, piano con task, timeline. La pipeline rileva automaticamente lo stato dagli artefatti presenti nel repo per correggere eventuali disallineamenti.
+
+### Regole Fondamentali
+
+1. Mai reimplementare la logica delle skill delegate
+2. Sempre aggiornare il manifest con timestamp, attore e descrizione
+3. Sempre chiedere conferma prima di ogni transizione di stato
+4. Rilevare lo stato dagli artefatti, non solo dal manifest
+5. Rispettare il ruolo (TL/PM vede tutto, Dev vede solo le sue task)
+
+---
+
 ## Ciclo di Vita delle Task
 
 ```
@@ -593,3 +645,40 @@ Le dipendenze cross-stream sono gestite tramite **merge task esplicite** (`T-MER
 | "lavora il task" / "inizia a lavorare" / "esegui il piano" | br-executor |
 | "il br e stato aggiornato" / "aggiorna il piano" / "nuova versione del br" | br-updater |
 | "genera il report excel" / "aggiorna l'excel" / "stato avanzamento" / "esporta il progresso" | br-progress-report |
+| "br-pipeline" / "pipeline br" / "le mie task" / "stato dei br" | br-pipeline |
+
+---
+
+## Aggregazione Cross-Branch del Progresso
+
+Quando piu' sviluppatori lavorano in parallelo su feature branch diversi, ognuno aggiorna il file PROGRESSO_BR.md sul proprio branch. Per garantire visibilita' del progresso a tutti senza attendere le merge, le skill di lettura (br-executor, br-pipeline, br-progress-report) eseguono un'aggregazione cross-branch.
+
+### Algoritmo
+
+1. `git fetch origin` per sincronizzare i branch remoti
+2. Lettura del PROGRESSO dal branch base del piano (baseline). Se non esiste, genera un baseline dal PIANO con tutte le task a 0%.
+3. Lettura del PIANO per estrarre gli ID di tutte le task (T-001, T-003, ...)
+4. Ricerca dei feature branch remoti corrispondenti: `git branch -r | grep -E "feature/.*(T-001|T-003|...)"`
+5. Per ogni branch trovato, lettura del PROGRESSO via `git show origin/<branch>:<path>/PROGRESSO_BR.md`
+6. Aggregazione per task: per ogni task nel baseline, se la versione su un feature branch ha la colonna **Branch** che coincide con il nome del branch remoto (match esatto dopo rimozione prefisso `origin/`), quella versione e' autoritativa
+7. Ricalcolo metriche di riepilogo dalla vista aggregata
+
+### Fallback
+
+Se `git fetch` fallisce (no rete), le skill usano il file di progresso locale e mostrano un warning.
+
+### Skill che la usano
+
+| Skill | Dove | Scopo |
+|---|---|---|
+| br-executor | Controllo dipendenze | Verificare se le dipendenze sono completate da altri developer sui loro branch |
+| br-pipeline | Dashboard TL/PM e Dev | Mostrare il progresso reale di tutte le task |
+| br-progress-report | Estrazione dati per Excel | Generare l'Excel con dati aggiornati da tutti i branch |
+
+### Creazione Branch Multi-Repo
+
+L'executor crea feature branch in tutte le repo coinvolte nella task (identificate dalla colonna Area del piano). Nella repo del piano crea il branch di tracking (con aggiornamento PROGRESSO), nelle repo esterne (FE, EM, DM, ...) crea il branch per il codice. Prerequisito: tutti gli sviluppatori devono avere un clone locale di tutte le repo coinvolte.
+
+### Push Reminder
+
+Dopo ogni suggerimento di commit che include aggiornamenti al PROGRESSO, l'executor ricorda allo sviluppatore di pushare il branch per rendere il progresso visibile: `git push origin <nome-branch>`. Il push non e' obbligatorio ma e' il meccanismo che rende il progresso visibile agli altri.
