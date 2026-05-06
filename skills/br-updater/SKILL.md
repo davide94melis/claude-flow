@@ -184,9 +184,14 @@ Aggiorna il file gap report esistente (non crearne uno nuovo):
 
 ### 3.2 — Aggiornamento Piano di Implementazione
 
-Aggiorna il piano preservando il progresso:
+Aggiorna il piano preservando il progresso.
 
-**Task invariate** — non toccarle, mantieni ID, owner, descrizione, effort.
+**Pre-step: colonna Branch** — Se il backlog operativo del piano NON ha una colonna **Branch**, aggiungila PRIMA di qualsiasi altra modifica. Per ogni task esistente, genera il nome branch seguendo il pattern `feature/<br-name>-<slug-attivita>` (dove `<br-name>` e' il nome del BR e `<slug>` e' derivato dal nome dell'attivita'). Per le merge task (T-MERGE-*), il valore e' `—`. Comunica all'utente:
+
+> Il piano non aveva la colonna Branch. L'ho aggiunta con i nomi branch generati per ogni task.
+> Verifica che i nomi siano corretti — se qualche task e' gia' stata lavorata su un branch diverso, aggiorna il nome.
+
+**Task invariate** — non toccarle, mantieni ID, owner, descrizione, effort, branch.
 
 **Task da modificare** (requisito cambiato):
 - Aggiorna la descrizione con i nuovi requisiti
@@ -197,7 +202,7 @@ Aggiorna il piano preservando il progresso:
 **Task nuove** (requisito nuovo):
 - Assegna un nuovo ID sequenziale che continua dalla numerazione esistente
 - Assegna lo **stream** appropriato: usa uno stream esistente se la task appartiene alla stessa area funzionale, oppure crea un nuovo stream se rappresenta una funzionalità nuova
-- Assegna un nome **Branch** seguendo lo stesso pattern del piano esistente (`feature/<br-name>-<slug-attivita>`). Se il piano esistente non ha colonna Branch, aggiungila a tutte le task (nuove e vecchie)
+- Assegna un nome **Branch** seguendo lo stesso pattern del piano (`feature/<br-name>-<slug-attivita>`)
 - Assegnale al developer più adatto in base a ruolo, seniority e carico attuale (dal progresso)
 - Inseriscile nella wave appropriata rispettando le dipendenze
 - Se il team è cambiato, ridistribuisci considerando i nuovi membri
