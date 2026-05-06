@@ -70,25 +70,62 @@ oppure
 
 ## Fase 2 — Estrazione Dati
 
-Leggi il piano e il file di progresso. Estrai per ogni task:
+### Lettura progresso aggregata (cross-branch)
+
+Prima di estrarre i dati, esegui l'aggregazione dai branch remoti per ottenere una vista aggiornata del progresso di TUTTE le task. Questo e' necessario perche' ogni sviluppatore aggiorna il PROGRESSO sul proprio feature branch — senza aggregazione l'Excel mostrerebbe solo il progresso locale.
+
+1. `git fetch origin` per sincronizzare i branch remoti
+
+2. Leggi il PROGRESSO dal branch base del piano:
+   ```bash
+   git show origin/<base-branch>:<path-cartella-br>/PROGRESSO_BR.md
+   ```
+   Se il file non esiste sul base branch, genera un baseline dal PIANO: tutte le task a 0%, stato "Da iniziare".
+
+3. Leggi il PIANO_IMPLEMENTAZIONE_BR.md per estrarre gli ID di tutte le task (T-001, T-003, T-005, ...).
+
+4. Cerca i branch remoti corrispondenti alle task del piano:
+   ```bash
+   git branch -r | grep -E "feature/.*(T-001|T-003|T-005|...)"
+   ```
+   Usa gli ID task effettivi trovati nel piano.
+
+5. Per ogni branch trovato, leggi il PROGRESSO:
+   ```bash
+   git show origin/<branch>:<path-cartella-br>/PROGRESSO_BR.md
+   ```
+   Se `git show` fallisce (file non esiste su quel branch), skip.
+
+6. Aggrega per task:
+   - Per ogni task nel baseline, cerca la stessa task (match per ID) nelle versioni lette dai feature branch
+   - Se nella versione del feature branch la colonna **Branch** coincide con il nome del branch remoto (confronto stringa esatto dopo aver rimosso il prefisso `origin/`), quella versione e' autoritativa — usala al posto della versione baseline
+   - Se nessun feature branch reclama la task, mantieni la versione del baseline
+
+7. Ricalcola le metriche di riepilogo dalla vista aggregata.
+
+**Fallback**: se `git fetch` fallisce (no rete), usa il file di progresso locale e mostra un warning all'utente.
+
+### Estrazione campi
+
+Dalla vista aggregata e dal piano, estrai per ogni task:
 
 | Campo | Fonte |
 |---|---|
 | ID | Piano — colonna ID |
-| Attività | Piano — colonna Attività |
+| Attivita' | Piano — colonna Attivita' |
 | Descrizione | Piano — colonna Descrizione (testo completo) |
 | Owner | Piano — colonna Owner |
 | Area | Piano — colonna Area (BE/FE) |
-| Priorità | Piano — colonna Priorità (P0/P1/P2) |
+| Priorita' | Piano — colonna Priorita' (P0/P1/P2) |
 | Wave | Piano — sezione Ordine di esecuzione |
 | Dipendenze | Piano — colonna Dipendenze |
 | Effort stimato | Piano — colonna Effort |
-| Branch | Progresso — colonna Branch (se presente) |
-| Progresso % | Progresso — colonna Progresso |
-| Stato | Progresso — colonna Stato (Da iniziare / In corso / Completata / Bloccata / Annullata / Sospesa) |
-| Note | Progresso — colonna Note |
+| Branch | Vista aggregata — colonna Branch |
+| Progresso % | Vista aggregata — colonna Progresso |
+| Stato | Vista aggregata — colonna Stato (Da iniziare / In corso / Completata / Bloccata / Annullata / Sospesa) |
+| Note | Vista aggregata — colonna Note |
 
-Se il file di progresso non esiste, imposta progresso a 0% e stato a "Da iniziare" per tutte le task.
+Se il file di progresso non esiste e l'aggregazione non trova nessun branch remoto, imposta progresso a 0% e stato a "Da iniziare" per tutte le task.
 
 ---
 
@@ -163,6 +200,8 @@ Dashboard complessiva con le metriche chiave:
 Progetto: [nome BR]
 Data generazione: [data]
 Ultimo aggiornamento progresso: [data dal file progresso]
+Dati aggregati da: [N] branch remoti
+Ultimo fetch: [data e ora del git fetch]
 
 STATO COMPLESSIVO
 ─────────────────

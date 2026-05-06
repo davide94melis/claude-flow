@@ -192,37 +192,97 @@ Aspetta la conferma dello sviluppatore prima di iniziare qualsiasi lavoro.
 
 **Nota sulle merge task (T-MERGE-*)**: le merge task sono task speciali che non richiedono implementazione di codice. Quando l'executor incontra una merge task, guida lo sviluppatore attraverso il processo di merge: (1) merge del branch sorgente nel branch base, (2) verifica che la build compili correttamente, (3) mark come completata. Non vengono lanciati sottoagenti per le merge task.
 
+### Lettura progresso aggregata (cross-branch)
+
+Prima di leggere il file di progresso per qualsiasi operazione (controllo dipendenze, stato task), esegui l'aggregazione dai branch remoti per ottenere una vista aggiornata del progresso di TUTTE le task, non solo quelle visibili sul branch corrente.
+
+Questo e' necessario perche' ogni sviluppatore aggiorna il PROGRESSO sul proprio feature branch. Senza aggregazione, il progresso degli altri non e' visibile.
+
+1. `git fetch origin` per sincronizzare i branch remoti
+
+2. Leggi il PROGRESSO dal branch base del piano:
+   ```bash
+   git show origin/<base-branch>:<path-cartella-br>/PROGRESSO_BR.md
+   ```
+   Se il file non esiste sul base branch, genera un baseline dal PIANO: tutte le task a 0%, stato "Da iniziare".
+
+3. Leggi il PIANO_IMPLEMENTAZIONE_BR.md per estrarre gli ID di tutte le task (T-001, T-003, T-005, ...).
+
+4. Cerca i branch remoti corrispondenti alle task del piano:
+   ```bash
+   git branch -r | grep -E "feature/.*(T-001|T-003|T-005|...)"
+   ```
+   Usa gli ID task effettivi trovati nel piano.
+
+5. Per ogni branch trovato, leggi il PROGRESSO:
+   ```bash
+   git show origin/<branch>:<path-cartella-br>/PROGRESSO_BR.md
+   ```
+   Se `git show` fallisce (file non esiste su quel branch), skip.
+
+6. Aggrega per task:
+   - Per ogni task nel baseline, cerca la stessa task (match per ID) nelle versioni lette dai feature branch
+   - Se nella versione del feature branch la colonna **Branch** coincide con il nome del branch remoto (confronto stringa esatto dopo aver rimosso il prefisso `origin/`, es. `origin/feature/T-001-booking` diventa `feature/T-001-booking`), quella versione e' autoritativa — usala al posto della versione baseline
+   - Se nessun feature branch reclama la task, mantieni la versione del baseline
+
+7. Ricalcola le metriche di riepilogo (task completate, in corso, progresso complessivo %) dalla vista aggregata.
+
+**Fallback**: se `git fetch` fallisce (no rete), usa il file di progresso locale e mostra un warning:
+
+> Impossibile sincronizzare con il remoto. Il progresso mostrato potrebbe non essere aggiornato.
+
+Usa la vista aggregata per tutte le operazioni successive (controllo dipendenze, selezione task).
+
 ### Controllo dipendenze
 
-Prima di iniziare una task, verifica le dipendenze dal file di progresso. La regola è semplice: una dipendenza è soddisfatta quando il suo stato è **"Completata"**. Non serve nessun controllo sugli stream — le dipendenze cross-stream sono gestite tramite merge task esplicite inserite nel piano da br-analyzer.
+Prima di iniziare una task, verifica le dipendenze usando la **vista aggregata** (vedi sezione "Lettura progresso aggregata" sopra). NON usare il file di progresso locale — potrebbe non riflettere il lavoro completato da altri sviluppatori sui loro branch.
+
+La regola e' semplice: una dipendenza e' soddisfatta quando il suo stato nella vista aggregata e' **"Completata"**. Non serve nessun controllo sugli stream — le dipendenze cross-stream sono gestite tramite merge task esplicite inserite nel piano da br-analyzer.
 
 Logica di verifica per ogni dipendenza:
 
-1. Trova la task dipendenza nel progresso
-2. Verifica che lo stato sia "Completata"
-3. Se sì, la dipendenza è soddisfatta — procedi
+1. Esegui la lettura progresso aggregata (se non gia' fatta in questa sessione)
+2. Trova la task dipendenza nella vista aggregata
+3. Verifica che lo stato sia "Completata"
+4. Se si', la dipendenza e' soddisfatta — procedi
 
 Se tutte le dipendenze sono soddisfatte, procedi normalmente.
 
-Se una dipendenza non è soddisfatta, avvisa e blocca:
+Se una dipendenza non e' soddisfatta, avvisa e blocca:
 
 > La task **T-005** dipende da **T-003**.
-> T-003 risulta ancora [stato attuale]. Non posso procedere finché non è completata.
+> T-003 risulta ancora [stato attuale nella vista aggregata]. Non posso procedere finche' non e' completata.
 >
 > Vuoi:
 > 1. Passare a un'altra task senza dipendenze bloccanti?
-> 2. Attendere? (ti chiederò di controllare il progresso più tardi)
+> 2. Attendere? (ti chiedero' di controllare il progresso piu' tardi)
 
 ### Creazione branch
 
-Quando la task è confermata e le dipendenze sono soddisfatte:
+Quando la task e' confermata e le dipendenze sono soddisfatte, crea i branch in TUTTE le repo coinvolte.
 
-1. Verifica il branch corrente e lo stato del repository
-2. Crea il branch dalla base indicata nel piano:
+1. Identifica le repo coinvolte dalla colonna **Area** del piano (es. BE, FE, BE+FE, EM, DM)
+2. **Repo del piano** (la repo corrente, dove stai lavorando):
+   - Verifica il branch corrente e lo stato del repository
+   - Crea il branch dal base branch del piano:
+     > Creo il branch `feature/<task-name>` dal branch `<branch-base>`.
+   - Aggiorna il file di progresso con il nome del branch e lo stato "In corso"
 
-> Creo il branch `feature/<task-name>` dal branch `<branch-base>`.
+3. **Per ogni altra repo coinvolta** (identificata dalla colonna Area e dai path locali forniti in Fase 1):
+   - Verifica il branch corrente nella repo esterna:
+     ```bash
+     git -C <path-repo-esterna> branch --show-current
+     ```
+   - Crea il feature branch nella repo esterna:
+     ```bash
+     git -C <path-repo-esterna> checkout -b feature/<task-name>
+     ```
+   - Comunica al developer:
+     > Branch creato anche nella repo **<Nome> (<SIGLA>)**:
+     > `feature/<task-name>` da `<branch-corrente>`
+     > Path: `<path-repo-esterna>`
 
-3. Aggiorna il file di progresso con il nome del branch e lo stato "In corso"
+4. Se la task riguarda SOLO la repo del piano (es. Area = "BE" e il piano sta in BE), crea un solo branch come al punto 2.
 
 ### Esecuzione con sottoagenti
 
@@ -298,19 +358,56 @@ Se qualcosa non va, istruisci un nuovo sottoagente per correggere il problema sp
 
 ### Suggerimento commit
 
-L'agente non deve mai committare autonomamente. Quando il lavoro di un sotto-step è completo e verificato, avvisa lo sviluppatore:
+L'agente non deve mai committare autonomamente. Quando il lavoro di un sotto-step e' completo e verificato, avvisa lo sviluppatore con suggerimenti separati per ogni repo coinvolta.
 
-> Il lavoro su [descrizione sotto-step] è completo e verificato:
+**Se la task coinvolge solo la repo del piano:**
+
+> Il lavoro su [descrizione sotto-step] e' completo e verificato:
 > - [lista file creati/modificati]
 > - Test: [passano / N test, tutti verdi]
 > - Build: [compila]
 >
 > Sarebbe un buon momento per creare un commit. Suggerisco:
 > ```
-> feat(<area>): <descrizione concisa>
+> git add [file specifici]
+> git commit -m "feat(<area>): <descrizione concisa>"
 > ```
 >
-> Quando hai committato, dimmelo e proseguo.
+> Dopo il commit, pusha il branch per rendere il progresso visibile agli altri:
+> ```
+> git push origin <nome-branch>
+> ```
+>
+> Quando hai committato e pushato, dimmelo e proseguo.
+
+**Se la task coinvolge piu' repo:**
+
+> Il lavoro su [descrizione sotto-step] e' completo e verificato.
+>
+> **Repo <Nome Piano> (<SIGLA>)** — `<path-repo-piano>`:
+> - [lista file creati/modificati nella repo piano, incluso PROGRESSO_BR.md]
+> Suggerisco:
+> ```
+> git add [file specifici]
+> git commit -m "[br-progress] <task-id> -> <progresso>%"
+> ```
+>
+> **Repo <Nome Esterna> (<SIGLA>)** — `<path-repo-esterna>`:
+> - [lista file creati/modificati nella repo esterna]
+> Suggerisco:
+> ```
+> cd <path-repo-esterna>
+> git add [file specifici]
+> git commit -m "feat(<area>): <descrizione concisa>"
+> ```
+>
+> Dopo i commit, pusha entrambi i branch:
+> ```
+> git push origin <nome-branch>
+> cd <path-repo-esterna> && git push origin <nome-branch>
+> ```
+>
+> Quando hai committato e pushato, dimmelo e proseguo.
 
 Aspetta la conferma prima di proseguire con il sotto-step successivo.
 
