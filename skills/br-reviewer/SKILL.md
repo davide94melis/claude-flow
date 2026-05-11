@@ -21,6 +21,24 @@ Il processo si compone di 4 fasi:
 
 ---
 
+## Caricamento Profilo Progetto
+
+Prima di iniziare qualsiasi operazione, tenta di caricare il profilo progetto:
+
+1. Leggi `.br-local.json` dalla root del repo corrente
+2. Se contiene i campi `profilo` e `profiles_repo`:
+   a. Sincronizza il repo profili: `git -C <profiles_repo> pull origin main --quiet`
+   b. Leggi `<profiles_repo>/<profilo>/profile.json`
+   c. Salva il profilo in memoria per uso nelle fasi successive
+3. Se `.br-local.json` non ha `profilo` o `profiles_repo`, procedi senza profilo (comportamento attuale, retrocompatibilita' completa)
+
+Quando il profilo e' disponibile:
+- Nella Fase 3 (Analisi), il check leggero contro il codice usa il glossario dal profilo (`domain.glossary`) per un confronto terminologico piu' preciso
+- Gli stati delle entita' (`domain.entity_states`) vengono confrontati con quelli descritti nel BR
+- Le regole di business (`domain.business_rules`) vengono verificate per coerenza con la documentazione
+
+---
+
 ## Fase 1 — Raccolta Input
 
 Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva. Non anticipare domande e non procedere finche' l'utente non ha risposto.
@@ -146,6 +164,21 @@ Per ogni codebase fornito, verifica superficialmente:
 Lo scopo NON e' fare la gap analysis (quello lo fa `br-analyzer`) ma trovare problemi di *documentazione* visibili solo confrontando col codice: il BR presuppone strutture che nel codice esistono ma sono diverse. Questi disallineamenti vanno segnalati al team funzionale perche' possono essere errori nel BR o evoluzioni non documentate.
 
 Usa gli agent di tipo `Explore` per parallelizzare l'esplorazione dei diversi codebase quando possibile.
+
+#### Check terminologico con profilo
+
+**Se il profilo e' disponibile con `domain.glossary`:**
+
+Per ogni termine nel glossario del profilo, verifica se il BR lo usa con la stessa semantica:
+- Se il BR usa un termine diverso per lo stesso concetto → segnala come discrepanza terminologica
+- Se il BR introduce un nuovo termine non nel glossario → segnala come termine da aggiungere al glossario
+- Se il profilo ha `domain.entity_states` e il BR descrive transizioni di stato → confronta e segnala differenze
+
+Queste discrepanze finiscono nella **Parte 2 — Per il team tecnico** del report, nella sezione "Disallineamenti terminologici".
+
+**Se il profilo non e' disponibile:**
+
+Esegui il check terminologico standard (confronto diretto tra nomi nel BR e nel codice).
 
 ---
 
