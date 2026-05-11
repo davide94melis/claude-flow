@@ -32,6 +32,25 @@ La skill rileva automaticamente il contesto operativo:
 
 ---
 
+## Caricamento Profilo Progetto
+
+Prima di iniziare qualsiasi operazione, tenta di caricare il profilo progetto:
+
+1. Leggi `.br-local.json` dalla root del repo corrente
+2. Se contiene i campi `profilo` e `profiles_repo`:
+   a. Sincronizza il repo profili: `git -C <profiles_repo> pull origin main --quiet`
+   b. Leggi `<profiles_repo>/<profilo>/profile.json`
+   c. Se il campo `custom_agents` e' presente nel profilo, leggi anche i file .md degli agenti referenziati (path relativi alla cartella del profilo)
+   d. Salva il profilo in memoria per uso nelle fasi successive
+3. Se `.br-local.json` non ha `profilo` o `profiles_repo`, procedi senza profilo (comportamento attuale, retrocompatibilita' completa)
+
+Quando il profilo e' disponibile:
+- Nella Fase 2, instrada i sottoagenti al subagent_type corretto in base allo stack del codebase coinvolto
+- Nella Fase 2, usa br-verifier per la verifica al posto della verifica inline
+- Inietta convenzioni e dominio dal profilo nei prompt dei sottoagenti
+
+---
+
 ## Rilevamento Modalita'
 
 La skill rileva automaticamente la modalita' di funzionamento in base al contesto e al trigger dell'utente:
@@ -374,6 +393,41 @@ Dopo la conferma, crea il branch in tutte le repo coinvolte:
 
 ### Esecuzione con sottoagenti
 
+#### Routing a Specialist per Stack
+
+**Se il profilo progetto e' disponibile**, determina il subagent_type in base al codebase coinvolto nel bug:
+
+1. Identifica l'area del bug dalla colonna `fase`/`sezione` e dalla task collegata
+2. Leggi `tech_stack.backend.framework` o `tech_stack.frontend.framework` dal profilo
+3. Mappa al subagent_type:
+
+| Stack (dal profilo) | subagent_type |
+|---|---|
+| Spring Boot | `spring-boot-engineer` |
+| .NET Core | `csharp-developer` |
+| Django | `django-developer` |
+| FastAPI | `fastapi-developer` |
+| Node.js / Express | `node-specialist` |
+| Laravel | `laravel-specialist` |
+| Angular | `angular-architect` |
+| React | `react-specialist` |
+| Vue | `vue-expert` |
+| Next.js | `nextjs-developer` |
+| Flutter | `flutter-expert` |
+| Java (generico) | `java-architect` |
+| Python (generico) | `python-pro` |
+| Go | `golang-pro` |
+| Rust | `rust-engineer` |
+| Kotlin | `kotlin-specialist` |
+| Swift | `swift-expert` |
+| PHP | `php-pro` |
+| (non riconosciuto/no profilo) | `general-purpose` (fallback) |
+
+4. Lancia il sottoagente con `Agent(subagent_type: "<tipo>", prompt: "<prompt>")`
+5. Se il profilo non e' disponibile, usa `general-purpose` (comportamento attuale)
+
+Aggiungi al prompt del sottoagente il contesto dal profilo (convenzioni, test naming, package structure).
+
 Lancia un sottoagente con prompt autosufficiente che include:
 
 1. **Il bug** — descrizione completa, screenshot, utente impattato, ipotesi di root cause
@@ -423,6 +477,20 @@ File di riferimento per le convenzioni:
 ### Verifica in 3 fasi
 
 Dopo che il sottoagente completa il fix, esegui la verifica in 3 fasi:
+
+**Se il profilo progetto e' disponibile:**
+
+Delega la verifica all'agente `br-verifier` (leggendo le sue istruzioni da `~/.claude/agents/br-verifier.md`). Passa:
+- Requisiti: descrizione del bug + ipotesi di root cause
+- File modificati: lista dei file toccati dal sottoagente
+- Risultati test: output dell'esecuzione test
+- Convenzioni dal profilo: test_naming, base_entity, package_structure
+
+Se il verifier restituisce FAIL, leggi i dettagli e lancia un sottoagente di correzione. Ripeti la verifica.
+
+**Se il profilo NON e' disponibile (retrocompatibilita'):**
+
+Esegui la verifica inline in 3 fasi come segue:
 
 **Fase A — Verifica tecnica**
 
