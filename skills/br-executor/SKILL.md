@@ -11,6 +11,26 @@ L'agente principale coordina il lavoro, delega l'implementazione a sottoagenti, 
 
 ---
 
+## Caricamento Profilo Progetto
+
+Prima di iniziare qualsiasi operazione, tenta di caricare il profilo progetto:
+
+1. Leggi `.br-local.json` dalla root del repo corrente
+2. Se contiene i campi `profilo` e `profiles_repo`:
+   a. Sincronizza il repo profili: `git -C <profiles_repo> pull origin main --quiet`
+   b. Leggi `<profiles_repo>/<profilo>/profile.json`
+   c. Se il campo `custom_agents` e' presente nel profilo, leggi anche i file .md degli agenti referenziati (path relativi alla cartella del profilo)
+   d. Salva il profilo in memoria per uso nelle fasi successive
+3. Se `.br-local.json` non ha `profilo` o `profiles_repo`, procedi senza profilo (comportamento attuale, retrocompatibilita' completa)
+
+Quando il profilo e' disponibile:
+- Nella Fase 1, usa i campi `profilo` e `paths` da `.br-local.json` per pre-compilare le risposte
+- Nella Fase 3, instrada i sottoagenti al subagent_type corretto in base allo stack
+- Nella Fase 3, usa br-verifier per la verifica al posto della verifica inline
+- Inietta convenzioni e dominio dal profilo in tutti i prompt dei sottoagenti
+
+---
+
 ## Fase 1 — Raccolta Input
 
 Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
@@ -308,6 +328,61 @@ Leggi la descrizione della task dal piano e dal gap report. Identifica i sotto-l
 - Scrittura test
 - Documentazione del codice
 
+#### Routing a Specialist per Stack
+
+**Se il profilo progetto e' disponibile**, usa il campo `tech_stack` per instradare il lavoro al subagent_type piu' adatto.
+
+Logica di routing:
+1. Determina l'area della task dalla colonna **Area** del piano (es. BE, FE, BE+FE)
+2. Per area BE: leggi `tech_stack.backend.framework` dal profilo e mappa:
+
+| Stack (dal profilo) | subagent_type |
+|---|---|
+| Spring Boot | `spring-boot-engineer` |
+| .NET Core | `csharp-developer` |
+| Django | `django-developer` |
+| FastAPI | `fastapi-developer` |
+| Node.js / Express | `node-specialist` |
+| Laravel | `laravel-specialist` |
+| Java (generico) | `java-architect` |
+| Python (generico) | `python-pro` |
+| Go | `golang-pro` |
+| Rust | `rust-engineer` |
+| Kotlin | `kotlin-specialist` |
+| Swift | `swift-expert` |
+| PHP | `php-pro` |
+
+3. Per area FE: leggi `tech_stack.frontend.framework` dal profilo e mappa:
+
+| Stack (dal profilo) | subagent_type |
+|---|---|
+| Angular | `angular-architect` |
+| React | `react-specialist` |
+| Vue | `vue-expert` |
+| Next.js | `nextjs-developer` |
+| Flutter | `flutter-expert` |
+
+4. Lancia il sottoagente con `Agent(subagent_type: "<tipo>", prompt: "<prompt>")` invece di `Agent(prompt: "<prompt>")`
+5. Se il framework non e' nella tabella o il profilo non e' disponibile, usa `general-purpose` (fallback, comportamento attuale)
+
+Per task multi-area (BE + FE), lancia specialist diversi per ogni sotto-step in sequenza: prima lo specialist BE per l'API, poi lo specialist FE per il componente che la consuma.
+
+**Iniezione profilo nel prompt del sottoagente:**
+
+Quando il profilo e' disponibile, aggiungi al prompt del sottoagente (dopo i vincoli):
+
+```
+Contesto progetto (dal profilo):
+- Framework: <tech_stack.backend.framework o frontend.framework>
+- Package structure: <conventions.package_structure>
+- Layers: <conventions.layers>
+- Base entity: <conventions.base_entity>
+- API prefix: <conventions.api_prefix>
+- Test framework: <conventions.test_framework>
+- Test naming: <conventions.test_naming>
+- Design system: <palette, typography, spacing se area FE>
+```
+
 #### Come istruire un sottoagente
 
 Ogni sottoagente deve ricevere un prompt autosufficiente che include:
@@ -357,6 +432,21 @@ Se i sotto-lavori sono indipendenti tra loro (es. entità e componente FE), lanc
 #### Verifica del lavoro dei sottoagenti
 
 Dopo che ogni sottoagente completa il suo lavoro, esegui una verifica in 3 fasi:
+
+**Se il profilo progetto e' disponibile:**
+
+Delega la verifica all'agente `br-verifier` (leggendo le sue istruzioni da `~/.claude/agents/br-verifier.md`). Costruisci un prompt che includa:
+
+1. **Requisiti** — descrizione della task dal piano e dal gap report
+2. **File modificati** — lista completa dei file creati/modificati dal sottoagente
+3. **Risultati test** — esegui prima la suite di test e passa l'output
+4. **Convenzioni dal profilo** — `test_naming`, `base_entity`, `package_structure`, `commit_convention`
+
+Lancia il verifier e attendi il verdict. Se il verdict e' FAIL, leggi i dettagli e lancia un sottoagente di correzione. Ripeti la verifica. Solo quando il verdict e' PASS, il sotto-step e' considerato verificato.
+
+**Se il profilo NON e' disponibile (retrocompatibilita'):**
+
+Esegui la verifica inline in 3 fasi come segue:
 
 **Fase A — Verifica tecnica (automatica)**
 
