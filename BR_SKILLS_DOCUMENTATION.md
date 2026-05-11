@@ -1,6 +1,6 @@
 # BR Skills Suite — Documentazione Completa
 
-Suite di 7 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement: dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione delle task, dalla gestione degli aggiornamenti alla reportistica Excel, con un orchestratore pipeline che coordina il tutto.
+Suite di 9 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement: dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione delle task, dalla gestione degli aggiornamenti alla reportistica Excel, con un orchestratore pipeline che coordina il tutto. Include profili progetto centralizzati e agenti generici profilo-aware.
 
 ## Architettura del Flusso
 
@@ -35,6 +35,18 @@ BR / Documentazione
         |   [br-debug]   ──>  + BUG_REPORT_BR.md
         |                      fix con sottoagenti
         |                      verifica 3 fasi
+        |
+        |   (profili progetto)
+        |         |
+        |         v
+        |   deloitte-profiles/       profili centralizzati
+        |   <progetto>/profile.json  stack, convenzioni, dominio
+        |
+        |   (agenti generici)
+        |         |
+        |         v
+        |   br-codebase-explorer     esplorazione profilo-aware
+        |   br-verifier              verifica 3 fasi profilo-aware
         |
         |   (se BR aggiornato)
         |         |
@@ -704,6 +716,103 @@ Tre flussi di chiusura: Excel aggiornato, Jira sincronizzato, o conversazione. B
 
 ---
 
+## 9. Profili Progetto
+
+### Repo deloitte-profiles
+
+Repository centralizzato con un `profile.json` per progetto. Contiene stack tecnico, convenzioni, dominio e design system.
+
+| Sezione | Contenuto | Obbligatoria |
+|---|---|---|
+| `project` | Nome, cliente, descrizione | Si |
+| `tech_stack` | Backend + frontend: linguaggio, framework, DB, ORM | Si |
+| `conventions` | Package structure, layers, API prefix, test naming | No |
+| `design_system` | Palette, tipografia, spaziatura, componenti | No |
+| `domain` | Glossario, regole di business, stati entita' | No |
+| `custom_agents` | Path a agenti specifici del progetto | No |
+
+### Configurazione locale (.br-local.json)
+
+Due nuovi campi:
+
+| Campo | Descrizione |
+|---|---|
+| `profilo` | Nome della cartella nel repo profili (es. "pnrr") |
+| `profiles_repo` | Path locale del clone di deloitte-profiles |
+
+### Caricamento automatico
+
+Tutte le skill BR caricano il profilo allo startup:
+1. Leggono `.br-local.json`
+2. `git pull` sul repo profili
+3. Leggono `profile.json`
+4. Iniettano il contesto nei prompt dei sottoagenti
+
+Fallback: senza `profilo`/`profiles_repo`, le skill funzionano come prima.
+
+### Manutenzione automatica
+
+`br-analyzer` aggiorna il profilo dopo ogni gap analysis confrontando codebase vs profilo. Delta significativi vengono proposti all'utente.
+
+---
+
+## 10. Agenti Generici
+
+### br-codebase-explorer
+
+**File**: `~/.claude/agents/br-codebase-explorer.md`
+**Usato da**: br-analyzer, br-updater
+
+Esploratore di codebase generico. Riceve profilo, documentazione BR, e path del codebase. Produce output strutturato per la gap analysis. Usa il profilo per navigare in modo mirato (package structure, layers, API prefix, terminologia).
+
+### br-verifier
+
+**File**: `~/.claude/agents/br-verifier.md`
+**Usato da**: br-executor, br-debug
+
+Verificatore in 3 fasi del lavoro dei sottoagenti. Riceve requisiti, file modificati, risultati test, e convenzioni dal profilo. Produce verdict PASS/FAIL strutturato.
+
+### Routing a Specialist
+
+Le skill br-executor e br-debug instradano al subagent_type giusto in base al `tech_stack` dal profilo:
+
+| Stack | subagent_type |
+|---|---|
+| Spring Boot | `spring-boot-engineer` |
+| .NET Core | `csharp-developer` |
+| Angular | `angular-architect` |
+| React | `react-specialist` |
+| Vue | `vue-expert` |
+| Next.js | `nextjs-developer` |
+| Flutter | `flutter-expert` |
+| Django | `django-developer` |
+| FastAPI | `fastapi-developer` |
+| Node.js / Express | `node-specialist` |
+| Laravel | `laravel-specialist` |
+| (non riconosciuto) | `general-purpose` (fallback) |
+
+---
+
+## 11. BR Profile Setup
+
+**Skill**: `br-profile-setup`
+**Path**: `~/.claude/skills/br-profile-setup/SKILL.md`
+**Trigger**: "crea profilo progetto", "setup profilo", "nuovo profilo"
+
+Creazione guidata di un profilo progetto con auto-detect del codebase (10 step):
+1. Nome progetto
+2. Path repo profili
+3. Codebase coinvolti
+4. Auto-detect framework, convenzioni, design system
+5. Conferma e correzione
+6. Domande dominio (glossario, regole, stati)
+7. Reference files (opzionali)
+8. Genera profile.json
+9. Commit + push su deloitte-profiles
+10. Aggiorna .br-local.json nei codebase
+
+---
+
 ## Ciclo di Vita delle Task
 
 ```
@@ -749,3 +858,4 @@ Le dipendenze cross-stream sono gestite tramite **merge task esplicite** (`T-MER
 | "genera il report excel" / "aggiorna l'excel" / "stato avanzamento" / "esporta il progresso" | br-progress-report |
 | "br-pipeline" / "pipeline br" / "le mie task" / "stato dei br" | br-pipeline |
 | "ci sono dei bug" / "bug dal funzionale" / "segnalazioni test" / "lavora il bug" / "debug br" / "aggiorna i bug" | br-debug |
+| "crea profilo progetto" / "setup profilo" / "nuovo profilo" / "configura il profilo" | br-profile-setup |
