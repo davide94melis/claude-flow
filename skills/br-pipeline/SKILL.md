@@ -75,6 +75,14 @@ Per ogni `brs/*/manifest.json` trovato, leggi:
 - `piano.task` — lista task (se presente)
 - `timeline` — cronologia delle azioni
 
+### Caricamento Profilo (se disponibile)
+
+Dopo aver trovato i BR attivi, tenta di caricare il profilo progetto:
+
+1. Leggi `.br-local.json` dalla root del repo corrente
+2. Se contiene `profilo` e `profiles_repo`, sincronizza e carica il `profile.json`
+3. Usa il profilo per arricchire la dashboard con informazioni progetto
+
 ---
 
 ## Fase 2 — Dashboard e Rilevamento Ruolo
@@ -151,6 +159,12 @@ Mostra una tabella riassuntiva di tutti i BR:
 >
 > [Per ogni BR, l'ultimo evento viene dalla timeline]
 
+**Se il profilo e' disponibile**, mostra le informazioni progetto nell'header della dashboard:
+
+> **Progetto: <project.name>** (<project.client>)
+> Stack: <tech_stack.backend.framework> + <tech_stack.frontend.framework>
+> Profilo: `<profilo>` (ultimo sync: <data pull>)
+
 Poi, per ogni BR in ordine di urgenza (stati piu' avanzati con azioni pendenti prima), proponi l'azione:
 
 > ### Azioni suggerite
@@ -197,6 +211,11 @@ Il file ha questo formato:
 Dopo l'identificazione, crea `.br-local.json` nella root del repo.
 
 **Se `.br-local.json` esiste**, usa il `nome` per filtrare le task.
+
+**Se il profilo e' disponibile**, mostra nell'header:
+
+> **Progetto: <project.name>**
+> Stack BE: <tech_stack.backend.framework> | Stack FE: <tech_stack.frontend.framework>
 
 Trova tutti i BR con `stato_pipeline: "execute"` o `"approved"` e `piano.approvato: true`. Per ognuno, esegui la **lettura progresso aggregata** (vedi sezione sopra) e filtra le task assegnate al developer dalla vista aggregata.
 
