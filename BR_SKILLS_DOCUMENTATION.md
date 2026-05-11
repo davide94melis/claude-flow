@@ -29,6 +29,13 @@ BR / Documentazione
         |                  |
         |            + PROGRESSO_BR.md
         |
+        |   (se ci sono bug dal funzionale)
+        |         |
+        |         v
+        |   [br-debug]   ──>  + BUG_REPORT_BR.md
+        |                      fix con sottoagenti
+        |                      verifica 3 fasi
+        |
         |   (se BR aggiornato)
         |         |
         |         v
@@ -624,6 +631,79 @@ Raccolta dati conversazionale (nome, repository coinvolte, chi lo crea). Genera 
 
 ---
 
+## 8. BR Debug
+
+**Skill**: `br-debug`
+**Path**: `~/.claude/skills/br-debug/SKILL.md`
+**Trigger**: "ci sono dei bug", "bug dal funzionale", "segnalazioni test", "lavora il bug", "debug br"
+
+### Scopo
+
+Gestire i bug segnalati dai funzionali durante e dopo il testing. Importa bug da Excel o Jira, li collega alle task del piano, li assegna agli sviluppatori, esegue i fix con sottoagenti e verifica in 3 fasi, gestisce la chiusura con validazione funzionale e il re-import iterativo.
+
+Opera come stage parallelo: coesiste con l'esecuzione delle task senza interromperla.
+
+### Doppia Modalita'
+
+| Contesto | Source of truth |
+|---|---|
+| claude-flow (standalone) | `BUG_REPORT_BR.md` in `plans/` |
+| portal-flow (con pipeline) | `manifest.bugs[]` + vista MD generata |
+
+### Ciclo di Vita del Bug
+
+```
+aperto → assegnato → in_corso → verificato → chiuso
+                        ↓
+                     bloccato
+```
+
+### Flusso Operativo
+
+#### Fase 1 — Import dei Bug
+
+Supporta 3 sorgenti: Excel, Jira, o entrambi.
+
+**Excel:** mapping intelligente delle colonne con pattern matching. Supporta formati flessibili (mapping dei tipi: DEFECT/BUG, MINOR, CAMBIO LABEL, CR). Le CR hanno sempre severita' `minore`. Filtra automaticamente i bug gia' chiusi.
+
+**Jira:** usa la skill `jira` o l'MCP Jira. Mappa i campi Jira standard.
+
+Per ogni bug, la skill tenta il collegamento automatico alle task/stream del piano, propone l'assegnazione (default: owner della task collegata, override dal TL/PM), e chiede conferma prima di scrivere.
+
+#### Fase 2 — Esecuzione Fix
+
+Per ogni bug assegnato:
+1. Analisi del bug con localizzazione del codice e ipotesi di root cause
+2. Creazione branch `fix/<br-name>-BUG-<NNN>-<slug>`
+3. Esecuzione con sottoagenti (prompt autosufficiente con contesto completo)
+4. Verifica in 3 fasi (tecnica + coerenza col bug + riesame)
+5. Suggerimento commit (mai autonomo)
+6. Bug passa a stato `verificato`
+
+Bug minori nella stessa sezione possono essere raggruppati su un unico branch.
+
+#### Fase 3 — Chiusura e Re-import
+
+Tre flussi di chiusura: Excel aggiornato, Jira sincronizzato, o conversazione. Bug riaperti tornano a stato `aperto` preservando note e fix precedenti. La skill supporta re-import iterativo senza duplicazioni.
+
+### Regole Fondamentali
+
+1. Mai committare autonomamente nel codebase del progetto
+2. Mai procedere senza conferma
+3. Verificare prima di dichiarare verificato (3 fasi complete)
+4. Mai duplicare bug al re-import
+5. Mai sovrascrivere note precedenti
+6. Le CR hanno sempre severita' minore
+
+### Dipendenze
+
+| Dipendenza | Installazione |
+|---|---|
+| `openpyxl` (Python) | `pip install openpyxl` |
+| skill `jira` | gia' nell'ecosistema (opzionale) |
+
+---
+
 ## Ciclo di Vita delle Task
 
 ```
@@ -655,7 +735,7 @@ Le dipendenze cross-stream sono gestite tramite **merge task esplicite** (`T-MER
 | `doc-to-markdown` skill | br-reviewer, br-analyzer, br-updater | gia installata in `~/.claude/skills/doc-to-markdown/` |
 | `markitdown` | br-reviewer, br-analyzer, br-updater | `pip install 'markitdown[all]'` oppure via `uvx` |
 | `pandoc` | br-reviewer, br-clarify | disponibile su PATH |
-| `openpyxl` | br-progress-report | `pip install openpyxl` |
+| `openpyxl` | br-progress-report, br-debug | `pip install openpyxl` |
 
 ## Trigger Registrati (CLAUDE.md)
 
@@ -668,3 +748,4 @@ Le dipendenze cross-stream sono gestite tramite **merge task esplicite** (`T-MER
 | "il br e stato aggiornato" / "aggiorna il piano" / "nuova versione del br" | br-updater |
 | "genera il report excel" / "aggiorna l'excel" / "stato avanzamento" / "esporta il progresso" | br-progress-report |
 | "br-pipeline" / "pipeline br" / "le mie task" / "stato dei br" | br-pipeline |
+| "ci sono dei bug" / "bug dal funzionale" / "segnalazioni test" / "lavora il bug" / "debug br" / "aggiorna i bug" | br-debug |

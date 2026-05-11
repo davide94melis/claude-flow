@@ -1,6 +1,6 @@
 # Claude Flow — BR Skills per Claude Code
 
-Suite di 7 skill per Claude Code che automatizzano il ciclo di vita dei Business Requirements: dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione task, dall'aggiornamento incrementale al reporting Excel, con un orchestratore pipeline che coordina il tutto.
+Suite di 8 skill per Claude Code che automatizzano il ciclo di vita dei Business Requirements: dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione task, dalla gestione dei bug segnalati dai funzionali all'aggiornamento incrementale e al reporting Excel, con un orchestratore pipeline che coordina il tutto.
 
 ## Skills
 
@@ -64,6 +64,20 @@ Genera o aggiorna un file Excel (`.xlsx`) con il riepilogo completo delle task, 
 
 **Trigger**: `genera il report excel`, `aggiorna l'excel`, `stato avanzamento`
 
+### br-debug
+
+Gestisce i bug segnalati dai funzionali durante e dopo il testing. Copre l'intero ciclo:
+- **Import** da Excel (mapping intelligente delle colonne) o Jira (API/MCP)
+- **Collegamento automatico** dei bug alle task/stream del piano
+- **Assegnazione** con default all'owner della task collegata, override dal TL/PM
+- **Esecuzione fix** con sottoagenti Claude Code e **verifica in 3 fasi** (tecnica + coerenza + riesame)
+- **Chiusura** con validazione funzionale (Excel aggiornato, Jira, o conversazione)
+- **Re-import iterativo** senza duplicazioni
+
+Opera come **stage parallelo**: coesiste con l'esecuzione delle task senza interromperla. Supporta dual-mode (claude-flow standalone con MD come source of truth, portal-flow con manifest).
+
+**Trigger**: `ci sono dei bug`, `bug dal funzionale`, `segnalazioni test`, `lavora il bug`, `debug br`, `aggiorna i bug`
+
 ### br-pipeline
 
 Orchestratore unico per il ciclo di vita dei BR. Legge lo stato dal `manifest.json` di ogni BR, rileva il ruolo dell'utente (TL/PM o Dev) e mostra una dashboard con lo stato di ogni BR, proponendo il prossimo step e delegando alle skill appropriate. **Aggrega il progresso da tutti i feature branch remoti** per la dashboard.
@@ -78,7 +92,7 @@ Copia le cartelle delle skill nella directory `~/.claude/skills/`:
 cp -r skills/br-* ~/.claude/skills/
 ```
 
-Questo copia tutte le 7 skill (br-reviewer, br-clarify, br-analyzer, br-executor, br-updater, br-progress-report, br-pipeline).
+Questo copia tutte le 8 skill (br-reviewer, br-clarify, br-analyzer, br-executor, br-updater, br-progress-report, br-debug, br-pipeline).
 
 Aggiungi i trigger nel tuo `~/.claude/CLAUDE.md`:
 
@@ -107,6 +121,10 @@ When the user says "il br e stato aggiornato", "aggiorna il piano", "nuova versi
 - **br-progress-report** (`~/.claude/skills/br-progress-report/SKILL.md`) - genera/aggiorna Excel con avanzamento task e progressi per sviluppatore. Trigger: "genera il report excel", "aggiorna l'excel", "stato avanzamento", "esporta il progresso"
 When the user says "genera il report excel", "aggiorna l'excel", "stato avanzamento", "esporta il progresso", or similar phrases about generating an Excel progress report, invoke the Skill tool with `skill: "br-progress-report"` before doing anything else.
 
+# br-debug
+- **br-debug** (`~/.claude/skills/br-debug/SKILL.md`) - gestione bug da testing funzionale: import da Excel/Jira, fix con sottoagenti e verifica 3 fasi, chiusura con validazione funzionale. Trigger: "ci sono dei bug", "lavora il bug", "debug br"
+When the user says "ci sono dei bug", "bug dal funzionale", "segnalazioni test", "defect ricevuti", "lavora il bug", "fix il bug", "debug br", "il funzionale ha testato", "bug confermati", "aggiorna i bug", or similar phrases about managing bugs on a BR, invoke the Skill tool with `skill: "br-debug"` before doing anything else.
+
 # br-pipeline
 - **br-pipeline** (`~/.claude/skills/br-pipeline/SKILL.md`) - pipeline POM completo per gestione BR con manifest JSON e viste per ruolo. Trigger: "br-pipeline", "pipeline br", "le mie task"
 When the user says "br-pipeline", "pipeline br", "le mie task", or similar phrases about the BR pipeline or viewing assigned tasks, invoke the Skill tool with `skill: "br-pipeline"` before doing anything else.
@@ -117,7 +135,7 @@ When the user says "br-pipeline", "pipeline br", "le mie task", or similar phras
 - **doc-to-markdown** skill (`~/.claude/skills/doc-to-markdown/`) — per conversione DOCX/DOC (usata da `br-reviewer`, `br-analyzer` e `br-updater`)
 - **markitdown** — per conversione PDF, PPTX, XLSX (`pip install 'markitdown[all]'`)
 - **pandoc** — per generazione DOCX e conversione DOCX→MD (usata da `br-reviewer` e `br-clarify`)
-- **openpyxl** — per generazione Excel (`pip install openpyxl`, usata da `br-progress-report`)
+- **openpyxl** — per generazione Excel e lettura bug report (`pip install openpyxl`, usata da `br-progress-report` e `br-debug`)
 
 ## Documentazione completa
 
@@ -139,7 +157,8 @@ plans/
 ├── in-progress/                       <-- br-executor sposta qui la cartella all'avvio
 │   └── 2026-04-28_booking-v2/
 │       ├── ...tutto il contenuto...
-│       └── PROGRESSO_BR.md            <-- creato da br-executor
+│       ├── PROGRESSO_BR.md            <-- creato da br-executor
+│       └── BUG_REPORT_BR.md          <-- creato da br-debug (se ci sono bug)
 └── done/                              <-- br-executor sposta qui al completamento
     └── 2026-04-28_booking-v2/
         └── AVANZAMENTO_BR.xlsx        <-- creato da br-progress-report
@@ -160,6 +179,8 @@ BR nuovo ──→ br-reviewer ──→ Review qualità documentazione + DOCX
                   │
                   ▼
             br-executor ──→ Implementazione task (branch multi-repo)
+                  │                    ↕
+                  │              br-debug ──→ Fix bug dal funzionale (stage parallelo)
                   │
                   ▼
         br-progress-report ──→ Excel avanzamento (aggregato cross-branch)

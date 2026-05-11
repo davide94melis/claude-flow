@@ -13,6 +13,9 @@ Flusso:
   onboard ──→ review ──→ analyze ──→ approved ──→ execute ──→ done
                  ↕                                    ↕
               clarify                              update
+
+  Stage parallelo (dopo approved):
+  ─────────────── debug_attivo ──────────────── debug chiuso
 ```
 
 Skill delegate:
@@ -27,6 +30,7 @@ Skill delegate:
 | `execute` | Mostra progresso, lavora le task | `br-executor` |
 | `done` | Tutte le task completate | — |
 | `update` | Il BR e' cambiato, aggiorna il piano | `br-updater` |
+| `debug` | Gestisci i bug dal testing funzionale | `br-debug` |
 
 La pipeline NON reimplementa la logica delle skill. Quando l'utente conferma un'azione, la pipeline aggiorna il manifest e invoca la skill corrispondente tramite il tool `Skill`.
 
@@ -209,6 +213,20 @@ Trova tutti i BR con `stato_pipeline: "execute"` o `"approved"` e `piano.approva
 
 Quando l'utente conferma, la pipeline invoca `br-executor` tramite `Skill`.
 
+### Bug assegnati (Dev)
+
+Se ci sono bug assegnati al developer (da `BUG_REPORT_BR.md` nella cartella del BR in `plans/`), mostrali dopo le task:
+
+> ## I tuoi bug
+>
+> | # | ID | Sev. | Titolo | Fase > Sezione | Stato |
+> |---|---|---|---|---|---|
+> | 1 | BUG-003 | critico | Login email maiuscola | Accesso > Login | assegnato |
+>
+> Vuoi continuare con le task o lavorare **BUG-003**?
+
+Se l'utente sceglie un bug, invoca `br-debug` tramite il tool `Skill`.
+
 ---
 
 ## Fase 3 — Azioni per Stato (Vista TL/PM)
@@ -355,6 +373,24 @@ Quando l'utente sceglie:
 - Opzione 2: invoca `br-progress-report` (non cambia lo stato)
 - Opzione 3: aggiorna `stato_pipeline` a `"update"`, invoca `br-updater`
 
+### Debug attivo
+
+Quando un BR ha bug attivi (esiste `BUG_REPORT_BR.md` nella cartella del BR in `plans/`), mostra una sezione aggiuntiva nella dashboard:
+
+> **[nome BR]** (`execute` + debug attivo):
+> Task: X/N completate (Y%)
+> Bug: A aperti, B in corso, C verificati, D chiusi — **E totali**
+>
+> Azioni disponibili:
+> 1. **Lavora le task** → delego a `br-executor`
+> 2. **Gestisci i bug** → delego a `br-debug`
+> 3. **Genera il report Excel** → delego a `br-progress-report`
+> 4. **Il BR e' stato aggiornato** → delego a `br-updater`
+
+Se l'utente sceglie "Gestisci i bug":
+- Aggiungi entry alla timeline: "Avviata gestione bug"
+- Invoca `br-debug` tramite il tool `Skill`
+
 ### `update` — BR aggiornato
 
 > Il BR **[nome]** e' stato segnalato come aggiornato.
@@ -489,6 +525,7 @@ Quando la pipeline viene invocata, oltre a leggere `stato_pipeline` dal manifest
 | `piano.approvato == true` nel manifest | almeno `approved` |
 | `plans/in-progress/<data>_<nome>/PROGRESSO_BR.md` esiste | almeno `execute` |
 | `plans/done/<data>_<nome>/` esiste | `done` |
+| `BUG_REPORT_BR.md` esiste nella cartella del BR | debug attivo |
 
 Per trovare la cartella del BR in `plans/`, cerca il pattern `plans/*/YYYY-*_<nome>/` dove `<nome>` corrisponde al `nome` nel manifest.
 
@@ -535,7 +572,7 @@ review ──[skip chiarimenti]──→ clarify (bypass)
 clarify ──[br-analyzer completato]──→ approve
 approve ──[utente approva piano]──→ approved
 approved ──[br-executor avviato]──→ execute
-execute ──[tutte le task completate]──→ done
+execute ──[tutte le task completate E tutti i bug chiusi (o nessun bug)]──→ done
 execute ──[BR aggiornato, br-updater completato]──→ execute (aggiornato)
 ```
 
