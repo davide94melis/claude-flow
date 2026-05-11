@@ -37,11 +37,18 @@ Analizza un nuovo Business Requirement confrontandolo con i codebase esistenti (
 ### br-executor
 
 Esegue i task dal piano generato da `br-analyzer`. Ogni sviluppatore usa questa skill per:
-- Lavorare le proprie task assegnate in ordine di priorità e dipendenze
+- Lavorare le proprie task assegnate in ordine di priorita e dipendenze
 - Delegare l'implementazione a sottoagenti Claude Code
+- **Verifica in 3 fasi** dopo ogni sotto-step:
+  - **Fase A -- Tecnica**: test tutti verdi (happy path + edge case + error case), build compila
+  - **Fase B -- Coerenza**: ogni requisito verificato contro il codice prodotto
+  - **Fase C -- Riesame**: second look critico sul codice, asserzioni dei test, naming
+- **Ciclo di verifica finale**: tabella di tracciabilita requisiti -> implementazione -> test prima di dichiarare completa
+- Creare branch in tutte le repo coinvolte (non solo quella del piano)
+- Verificare le dipendenze con aggregazione cross-branch (vede il progresso di tutti i developer)
 - Tracciare il progresso in un file condiviso
-- **Creare branch in tutte le repo coinvolte** (non solo quella del piano)
-- **Verificare le dipendenze con aggregazione cross-branch** (vede il progresso di tutti i developer anche se lavorano su branch diversi)
+
+La task NON e completa finche tutti i requisiti non sono implementati, testati (con edge case) e il ciclo di verifica non e superato.
 
 **Trigger**: `lavora il task`, `inizia a lavorare`, `esegui il piano`
 

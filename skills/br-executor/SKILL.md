@@ -318,6 +318,7 @@ Ogni sottoagente deve ricevere un prompt autosufficiente che include:
 4. **Convenzioni** — naming, struttura package, stile di codice del progetto (osservato dai file esistenti)
 5. **Vincoli** — cosa NON fare, limiti di scope, attenzioni specifiche dalla task
 6. **Output atteso** — file da creare/modificare, test da scrivere, documentazione da aggiungere
+7. **Test richiesti** — specifica esplicitamente che il sottoagente deve scrivere test per il suo lavoro, compresi edge case. Elenca gli scenari di test attesi: happy path, input vuoti/null, boundary values, casi di errore. Il sottoagente non puo' dichiarare il lavoro completo senza test.
 
 Esempio di dispatch a un sottoagente:
 
@@ -355,15 +356,45 @@ Se i sotto-lavori sono indipendenti tra loro (es. entità e componente FE), lanc
 
 #### Verifica del lavoro dei sottoagenti
 
-Dopo che ogni sottoagente completa il suo lavoro:
+Dopo che ogni sottoagente completa il suo lavoro, esegui una verifica in 3 fasi:
 
-1. **Leggi il codice prodotto** — verifica che sia corretto, segua le convenzioni e rispetti i requisiti
-2. **Controlla i test** — verifica che esistano e coprano i casi principali
-3. **Controlla la documentazione** — verifica che il codice sia documentato dove serve
-4. **Esegui i test** — lancia i test e verifica che passino
-5. **Verifica la build** — assicurati che il progetto compili
+**Fase A — Verifica tecnica (automatica)**
 
-Se qualcosa non va, istruisci un nuovo sottoagente per correggere il problema specifico. Non procedere finché il lavoro non è corretto.
+1. **Esegui i test** — lancia la suite di test e verifica che TUTTI i test passino (zero failure)
+2. **Verifica la build** — assicurati che il progetto compili senza errori ne' warning significativi
+3. **Controlla i test scritti** — verifica che il sottoagente abbia scritto test che coprano:
+   - Il caso felice (happy path)
+   - I casi limite (edge case): input vuoti, null, valori al boundary, liste vuote, stringhe troppo lunghe, concorrenza
+   - I casi di errore: cosa succede quando la dipendenza fallisce, il DB non risponde, l'input e' malformato
+   - Se i test edge case mancano, **non procedere** — istruisci un nuovo sottoagente per aggiungerli
+
+**Fase B — Verifica di coerenza col requisito (manuale)**
+
+Rileggi la descrizione della task dal piano e dal gap report. Per OGNI requisito elencato nella task, verifica:
+
+1. **E' stato implementato?** — il codice prodotto copre effettivamente quel requisito, non solo qualcosa di simile
+2. **E' stato implementato correttamente?** — il comportamento corrisponde a quello descritto, non a un'interpretazione semplificata
+3. **Manca qualcosa?** — ci sono aspetti del requisito che il sottoagente ha ignorato o saltato
+
+Se trovi discrepanze:
+
+> **Verifica coerenza** — La task richiede [X] ma il codice implementa [Y].
+> Lancio un sottoagente di correzione per allineare.
+
+Istruisci un nuovo sottoagente per correggere. Ripeti la Fase B dopo la correzione.
+
+**Fase C — Riesame finale (second look)**
+
+Dopo che le Fasi A e B sono superate, fai un ultimo passaggio con occhio critico:
+
+1. **Rileggere il codice prodotto dall'inizio alla fine** — non fidarti del riepilogo del sottoagente, leggi il codice effettivo
+2. **Cercare assunzioni nascoste** — il sottoagente ha fatto assunzioni non esplicite nei requisiti? Ha hardcodato valori che dovrebbero essere configurabili?
+3. **Verificare che i test testino realmente** — un test che non asserisce nulla utile e' peggio di nessun test. Ogni test deve avere asserzioni specifiche e significative
+4. **Controllare i nomi** — le variabili, i metodi, le classi seguono le convenzioni del progetto?
+
+Se trovi problemi in questa fase, correggi con un sottoagente dedicato e ripeti la Fase C.
+
+Solo quando TUTTE e 3 le fasi sono superate il sotto-step e' considerato verificato.
 
 ### Suggerimento commit
 
@@ -422,24 +453,49 @@ Aspetta la conferma prima di proseguire con il sotto-step successivo.
 
 ### Completamento task
 
-Una task è completata solo quando TUTTI questi criteri sono soddisfatti:
+Una task e' completata solo quando TUTTI questi criteri sono soddisfatti e verificati:
 
-1. **Requisiti** — tutto ciò che il gap report e il piano richiedono per questa task è implementato
+1. **Requisiti** — tutto cio' che il gap report e il piano richiedono per questa task e' implementato. Per ogni requisito elencato nella task, esiste codice che lo soddisfa.
 2. **Codice completo** — nessun placeholder, nessun TODO, nessuna implementazione parziale
-3. **Documentazione** — il codice è documentato dove il "perché" non è ovvio
-4. **Test** — test unitari scritti e tutti verdi
-5. **Build** — il progetto compila senza errori
+3. **Test completi** — test scritti e tutti verdi, con copertura di:
+   - Happy path per ogni funzionalita' implementata
+   - Edge case (input vuoti, null, boundary values, liste vuote, overflow)
+   - Casi di errore (fallimenti di dipendenze, input malformati, stati invalidi)
+4. **Build** — il progetto compila senza errori
+5. **Coerenza verificata** — la Fase B (verifica di coerenza col requisito) e' stata superata
+6. **Riesame superato** — la Fase C (second look) e' stata superata senza trovare problemi
 
-Quando tutti i criteri sono soddisfatti:
+**Ciclo di verifica finale:**
 
-> La task **T-001 — [nome]** è completa.
+Prima di dichiarare la task completata, esegui questo ciclo:
+
+1. Elenca ogni requisito dalla descrizione della task nel piano
+2. Per ognuno, indica il file e la riga che lo implementa
+3. Per ognuno, indica il test che lo verifica
+4. Se un requisito non ha implementazione O non ha test → la task NON e' completa
+
+> ## Verifica completamento T-001 — [nome]
 >
-> Checklist di completamento:
-> - [x] Requisiti implementati: [lista]
-> - [x] File creati/modificati: [lista con path]
-> - [x] Test: N test, tutti verdi
+> | # | Requisito | Implementato | File | Test | Verificato |
+> |---|---|---|---|---|---|
+> | 1 | [requisito dal piano] | Si | `path/file.java:42` | `TestClass#testMethod` | Si |
+> | 2 | [requisito dal piano] | Si | `path/file.java:78` | `TestClass#testEdgeCase` | Si |
+> | 3 | [requisito dal piano] | **No** | — | — | — |
+>
+> **Esito**: [COMPLETA / INCOMPLETA — mancano i requisiti #3]
+
+Se l'esito e' INCOMPLETA, lancia un sottoagente per implementare i requisiti mancanti, poi ripeti il ciclo.
+
+Se l'esito e' COMPLETA:
+
+> La task **T-001 — [nome]** e' completa e verificata.
+>
+> Checklist:
+> - [x] Requisiti implementati: [N/N coperti]
+> - [x] Test: [N test totali, di cui X happy path, Y edge case, Z error case — tutti verdi]
 > - [x] Build: compila
-> - [x] Codice documentato
+> - [x] Coerenza verificata: ogni requisito ha implementazione e test corrispondente
+> - [x] Riesame superato: nessun problema trovato nel second look
 >
 > Aggiorno il file di progresso a 100% — stato: **Completata**.
 
