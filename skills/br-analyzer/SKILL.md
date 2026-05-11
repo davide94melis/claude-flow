@@ -21,6 +21,25 @@ Il processo si compone di 4 fasi:
 
 ---
 
+## Caricamento Profilo Progetto
+
+Prima di iniziare qualsiasi operazione, tenta di caricare il profilo progetto:
+
+1. Leggi `.br-local.json` dalla root del repo corrente
+2. Se contiene i campi `profilo` e `profiles_repo`:
+   a. Sincronizza il repo profili: `git -C <profiles_repo> pull origin main --quiet`
+   b. Leggi `<profiles_repo>/<profilo>/profile.json`
+   c. Se il campo `custom_agents` e' presente nel profilo, leggi anche i file .md degli agenti referenziati (path relativi alla cartella del profilo)
+   d. Salva il profilo in memoria per uso nelle fasi successive
+3. Se `.br-local.json` non ha `profilo` o `profiles_repo`, procedi senza profilo (comportamento attuale, retrocompatibilita' completa)
+
+Quando il profilo e' disponibile:
+- Nella Fase 1, salta la Domanda 1 (Codebase) se i path sono gia' in `.br-local.json`
+- Nella Fase 3, usa br-codebase-explorer con il profilo iniettato per l'esplorazione
+- Nella Fase 4, dopo la generazione degli output, confronta il codebase con il profilo per proporre aggiornamenti
+
+---
+
 ## Fase 1 — Raccolta Input
 
 Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva. Non anticipare domande e non procedere finche' l'utente non ha risposto.
@@ -183,9 +202,22 @@ Organizza i requisiti per **funzionalità** (es. "Dashboard", "Booking", "Monito
 
 ### 3.2 — Esplorazione dei codebase
 
+**Se il profilo progetto e' disponibile:**
+
+Per ogni codebase, lancia un agente `br-codebase-explorer` (leggendo le sue istruzioni da `~/.claude/agents/br-codebase-explorer.md`) con:
+- Il profilo progetto completo (JSON)
+- I requisiti estratti dalla documentazione (dalla Fase 3.1)
+- Il path del codebase da esplorare
+
+L'explorer usa il profilo per navigare in modo mirato: sa dove cercare entita', servizi, controller, e conosce la terminologia di dominio.
+
+Per codebase indipendenti (es. BE e FE), lancia gli explorer in parallelo.
+
+**Se il profilo NON e' disponibile (retrocompatibilita'):**
+
 Per ogni codebase fornito, analizza:
 - **Struttura del progetto**: package, moduli, layer architetturali
-- **Modello dati**: entità, DTO, migration, relazioni
+- **Modello dati**: entita', DTO, migration, relazioni
 - **API/Controller**: endpoint esposti, payload, validazioni
 - **Servizi**: logica di business, workflow, macchine a stati
 - **Repository**: query, viste, materializzazioni
@@ -461,3 +493,53 @@ Quando scomponi il lavoro in task, questi principi guidano le decisioni:
 - **`doc-to-markdown`** skill (`~/.claude/skills/doc-to-markdown/`) — per conversione DOCX/DOC (solo se br-reviewer non e' stato eseguito)
 - **`markitdown`** — per conversione PDF, PPTX, XLSX (solo se br-reviewer non e' stato eseguito)
 - **`br-reviewer`** — (opzionale ma consigliato) se eseguito prima, br-analyzer ne legge il REVIEW_BR.md e salta la conversione
+
+---
+
+## Fase 5 — Aggiornamento Automatico Profilo
+
+Questa fase si esegue SOLO se il profilo progetto e' disponibile (caricato nella fase iniziale).
+
+Dopo aver completato la gap analysis, il codebase e' stato esplorato in dettaglio. Confronta quello che hai trovato col profilo esistente e rileva delta significativi.
+
+**Delta da rilevare:**
+
+- Nuovi package/moduli non presenti nel profilo
+- Rinominazione di classi base (es. `BaseEntity` → `BaseAuditEntity`)
+- Cambio di API prefix (es. `/api/v1` → `/api/v2`)
+- Nuovo framework o libreria (es. aggiunta di un message broker)
+- Cambiamenti nel design system (font, colori, componenti)
+- Nuovi stati di entita' rispetto al glossario
+
+**Delta da ignorare (rumore):**
+
+- File temporanei o di configurazione locale
+- Differenze di branch (file presenti solo su feature branch)
+- Dipendenze transitorie (non nel build file principale)
+
+**Se trovi delta significativi**, presentali all'utente:
+
+> Ho rilevato differenze tra il codebase e il profilo progetto:
+>
+> | Aspetto | Profilo | Codebase | Delta |
+> |---|---|---|---|
+> | Base entity | BaseEntity | BaseAuditEntity | Rinominata |
+> | Nuovo package | — | com.progetto.notification | Aggiunto |
+> | API prefix | /api/v1 | /api/v2 (parziale) | Migrazione in corso |
+> | Font | Roboto | Inter | Cambiato |
+>
+> Aggiorno il profilo?
+
+Se confermato:
+
+1. Aggiorna il `profile.json` nel repo profili
+2. Commit e push:
+   ```bash
+   cd <profiles_repo>
+   git add <profilo>/profile.json
+   git commit -m "chore: auto-update profile <profilo> from br-analyzer"
+   git push origin main
+   ```
+3. Tutti i developer avranno il profilo aggiornato al prossimo pull (automatico a ogni invocazione skill)
+
+**Se non trovi delta**, non mostrare nulla — passa silenziosamente alla fine.
