@@ -11,6 +11,24 @@ Il principio guida: **mai sovrascrivere il progresso**. Le task completate resta
 
 ---
 
+## Caricamento Profilo Progetto
+
+Prima di iniziare qualsiasi operazione, tenta di caricare il profilo progetto:
+
+1. Leggi `.br-local.json` dalla root del repo corrente
+2. Se contiene i campi `profilo` e `profiles_repo`:
+   a. Sincronizza il repo profili: `git -C <profiles_repo> pull origin main --quiet`
+   b. Leggi `<profiles_repo>/<profilo>/profile.json`
+   c. Se il campo `custom_agents` e' presente nel profilo, leggi anche i file .md degli agenti referenziati (path relativi alla cartella del profilo)
+   d. Salva il profilo in memoria per uso nelle fasi successive
+3. Se `.br-local.json` non ha `profilo` o `profiles_repo`, procedi senza profilo (comportamento attuale, retrocompatibilita' completa)
+
+Quando il profilo e' disponibile:
+- Usa br-codebase-explorer con il profilo iniettato per ri-verificare il codebase aggiornato
+- Il profilo fornisce contesto su dove guardare e che terminologia aspettarsi
+
+---
+
 ## Fase 1 — Raccolta Input
 
 Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
@@ -127,6 +145,21 @@ Per ogni requisito nuovo o modificato, verifica lo stato nel codice attuale (com
 - Genera la classificazione gap: Coperto / Parziale / Mancante / Discrepanza / Da chiarire
 
 Per i requisiti rimossi, verifica se il codice corrispondente era già stato implementato (task completate nel progresso).
+
+### Ri-esplorazione con br-codebase-explorer
+
+**Se il profilo progetto e' disponibile:**
+
+Per ogni codebase coinvolto nel delta, lancia un agente `br-codebase-explorer` (leggendo le sue istruzioni da `~/.claude/agents/br-codebase-explorer.md`) con:
+- Il profilo progetto completo (JSON)
+- I NUOVI requisiti dalla documentazione aggiornata
+- Il path del codebase da esplorare
+
+L'explorer usa il profilo per navigare in modo mirato e confrontare la terminologia. L'output strutturato viene usato per aggiornare il gap report.
+
+**Se il profilo NON e' disponibile (retrocompatibilita'):**
+
+Esplora il codebase direttamente come oggi, analizzando struttura, modello dati, API, servizi, frontend e configurazione.
 
 ---
 
