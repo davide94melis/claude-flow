@@ -31,6 +31,7 @@ Skill delegate:
 | `done` | Tutte le task completate | — |
 | `update` | Il BR e' cambiato, aggiorna il piano | `br-updater` |
 | `debug` | Gestisci i bug dal testing funzionale | `br-debug` |
+| `estimate` | Stima team e simulazioni what-if | `br-estimator` |
 
 La pipeline NON reimplementa la logica delle skill. Quando l'utente conferma un'azione, la pipeline aggiorna il manifest e invoca la skill corrispondente tramite il tool `Skill`.
 
@@ -297,7 +298,8 @@ Due sotto-azioni possibili:
 >
 > 1. **Si**, ho le risposte → delego a `br-clarify`
 > 2. **No**, procedo con l'analisi (le assunzioni verranno usate cosi' come sono) → delego a `br-analyzer`
-> 3. **Aspetto** — non faccio nulla per ora
+> 3. **Stima team (rough)** → delego a `br-estimator`
+> 4. **Aspetto** — non faccio nulla per ora
 
 Se l'utente sceglie 1:
 - Aggiorna timeline con "Avviata gestione chiarimenti"
@@ -315,6 +317,7 @@ Se l'utente sceglie 2:
 >
 > 1. **Aggiungere altre risposte** → delego a `br-clarify` (supporta round multipli)
 > 2. **Procedere con l'analisi gap** → delego a `br-analyzer`
+> 3. **Stima team (rough)** → delego a `br-estimator`
 
 ### `analyze` — Lancia l'analisi gap
 
@@ -386,6 +389,7 @@ Mostra lo stato di avanzamento:
 > 1. **Lavora le task** (come sviluppatore) → delego a `br-executor`
 > 2. **Genera il report Excel** → delego a `br-progress-report`
 > 3. **Il BR e' stato aggiornato** → delego a `br-updater`
+> 4. **Stima team (dettagliata)** → delego a `br-estimator`
 
 Quando l'utente sceglie:
 - Opzione 1: aggiorna `stato_pipeline` a `"execute"` (se non lo e' gia'), invoca `br-executor`
@@ -405,6 +409,7 @@ Quando un BR ha bug attivi (esiste `BUG_REPORT_BR.md` nella cartella del BR in `
 > 2. **Gestisci i bug** → delego a `br-debug`
 > 3. **Genera il report Excel** → delego a `br-progress-report`
 > 4. **Il BR e' stato aggiornato** → delego a `br-updater`
+> 5. **Stima team (dettagliata)** → delego a `br-estimator`
 
 Se l'utente sceglie "Gestisci i bug":
 - Aggiungi entry alla timeline: "Avviata gestione bug"
