@@ -1,6 +1,6 @@
 # BR Skills Suite — Documentazione Completa
 
-Suite di 9 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement: dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione delle task, dalla gestione degli aggiornamenti alla reportistica Excel, con un orchestratore pipeline che coordina il tutto. Include profili progetto centralizzati e agenti generici profilo-aware.
+Suite di 10 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement: dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione delle task, dalla gestione degli aggiornamenti alla reportistica Excel, con un orchestratore pipeline che coordina il tutto. Include profili progetto centralizzati e agenti generici profilo-aware.
 
 ## Architettura del Flusso
 
@@ -813,6 +813,57 @@ Creazione guidata di un profilo progetto con auto-detect del codebase (10 step):
 
 ---
 
+## 12. BR Estimator
+
+**Skill**: `br-estimator`
+**Path**: `~/.claude/skills/br-estimator/SKILL.md`
+**Trigger**: "stima il br", "quanti sviluppatori servono", "simulazione team", "stima effort"
+
+### Scopo
+
+Stima il team necessario per completare un BR entro una deadline, con simulazioni what-if su team, deadline, scope e rischio.
+
+### Due Modalita'
+
+| Modalita' | Quando | Input | Precisione |
+|---|---|---|---|
+| Rough | Pre-analisi (prima di br-analyzer) | Documentazione BR | ±30-40% |
+| Dettagliata | Post-analisi (dopo br-analyzer) | Piano di implementazione | ±10-15% |
+
+### Sottoagenti
+
+| Agente | File | Usato in | Ruolo |
+|---|---|---|---|
+| br-estimation-analyst | `~/.claude/agents/br-estimation-analyst.md` | Solo rough | Estrae funzionalita' e stima task dalla documentazione |
+| br-estimation-historian | `~/.claude/agents/br-estimation-historian.md` | Entrambe | Scansiona BR completati per calibrazione storica |
+| br-estimation-scenario | `~/.claude/agents/br-estimation-scenario.md` | Entrambe | Calcola scenari, timeline, bottleneck, scope cutting |
+
+### Scenari
+
+Modello ibrido deterministico + rischio. Ogni stima produce 3 scenari:
+- **Ottimistico** — moltiplicatori ridotti
+- **Realistico** — moltiplicatori standard
+- **Pessimistico** — moltiplicatori aumentati
+
+Con moltiplicatori differenziati per tipo di rischio (standard, integrazione, dominio nuovo, migrazione).
+
+### Simulazioni What-If
+
+Ciclo interattivo: aggiungi/rimuovi dev, cambia deadline, taglia scope, modifica parametri. Ogni what-if mostra il delta rispetto allo scenario precedente.
+
+### Output
+
+- **STIMA_BR.md** — report dettagliato con scenari, team, parametri, storico
+- **STIMA_BR.xlsx** — Excel con 4 fogli (Scenari, Timeline Gantt-like, Team allocation, Parametri)
+
+### Integrazione Pipeline
+
+Azione opzionale nella dashboard TL/PM:
+- Dopo review/clarify: "Stima team (rough)"
+- Dopo analyze/approved: "Stima team (dettagliata)"
+
+---
+
 ## Ciclo di Vita delle Task
 
 ```
@@ -859,3 +910,4 @@ Le dipendenze cross-stream sono gestite tramite **merge task esplicite** (`T-MER
 | "br-pipeline" / "pipeline br" / "le mie task" / "stato dei br" | br-pipeline |
 | "ci sono dei bug" / "bug dal funzionale" / "segnalazioni test" / "lavora il bug" / "debug br" / "aggiorna i bug" | br-debug |
 | "crea profilo progetto" / "setup profilo" / "nuovo profilo" / "configura il profilo" | br-profile-setup |
+| "stima il br" / "quanti sviluppatori servono" / "simulazione team" / "stima effort" / "stima team" | br-estimator |
