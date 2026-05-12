@@ -1,6 +1,6 @@
 # Claude Flow — BR Skills per Claude Code
 
-Suite di 9 skill e 2 agenti generici per Claude Code che automatizzano il ciclo di vita dei Business Requirements: dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione task, dalla gestione dei bug segnalati dai funzionali all'aggiornamento incrementale e al reporting Excel, con un orchestratore pipeline che coordina il tutto. Include profili progetto centralizzati per scalare a tutti i progetti.
+Suite di 10 skill e 5 agenti generici per Claude Code che automatizzano il ciclo di vita dei Business Requirements: dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione task, dalla gestione dei bug segnalati dai funzionali all'aggiornamento incrementale e al reporting Excel, con un orchestratore pipeline che coordina il tutto. Include profili progetto centralizzati per scalare a tutti i progetti.
 
 ## Skills
 
@@ -84,6 +84,12 @@ Crea un nuovo profilo progetto nel repo centralizzato `deloitte-profiles/`. Auto
 
 **Trigger**: `crea profilo progetto`, `setup profilo`, `nuovo profilo`
 
+### br-estimator
+
+Stima il team necessario per completare un BR entro una deadline. Due modalita': rough (dalla documentazione, ±30-40%) e dettagliata (dal piano, ±10-15%). Produce scenari ottimistico/realistico/pessimistico con timeline, bottleneck e allocazione team. Simulazioni what-if interattive per variare team, deadline e scope. Genera report MD + Excel.
+
+**Trigger**: `stima il br`, `quanti sviluppatori servono`, `simulazione team`, `stima effort`
+
 ### br-pipeline
 
 Orchestratore unico per il ciclo di vita dei BR. Legge lo stato dal `manifest.json` di ogni BR, rileva il ruolo dell'utente (TL/PM o Dev) e mostra una dashboard con lo stato di ogni BR, proponendo il prossimo step e delegando alle skill appropriate. **Aggrega il progresso da tutti i feature branch remoti** per la dashboard.
@@ -100,6 +106,18 @@ Esploratore di codebase profilo-aware. Usato da `br-analyzer` e `br-updater` per
 
 Verificatore in 3 fasi profilo-aware. Usato da `br-executor` e `br-debug` per verificare il lavoro dei sottoagenti. Produce verdict PASS/FAIL strutturato usando le convenzioni dal profilo.
 
+### br-estimation-analyst
+
+Analista per stima rough. Estrae funzionalita' dalla documentazione BR e stima task, complessita', rischio e area.
+
+### br-estimation-historian
+
+Storico per calibrazione. Scansiona BR completati ed estrae metriche reali per correggere le stime default.
+
+### br-estimation-scenario
+
+Scenarista per simulazioni. Calcola timeline giorno per giorno, identifica bottleneck, produce 3 scenari con allocazione team. Supporta scope cutting con effetto cascata.
+
 ### Routing a specialist
 
 Con profilo configurato, `br-executor` e `br-debug` instradano i sottoagenti al subagent_type appropriato (es. `spring-boot-engineer` per Spring Boot, `angular-architect` per Angular). Senza profilo, usano `general-purpose` (retrocompatibilita').
@@ -113,7 +131,7 @@ cp -r skills/br-* ~/.claude/skills/
 cp -r agents/br-* ~/.claude/agents/
 ```
 
-Questo copia tutte le 9 skill e i 2 agenti generici (br-reviewer, br-clarify, br-analyzer, br-executor, br-updater, br-progress-report, br-debug, br-pipeline).
+Questo copia tutte le 10 skill e i 5 agenti generici (br-reviewer, br-clarify, br-analyzer, br-executor, br-updater, br-progress-report, br-debug, br-profile-setup, br-estimator, br-pipeline).
 
 Aggiungi i trigger nel tuo `~/.claude/CLAUDE.md`:
 
@@ -149,6 +167,10 @@ When the user says "ci sono dei bug", "bug dal funzionale", "segnalazioni test",
 # br-profile-setup
 - **br-profile-setup** (`~/.claude/skills/br-profile-setup/SKILL.md`) - creazione guidata profilo progetto con auto-detect codebase. Trigger: "crea profilo progetto", "setup profilo", "nuovo profilo"
 When the user says "crea profilo progetto", "setup profilo", "nuovo profilo", "configura il profilo", or similar phrases about creating a project profile, invoke the Skill tool with `skill: "br-profile-setup"` before doing anything else.
+
+# br-estimator
+- **br-estimator** (`~/.claude/skills/br-estimator/SKILL.md`) - stima team e simulazioni what-if per BR. Trigger: "stima il br", "quanti sviluppatori servono", "simulazione team", "stima effort"
+When the user says "stima il br", "quanti sviluppatori servono", "simulazione team", "stima effort", "stima team", or similar phrases about estimating team size or effort for a BR, invoke the Skill tool with `skill: "br-estimator"` before doing anything else.
 
 # br-pipeline
 - **br-pipeline** (`~/.claude/skills/br-pipeline/SKILL.md`) - pipeline POM completo per gestione BR con manifest JSON e viste per ruolo. Trigger: "br-pipeline", "pipeline br", "le mie task"
