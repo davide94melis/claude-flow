@@ -18,33 +18,65 @@ Il BR passa a `done` solo quando tutte le task sono completate E tutti i bug son
 
 ---
 
-## Rilevamento Contesto
+## Risoluzione Path — deloitte-profiles
 
-La skill rileva automaticamente il contesto operativo:
+Tutte le operazioni su file BR avvengono nella repo `deloitte-profiles`, non nella repo del codice.
 
-- **Se trova `brs/<nome>/manifest.json`** → modalita' **portal-flow**: il manifest e' la source of truth, `BUG_REPORT_BR.md` e' una vista retrocompatibile generata dal manifest
-- **Se trova `plans/*/PIANO_IMPLEMENTAZIONE_BR.md` senza manifest** → modalita' **claude-flow**: `BUG_REPORT_BR.md` e' la source of truth diretta
+### Lettura `.br-local.json`
 
-| Contesto | Source of truth | Artefatti |
-|---|---|---|
-| claude-flow | `BUG_REPORT_BR.md` in `plans/` | File MD diretto |
-| portal-flow | `manifest.bugs[]` in `brs/<nome>/manifest.json` | Manifest + vista MD |
+All'avvio, leggi `.br-local.json` dalla root della repo corrente:
+
+```bash
+cat .br-local.json 2>/dev/null
+```
+
+Estrai `profiles_repo`, `profilo`, `developer`.
+
+Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
+
+### Se `.br-local.json` non esiste
+
+Sei uno sviluppatore — per collegarti al profilo esistente:
+
+> `.br-local.json` non trovato. Per collegarti al profilo, ho bisogno di:
+> 1. **Path del clone di deloitte-profiles**
+> 2. **Nome del profilo**
+> 3. **Il tuo nome**
+
+Crea `.br-local.json` con:
+```json
+{
+  "profilo": "<profilo>",
+  "profiles_repo": "<path>",
+  "developer": "<nome>"
+}
+```
+
+### Sincronizzazione prima della lettura
+
+```bash
+git -C "<profiles_repo>" pull origin main --quiet
+```
+
+### Commit e push dopo la scrittura
+
+```bash
+git -C "<profiles_repo>" add .
+git -C "<profiles_repo>" commit -m "<messaggio>"
+git -C "<profiles_repo>" push origin main --quiet
+```
 
 ---
 
 ## Caricamento Profilo Progetto
 
-Prima di iniziare qualsiasi operazione, tenta di caricare il profilo progetto:
+Dopo aver risolto i path (vedi sezione "Risoluzione Path"), se il profilo è disponibile:
 
-1. Leggi `.br-local.json` dalla root del repo corrente
-2. Se contiene i campi `profilo` e `profiles_repo`:
-   a. Sincronizza il repo profili: `git -C <profiles_repo> pull origin main --quiet`
-   b. Leggi `<profiles_repo>/<profilo>/profile.json`
-   c. Se il campo `custom_agents` e' presente nel profilo, leggi anche i file .md degli agenti referenziati (path relativi alla cartella del profilo)
-   d. Salva il profilo in memoria per uso nelle fasi successive
-3. Se `.br-local.json` non ha `profilo` o `profiles_repo`, procedi senza profilo (comportamento attuale, retrocompatibilita' completa)
+1. Leggi `<profiles_repo>/<profilo>/constitution/profile.json`
+2. Se il campo `custom_agents` è presente, leggi i file .md degli agenti referenziati (path relativi a `<profiles_repo>/<profilo>/agents/`)
+3. Salva il profilo in memoria per uso nelle fasi successive
 
-Quando il profilo e' disponibile:
+Quando il profilo è disponibile:
 - Nella Fase 2, instrada i sottoagenti al subagent_type corretto in base allo stack del codebase coinvolto
 - Nella Fase 2, usa br-verifier per la verifica al posto della verifica inline
 - Inietta convenzioni e dominio dal profilo nei prompt dei sottoagenti
@@ -53,10 +85,10 @@ Quando il profilo e' disponibile:
 
 ## Rilevamento Modalita'
 
-La skill rileva automaticamente la modalita' di funzionamento in base al contesto e al trigger dell'utente:
+La skill rileva automaticamente la modalita' di funzionamento:
 
-- **Import mode**: non esiste `BUG_REPORT_BR.md` / `manifest.bugs`, oppure l'utente dice "ci sono dei bug", "segnalazioni test", "defect ricevuti", "importa i bug"
-- **Execution mode**: esistono bug assegnati allo sviluppatore con stato diverso da `chiuso`, oppure l'utente dice "lavora il bug", "fix il bug", "debug br"
+- **Import mode**: non esiste `BUG_REPORT_BR.md` nella cartella del BR, oppure l'utente dice "ci sono dei bug", "segnalazioni test", "defect ricevuti"
+- **Execution mode**: esistono bug assegnati allo sviluppatore con stato diverso da `chiuso`, oppure l'utente dice "lavora il bug", "fix il bug"
 - **Chiusura mode**: l'utente dice "il funzionale ha testato", "bug confermati", "aggiorna i bug"
 
 ---
@@ -96,17 +128,11 @@ Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 
 ### Domanda 1 — BR di riferimento
 
-Cerca i BR attivi in base al contesto:
+Cerca i BR attivi:
 
-**Portal-flow:**
 ```bash
-ls brs/*/manifest.json 2>/dev/null
-```
-Filtra quelli con `stato_pipeline` in `approved`, `execute`, o `done`.
-
-**Claude-flow:**
-```bash
-ls -d plans/todo/*/ plans/in-progress/*/ plans/done/*/ 2>/dev/null
+git -C "<profiles_repo>" pull origin main --quiet
+ls -d "<profiles_repo>/<profilo>/plans/todo"/*/ "<profiles_repo>/<profilo>/plans/in-progress"/*/ "<profiles_repo>/<profilo>/plans/done"/*/ 2>/dev/null
 ```
 
 Se ne trovi uno, proponilo. Se piu' di uno, chiedi quale. Se nessuno, avvisa che serve prima un piano di implementazione.
@@ -177,8 +203,7 @@ Il mapping dei tipi e' flessibile — se il file usa termini diversi, la skill p
 
 **Screenshot:** se il file ha un foglio "Screen" con immagini referenziate dalla colonna Screen, estrai le immagini e salvale nella cartella del BR:
 
-- Portal-flow: `brs/<nome>/screenshots/`
-- Claude-flow: `plans/in-progress/<data>_<nome>/screenshots/` (o `plans/todo/` se non ancora in-progress)
+`<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/screenshots/` (o `plans/todo/` se non ancora in-progress)
 
 ### Import da Jira
 
@@ -239,79 +264,17 @@ Per i bug senza match: chiedi esplicitamente a chi assegnare.
 
 Dopo la conferma, scrivi i bug nella source of truth.
 
-### Scrittura — Portal-flow
+### Scrittura BUG_REPORT_BR.md
 
-Leggi il manifest corrente, aggiungi la sezione `bugs`:
+Crea `BUG_REPORT_BR.md` nella cartella del BR (es. `<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/BUG_REPORT_BR.md`). Usa il formato definito nella sezione "Struttura BUG_REPORT_BR.md".
 
-```json
-{
-  "bugs": {
-    "debug_attivo": true,
-    "data_ultimo_import": "<YYYY-MM-DD>",
-    "sorgente": "<excel|jira|entrambi>",
-    "sorgente_file": "<nome file se excel>",
-    "riepilogo": {
-      "totali": 0,
-      "aperti": 0,
-      "in_corso": 0,
-      "verificati": 0,
-      "chiusi": 0,
-      "bloccati": 0
-    },
-    "lista": []
-  }
-}
+Dopo la scrittura, esegui commit + push su deloitte-profiles:
+
+```bash
+git -C "<profiles_repo>" add "<profilo>/plans/"
+git -C "<profiles_repo>" commit -m "[br-debug] <nome>: importati N bug da <sorgente>"
+git -C "<profiles_repo>" push origin main --quiet
 ```
-
-Per ogni bug, aggiungi un oggetto a `bugs.lista[]`:
-
-```json
-{
-  "id": "BUG-001",
-  "id_originale": 1,
-  "tipo": "bug",
-  "severita": "maggiore",
-  "fase": "Dashboard",
-  "sezione": "Tabella Pratiche Attive",
-  "utente": "Banca",
-  "titolo": "Visualizza Pratiche",
-  "descrizione": "Gli utenti Banca devono poter vedere...",
-  "screenshot": [],
-  "riferimento": null,
-  "task_collegata": "T-012",
-  "stream_collegato": "stream-monitoraggio",
-  "owner": "Marco",
-  "stato": "assegnato",
-  "progresso": 0,
-  "branch": null,
-  "data_segnalazione": "2026-05-06",
-  "data_assegnazione": "<data odierna>",
-  "data_chiusura": null,
-  "note_dev": "",
-  "note_funzionale": "",
-  "fix_summary": ""
-}
-```
-
-Aggiorna `bugs.riepilogo` con i conteggi. Aggiungi entry alla `timeline[]`:
-
-```json
-{
-  "data": "<ISO-timestamp>",
-  "attore": "<utente>",
-  "ruolo": "TL/PM",
-  "azione": "Importati N bug da <sorgente>",
-  "stage": "debug"
-}
-```
-
-Scrivi il manifest con il tool `Write` (mai `Edit` per JSON). Commit: `[br-debug] <nome>: importati N bug da <sorgente>`
-
-Dopo il commit, genera la vista MD `brs/<nome>/BUG_REPORT_BR.md` (vedi sezione "Struttura BUG_REPORT_BR.md").
-
-### Scrittura — Claude-flow
-
-Crea `BUG_REPORT_BR.md` nella cartella del BR (es. `plans/in-progress/<data>_<nome>/BUG_REPORT_BR.md`). Usa il formato definito nella sezione "Struttura BUG_REPORT_BR.md".
 
 ---
 
@@ -319,8 +282,7 @@ Crea `BUG_REPORT_BR.md` nella cartella del BR (es. `plans/in-progress/<data>_<no
 
 ### Identificazione sviluppatore
 
-**Portal-flow:** leggi `.br-local.json` per il nome.
-**Claude-flow:** chiedi chi e' lo sviluppatore, mostrando la lista dal piano.
+Leggi `.br-local.json` per il nome dello sviluppatore (campo `developer`). Se non presente, chiedi chi e' lo sviluppatore, mostrando la lista dal piano.
 
 ### Selezione bug da lavorare
 
@@ -638,15 +600,7 @@ La skill puo' essere invocata piu' volte sullo stesso BR. A ogni invocazione:
 
 ### Condizione di completamento debug
 
-Quando tutti i bug hanno stato `chiuso`:
-
-**Portal-flow:**
-- `manifest.bugs.debug_attivo` → `false`
-- Aggiungi entry alla timeline: "Debug completato: N bug risolti"
-- Rigenera `BUG_REPORT_BR.md`
-
-**Claude-flow:**
-- Aggiungi sezione "Debug completato" al `BUG_REPORT_BR.md`:
+Quando tutti i bug hanno stato `chiuso`, aggiungi la sezione "Debug Completato" al `BUG_REPORT_BR.md`:
 
 ```markdown
 ## Debug Completato
@@ -656,13 +610,21 @@ Bug totali: N
 Bug risolti: N
 ```
 
+Dopo la scrittura, esegui commit + push:
+
+```bash
+git -C "<profiles_repo>" add "<profilo>/plans/"
+git -C "<profiles_repo>" commit -m "[br-debug] <nome>: debug completato (N bug risolti)"
+git -C "<profiles_repo>" push origin main --quiet
+```
+
 Se il BR e' in stato `execute` e tutte le task E tutti i bug sono completati, il BR puo' passare a `done`.
 
 ---
 
 ## Struttura BUG_REPORT_BR.md
 
-Questo formato e' usato sia come source of truth (claude-flow) sia come vista generata (portal-flow):
+Questo e' il formato canonico del file BUG_REPORT_BR.md:
 
 ```markdown
 # Bug Report — <nome BR>
@@ -721,14 +683,13 @@ Ultimo aggiornamento: <data e ora>
 
 ## Regole Fondamentali
 
-1. **Mai committare autonomamente** nel codebase del progetto — suggerisci e aspetta conferma. Committare autonomamente solo nella repo del piano/pipeline (manifest, progresso, BUG_REPORT).
+1. **Mai committare autonomamente** nel codebase del progetto — suggerisci e aspetta conferma. Committare autonomamente solo nella repo `deloitte-profiles` (BUG_REPORT, progresso).
 2. **Mai procedere senza conferma** — tra un bug e l'altro, prima di ogni modifica alla source of truth.
 3. **Verificare prima di dichiarare verificato** — tutte e 3 le fasi complete per ogni bug.
 4. **Mai duplicare bug al re-import** — confronta sempre per `id_originale`.
 5. **Mai sovrascrivere note precedenti** — append, non replace.
 6. **Il sottoagente implementa, l'agente principale coordina** — non implementare codice direttamente.
-7. **Supportare entrambe le modalita'** (claude-flow e portal-flow) senza compromessi.
-8. **Le CR hanno sempre severita' minore** — non modificabile.
+7. **Le CR hanno sempre severita' minore** — non modificabile.
 
 ---
 
@@ -741,17 +702,14 @@ Ultimo aggiornamento: <data e ora>
 
 ## Context
 
-This is one of 8 skills in the BR (Business Requirement) lifecycle suite. The other skills are:
+This is one of the skills in the BR (Business Requirement) lifecycle suite. The other skills are:
 - br-reviewer: reviews functional documentation quality
 - br-clarify: manages functional team responses to review questions
 - br-analyzer: gap analysis between BR docs and codebase
 - br-executor: executes implementation tasks from the plan
 - br-updater: updates plan when BR documentation changes
 - br-progress-report: generates Excel progress reports
-- br-pipeline: orchestrates the entire BR lifecycle
 
-br-debug fits as a PARALLEL stage alongside br-executor. It uses the same patterns: subagent delegation, 3-phase verification, progress tracking, cross-branch aggregation.
+br-debug fits as a PARALLEL stage alongside br-executor. It uses the same patterns: subagent delegation, 3-phase verification, progress tracking.
 
-The skill must work in TWO contexts:
-1. claude-flow: standalone, BUG_REPORT_BR.md is the source of truth, files in plans/ directory
-2. portal-flow: with manifest.json as source of truth, BUG_REPORT_BR.md as generated view
+All BR artifacts (PIANO_IMPLEMENTAZIONE_BR.md, GAP_REPORT_BR.md, PROGRESSO_BR.md, BUG_REPORT_BR.md, screenshots) live centrally in `<profiles_repo>/<profilo>/plans/`, not in the code repository. `BUG_REPORT_BR.md` is the source of truth for bugs.

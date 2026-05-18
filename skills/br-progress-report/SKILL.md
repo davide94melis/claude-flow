@@ -9,14 +9,51 @@ Questa skill genera o aggiorna un file Excel con il riepilogo completo delle tas
 
 ---
 
+## Risoluzione Path — deloitte-profiles
+
+Tutte le operazioni su file BR avvengono nella repo `deloitte-profiles`, non nella repo del codice.
+
+### Lettura `.br-local.json`
+
+```bash
+cat .br-local.json 2>/dev/null
+```
+
+Estrai `profiles_repo`, `profilo`, `developer`.
+
+Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
+
+### Se `.br-local.json` non esiste
+
+Ferma l'esecuzione e avvisa:
+
+> `.br-local.json` non trovato. Devi prima eseguire `br-profile-setup`.
+
+### Sincronizzazione prima della lettura
+
+```bash
+git -C "<profiles_repo>" pull origin main --quiet
+```
+
+### Commit e push dopo la scrittura
+
+```bash
+git -C "<profiles_repo>" add .
+git -C "<profiles_repo>" commit -m "<messaggio>"
+git -C "<profiles_repo>" push origin main --quiet
+```
+
+---
+
 ## Fase 1 — Individuazione File Sorgente
 
 ### Ricerca automatica
 
-Cerca cartelle BR nella struttura `plans/`, in ordine di priorita':
+Cerca cartelle BR nella struttura `plans/` centralizzata in `deloitte-profiles`, in ordine di priorita':
 
 ```bash
-ls -d plans/in-progress/*/ plans/todo/*/ plans/done/*/ 2>/dev/null
+git -C "<profiles_repo>" pull origin main --quiet
+ls -d "<profiles_repo>/<profilo>/plans/in-progress"/*/ "<profiles_repo>/<profilo>/plans/todo"/*/ "<profiles_repo>/<profilo>/plans/done"/*/ 2>/dev/null
 ```
 
 Serve trovare:
@@ -27,19 +64,11 @@ Serve trovare:
 **Se trovi cartelle BR**, proponile:
 
 > Ho trovato:
-> - `plans/in-progress/2026-04-28_booking-v2/`
+> - `<profiles_repo>/<profilo>/plans/in-progress/2026-04-28_booking-v2/`
 >   - `PIANO_IMPLEMENTAZIONE_BR.md`
 >   - `PROGRESSO_BR.md`
 >
 > Uso questa cartella per generare l'Excel?
-
-**Se trovi file flat** (retrocompatibilita'):
-
-> Ho trovato:
-> - `plans/in-progress/PIANO_IMPLEMENTAZIONE_BR_2026-04-24.md`
-> - `plans/in-progress/PROGRESSO_BR_2026-04-24.md`
->
-> Uso questi per generare l'Excel?
 
 Se non trovi nulla, chiedi i path manualmente.
 
@@ -48,11 +77,7 @@ Se non trovi nulla, chiedi i path manualmente.
 Cerca nella stessa cartella del BR se esiste gia' un file Excel:
 
 ```bash
-# Se struttura a cartelle
-ls plans/in-progress/*/AVANZAMENTO_BR.xlsx plans/todo/*/AVANZAMENTO_BR.xlsx plans/done/*/AVANZAMENTO_BR.xlsx 2>/dev/null
-
-# Retrocompatibilita' flat
-ls plans/in-progress/AVANZAMENTO_BR_*.xlsx plans/todo/AVANZAMENTO_BR_*.xlsx plans/done/AVANZAMENTO_BR_*.xlsx 2>/dev/null
+ls "<profiles_repo>/<profilo>/plans/in-progress"/*/AVANZAMENTO_BR.xlsx "<profiles_repo>/<profilo>/plans/todo"/*/AVANZAMENTO_BR.xlsx "<profiles_repo>/<profilo>/plans/done"/*/AVANZAMENTO_BR.xlsx 2>/dev/null
 ```
 
 - **Se esiste** → modalità aggiornamento (solo i dati cambiano, struttura preservata)
@@ -60,7 +85,7 @@ ls plans/in-progress/AVANZAMENTO_BR_*.xlsx plans/todo/AVANZAMENTO_BR_*.xlsx plan
 
 Comunica la modalità all'utente:
 
-> [Excel trovato — aggiorno `AVANZAMENTO_BR_2026-04-24.xlsx` con i progressi attuali.]
+> [Excel trovato — aggiorno `AVANZAMENTO_BR.xlsx` con i progressi attuali.]
 
 oppure
 
@@ -70,50 +95,19 @@ oppure
 
 ## Fase 2 — Estrazione Dati
 
-### Lettura progresso aggregata (cross-branch)
+### Lettura progresso
 
-Prima di estrarre i dati, esegui l'aggregazione dai branch remoti per ottenere una vista aggiornata del progresso di TUTTE le task. Questo e' necessario perche' ogni sviluppatore aggiorna il PROGRESSO sul proprio feature branch — senza aggregazione l'Excel mostrerebbe solo il progresso locale.
+Sincronizza la repo profili prima di leggere:
 
-1. `git fetch origin` per sincronizzare i branch remoti
+```bash
+git -C "<profiles_repo>" pull origin main --quiet
+```
 
-2. Leggi il PIANO_IMPLEMENTAZIONE_BR.md per estrarre:
-   - Gli ID di tutte le task (T-001, T-003, T-005, ...)
-   - Se il piano ha una colonna **Branch** nel backlog: estrai i nomi branch di ogni task
-   - Il nome del BR dalla cartella (es. `2026-05-04_monitoring` → `monitoring`)
-
-3. **Trova i branch remoti da controllare:**
-   - **Se il piano ha colonna Branch**: usa direttamente i nomi branch elencati nel piano. Per ogni branch con valore diverso da `—`, verifica che esista come remoto:
-     ```bash
-     git branch -r | grep "<branch-name>"
-     ```
-   - **Se il piano NON ha colonna Branch** (retrocompatibilita' con piani pre-esistenti): cerca tutti i branch remoti che contengono il nome del BR:
-     ```bash
-     git branch -r | grep -i "feature/<nome-br>"
-     ```
-
-4. Per ogni branch trovato, prova a leggere il PROGRESSO da 3 percorsi possibili (il file puo' essere in posizioni diverse a seconda dello stato):
-   ```bash
-   git show origin/<branch>:plans/in-progress/<cartella-br>/PROGRESSO_BR.md
-   git show origin/<branch>:plans/todo/<cartella-br>/PROGRESSO_BR.md
-   git show origin/<branch>:plans/done/<cartella-br>/PROGRESSO_BR.md
-   ```
-   Usa il primo che funziona. Se nessuno funziona, skip quel branch.
-
-5. Leggi anche il PROGRESSO dal branch base del piano (con gli stessi 3 percorsi). Se non esiste su nessun percorso, genera un baseline dal PIANO: tutte le task a 0%, stato "Da iniziare".
-
-6. Aggrega per task con la regola **"highest progress wins"**:
-   - Per ogni task, confronta le versioni da tutti i branch (incluso il baseline)
-   - Se una versione mostra "Completata" (100%), vince sempre
-   - Altrimenti, prendi la versione con il progresso % piu' alto
-   - Se due versioni hanno lo stesso %, prendi quella con lo stato piu' avanzato (In corso > Da iniziare)
-
-7. Ricalcola le metriche di riepilogo dalla vista aggregata.
-
-**Fallback**: se `git fetch` fallisce (no rete), usa il file di progresso locale e mostra un warning all'utente.
+Leggi il PROGRESSO_BR.md dalla cartella del BR in `<profiles_repo>/<profilo>/plans/<stato>/<data>_<nome>/PROGRESSO_BR.md`. Il file e' sempre aggiornato dopo il pull perche' tutti gli sviluppatori scrivono nella repo centralizzata.
 
 ### Estrazione campi
 
-Dalla vista aggregata e dal piano, estrai per ogni task:
+Dal PROGRESSO_BR.md e dal piano, estrai per ogni task:
 
 | Campo | Fonte |
 |---|---|
@@ -126,12 +120,12 @@ Dalla vista aggregata e dal piano, estrai per ogni task:
 | Wave | Piano — sezione Ordine di esecuzione |
 | Dipendenze | Piano — colonna Dipendenze |
 | Effort stimato | Piano — colonna Effort |
-| Branch | Vista aggregata — colonna Branch |
-| Progresso % | Vista aggregata — colonna Progresso |
-| Stato | Vista aggregata — colonna Stato (Da iniziare / In corso / Completata / Bloccata / Annullata / Sospesa) |
-| Note | Vista aggregata — colonna Note |
+| Branch | PROGRESSO_BR.md — colonna Branch |
+| Progresso % | PROGRESSO_BR.md — colonna Progresso |
+| Stato | PROGRESSO_BR.md — colonna Stato (Da iniziare / In corso / Completata / Bloccata / Annullata / Sospesa) |
+| Note | PROGRESSO_BR.md — colonna Note |
 
-Se il file di progresso non esiste e l'aggregazione non trova nessun branch remoto, imposta progresso a 0% e stato a "Da iniziare" per tutte le task.
+Se il file di progresso non esiste, imposta progresso a 0% e stato a "Da iniziare" per tutte le task.
 
 ---
 
@@ -206,8 +200,6 @@ Dashboard complessiva con le metriche chiave:
 Progetto: [nome BR]
 Data generazione: [data]
 Ultimo aggiornamento progresso: [data dal file progresso]
-Dati aggregati da: [N] branch remoti
-Ultimo fetch: [data e ora del git fetch]
 
 STATO COMPLESSIVO
 ─────────────────
@@ -242,9 +234,8 @@ Formatta questa sezione come testo leggibile, non come tabella. Usa merge di cel
 
 ### Nome e posizione file
 
-Salva nella stessa cartella del BR:
-- **Se struttura a cartelle**: `plans/<stato>/<YYYY-MM-DD>_<nome>/AVANZAMENTO_BR.xlsx`
-- **Se flat (retrocompatibilita')**: `plans/<stato>/AVANZAMENTO_BR_<YYYY-MM-DD>.xlsx`
+Salva nella stessa cartella del BR all'interno della repo centralizzata:
+- **Path**: `<profiles_repo>/<profilo>/plans/<stato>/<YYYY-MM-DD>_<nome>/AVANZAMENTO_BR.xlsx`
 - **Aggiornamento**: sovrascrivi il file esistente
 
 ### Modalità aggiornamento
@@ -272,9 +263,19 @@ Lo script deve:
 5. Applicare formattazione e formattazione condizionale
 6. Salvare il file
 
+### Commit e push su deloitte-profiles
+
+Dopo aver salvato l'Excel, fai commit e push nella repo centralizzata:
+
+```bash
+git -C "<profiles_repo>" add "<profilo>/plans/"
+git -C "<profiles_repo>" commit -m "[br-progress-report] <nome>: aggiornato Excel avanzamento"
+git -C "<profiles_repo>" push origin main --quiet
+```
+
 ### Comunicazione finale
 
-> Excel [creato / aggiornato]: `plans/in-progress/AVANZAMENTO_BR_2026-04-24.xlsx`
+> Excel [creato / aggiornato]: `<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/AVANZAMENTO_BR.xlsx`
 >
 > Riepilogo:
 > - Task totali: N (X completate, Y in corso, Z da iniziare)

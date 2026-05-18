@@ -15,28 +15,47 @@ br-reviewer → br-clarify → br-analyzer → br-executor → br-updater
 
 Il processo si compone di 4 fasi:
 1. **Raccolta input** (domande conversazionali, una alla volta)
-2. **Conversione documentazione** (solo se `br-reviewer` non e' stato eseguito prima — se trova `br-docs-converted/` nella cartella del BR, salta questa fase)
+2. **Conversione documentazione** (solo se `br-reviewer` non e' stato eseguito prima — se trova `requirements/` nella cartella del BR, salta questa fase)
 3. **Analisi gap** (confronto documentazione vs codice)
 4. **Generazione output** (2 file MD: gap report + piano di implementazione, nella cartella del BR)
 
 ---
 
-## Caricamento Profilo Progetto
+## Risoluzione Path — deloitte-profiles
 
-Prima di iniziare qualsiasi operazione, tenta di caricare il profilo progetto:
+Tutte le operazioni su file BR avvengono nella repo `deloitte-profiles`, non nella repo del codice. Il codice sorgente continua a essere letto dalla repo del progetto corrente.
 
-1. Leggi `.br-local.json` dalla root del repo corrente
-2. Se contiene i campi `profilo` e `profiles_repo`:
-   a. Sincronizza il repo profili: `git -C <profiles_repo> pull origin main --quiet`
-   b. Leggi `<profiles_repo>/<profilo>/profile.json`
-   c. Se il campo `custom_agents` e' presente nel profilo, leggi anche i file .md degli agenti referenziati (path relativi alla cartella del profilo)
-   d. Salva il profilo in memoria per uso nelle fasi successive
-3. Se `.br-local.json` non ha `profilo` o `profiles_repo`, procedi senza profilo (comportamento attuale, retrocompatibilita' completa)
+### Lettura `.br-local.json`
 
-Quando il profilo e' disponibile:
-- Nella Fase 1, salta la Domanda 1 (Codebase) se i path sono gia' in `.br-local.json`
-- Nella Fase 3, usa br-codebase-explorer con il profilo iniettato per l'esplorazione
-- Nella Fase 4, dopo la generazione degli output, confronta il codebase con il profilo per proporre aggiornamenti
+All'avvio, leggi `.br-local.json` dalla root della repo corrente:
+
+```bash
+cat .br-local.json 2>/dev/null
+```
+
+Estrai `profiles_repo`, `profilo`, `developer`.
+
+Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
+
+### Se `.br-local.json` non esiste
+
+Ferma l'esecuzione e avvisa:
+
+> `.br-local.json` non trovato. Devi prima eseguire `br-profile-setup`.
+
+### Sincronizzazione prima della lettura
+
+```bash
+git -C "<profiles_repo>" pull origin main --quiet
+```
+
+### Commit e push dopo la scrittura
+
+```bash
+git -C "<profiles_repo>" add .
+git -C "<profiles_repo>" commit -m "<messaggio>"
+git -C "<profiles_repo>" push origin main --quiet
+```
 
 ---
 
@@ -46,17 +65,18 @@ Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 
 ### Domanda 0 — Cartella BR esistente
 
-Prima di chiedere qualsiasi cosa, verifica se esiste una cartella BR in `plans/todo/` con un `REVIEW_BR.md` (segno che `br-reviewer` e' stato eseguito):
+Prima di chiedere qualsiasi cosa, verifica se esiste una cartella BR in `<profiles_repo>/<profilo>/plans/todo/` con un `REVIEW_BR.md` (segno che `br-reviewer` e' stato eseguito):
 
 ```bash
-ls plans/todo/*/REVIEW_BR.md 2>/dev/null
+git -C "<profiles_repo>" pull origin main --quiet
+ls "<profiles_repo>/<profilo>/plans/todo"/*/REVIEW_BR.md 2>/dev/null
 ```
 
 **Se trovi una cartella con REVIEW_BR.md**, proponila:
 
 > Ho trovato una cartella BR con review gia' completata:
-> - `plans/todo/2026-04-28_booking-v2/REVIEW_BR.md`
-> - Documentazione convertita in `br-docs-converted/`
+> - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_booking-v2/REVIEW_BR.md`
+> - Documentazione convertita in `requirements/`
 >
 > Uso questa come base? Le assunzioni dalla review verranno incorporate nel piano.
 
@@ -72,7 +92,7 @@ Se l'utente conferma:
   - I bloccanti ancora aperti vengono segnalati come "Da chiarire" nel gap report
 - **Se br-clarify NON e' stato eseguito**:
   - Usa la sezione "Riepilogo per br-analyzer" nella sua forma originale (assunzioni confermate dall'utente e bloccanti aperti)
-- Usa i file in `br-docs-converted/` per l'analisi (salta la Fase 2)
+- Usa i file in `requirements/` per l'analisi (salta la Fase 2)
 - Salta le domande su documentazione e codebase — leggile dal REVIEW_BR.md
 - Procedi direttamente alla Domanda 3 (Team di sviluppo)
 
@@ -137,7 +157,7 @@ Procedi solo dopo la conferma.
 
 ## Fase 2 — Conversione Documentazione in Markdown
 
-**Se `br-reviewer` e' stato eseguito** e la cartella `br-docs-converted/` esiste gia' nella cartella del BR (`plans/todo/<data>_<nome>/br-docs-converted/`), **salta completamente questa fase** e vai alla Fase 3. La conversione e' gia' stata fatta da br-reviewer.
+**Se `br-reviewer` e' stato eseguito** e la cartella `requirements/` esiste gia' nella cartella del BR (`<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/requirements/`), **salta completamente questa fase** e vai alla Fase 3. La conversione e' gia' stata fatta da br-reviewer.
 
 **Se `br-reviewer` non e' stato eseguito**, converti tutti i documenti non-MD in formato Markdown. Questo riduce significativamente il contesto necessario e rende i documenti piu' leggibili per l'analisi.
 
@@ -146,7 +166,7 @@ Procedi solo dopo la conferma.
 Crea la cartella del BR e la sottocartella per i documenti convertiti:
 
 ```bash
-mkdir -p "plans/todo/<YYYY-MM-DD>_<nome>/br-docs-converted"
+mkdir -p "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements"
 ```
 
 Per ogni file di documentazione fornito:
@@ -155,18 +175,18 @@ Per ogni file di documentazione fornito:
 ```bash
 python3 ~/.claude/skills/doc-to-markdown/convert_word_to_markdown.py "<path-file>"
 ```
-Sposta il file `.md` risultante e l'eventuale cartella `_images/` in `plans/todo/<YYYY-MM-DD>_<nome>/br-docs-converted/`.
+Sposta il file `.md` risultante e l'eventuale cartella `_images/` in `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements/`.
 
 **File `.pdf` / `.pptx` / `.xlsx`** — Usa `markitdown` (la stessa dipendenza di doc-to-markdown):
 ```bash
 # Se markitdown è disponibile globalmente
-markitdown "<path-file>" > "plans/todo/<YYYY-MM-DD>_<nome>/br-docs-converted/<nome-file>.md"
+markitdown "<path-file>" > "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements/<nome-file>.md"
 
 # Altrimenti via uvx
-uvx markitdown "<path-file>" > "plans/todo/<YYYY-MM-DD>_<nome>/br-docs-converted/<nome-file>.md"
+uvx markitdown "<path-file>" > "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements/<nome-file>.md"
 ```
 
-**File `.md`** — Copia direttamente in `plans/todo/<YYYY-MM-DD>_<nome>/br-docs-converted/`.
+**File `.md`** — Copia direttamente in `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements/`.
 
 **Immagini (mockup `.png`, `.jpg`, ecc.)** — Non convertire. Leggile con Read (supporto multimodale) durante la fase di analisi e descrivi nel dettaglio cosa vedi.
 
@@ -177,13 +197,13 @@ Dopo la conversione, verifica che ogni file MD generato contenga contenuto valid
 Comunica all'utente lo stato della conversione:
 
 > Conversione completata:
-> - `BR_v24.docx` → `br-docs-converted/BR_v24.md` (OK)
-> - `Mockup_Booking.pptx` → `br-docs-converted/Mockup_Booking.md` (OK)
+> - `BR_v24.docx` → `requirements/BR_v24.md` (OK)
+> - `Mockup_Booking.pptx` → `requirements/Mockup_Booking.md` (OK)
 > - `mockup_dashboard.png` → letto direttamente come immagine
 >
 > Procedo con l'analisi gap.
 
-Da questo punto in poi, l'analisi lavora sui file MD convertiti in `br-docs-converted/`, non sui file originali.
+Da questo punto in poi, l'analisi lavora sui file MD convertiti in `requirements/`, non sui file originali.
 
 ---
 
@@ -191,7 +211,7 @@ Da questo punto in poi, l'analisi lavora sui file MD convertiti in `br-docs-conv
 
 ### 3.1 — Lettura della documentazione
 
-Leggi integralmente ogni documento MD convertito nella cartella `br-docs-converted/` (dentro la cartella del BR). Per le immagini (mockup), usa Read sul file originale e descrivi nel dettaglio cosa vedi, mappando le UI ai componenti da implementare.
+Leggi integralmente ogni documento MD convertito nella cartella `requirements/` (dentro la cartella del BR). Per le immagini (mockup), usa Read sul file originale e descrivi nel dettaglio cosa vedi, mappando le UI ai componenti da implementare.
 
 Da ogni documento, estrai:
 - Ogni requisito funzionale (cosa deve fare il sistema)
@@ -202,22 +222,9 @@ Organizza i requisiti per **funzionalità** (es. "Dashboard", "Booking", "Monito
 
 ### 3.2 — Esplorazione dei codebase
 
-**Se il profilo progetto e' disponibile:**
-
-Per ogni codebase, lancia un agente `br-codebase-explorer` (leggendo le sue istruzioni da `~/.claude/agents/br-codebase-explorer.md`) con:
-- Il profilo progetto completo (JSON)
-- I requisiti estratti dalla documentazione (dalla Fase 3.1)
-- Il path del codebase da esplorare
-
-L'explorer usa il profilo per navigare in modo mirato: sa dove cercare entita', servizi, controller, e conosce la terminologia di dominio.
-
-Per codebase indipendenti (es. BE e FE), lancia gli explorer in parallelo.
-
-**Se il profilo NON e' disponibile (retrocompatibilita'):**
-
 Per ogni codebase fornito, analizza:
 - **Struttura del progetto**: package, moduli, layer architetturali
-- **Modello dati**: entita', DTO, migration, relazioni
+- **Modello dati**: entità, DTO, migration, relazioni
 - **API/Controller**: endpoint esposti, payload, validazioni
 - **Servizi**: logica di business, workflow, macchine a stati
 - **Repository**: query, viste, materializzazioni
@@ -225,6 +232,8 @@ Per ogni codebase fornito, analizza:
 - **Configurazione**: properties, feature flag, sicurezza
 
 Usa gli agent di tipo `Explore` per parallelizzare l'esplorazione dei diversi codebase quando possibile.
+
+**Nota**: il codebase viene letto dalla repo del progetto (dove la skill e' invocata). Solo gli artefatti BR (report, piano) vengono scritti in `deloitte-profiles`.
 
 ### 3.3 — Confronto e classificazione gap
 
@@ -254,14 +263,16 @@ Il livello di dettaglio deve essere sufficiente perché un agente Claude Code, l
 Se la cartella del BR non esiste ancora (br-reviewer non eseguito), creala:
 
 ```bash
-mkdir -p "plans/todo/<YYYY-MM-DD>_<nome>" plans/in-progress plans/done
+mkdir -p "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements"
 ```
 
-Genera entrambi i file nella cartella del BR in `plans/todo/`. Questo e' lo stato iniziale: la cartella intera si sposta in `in-progress/` quando uno sviluppatore avvia la lavorazione con `br-executor`, e in `done/` al completamento di tutte le task.
+(in-progress e done sono già create da br-profile-setup)
+
+Genera entrambi i file nella cartella del BR in `<profiles_repo>/<profilo>/plans/todo/`. Questo e' lo stato iniziale: la cartella intera si sposta in `in-progress/` quando uno sviluppatore avvia la lavorazione con `br-executor`, e in `done/` al completamento di tutte le task.
 
 ### 4.1 — Gap Report
 
-**Path file**: `plans/todo/<YYYY-MM-DD>_<nome>/GAP_REPORT_BR.md`
+**Path file**: `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/GAP_REPORT_BR.md`
 
 Struttura:
 
@@ -344,7 +355,7 @@ Ogni riga della matrice e ogni gap aperto deve contenere path esatti ai file ril
 
 ### 4.2 — Piano di Implementazione
 
-**Path file**: `plans/todo/<YYYY-MM-DD>_<nome>/PIANO_IMPLEMENTAZIONE_BR.md`
+**Path file**: `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/PIANO_IMPLEMENTAZIONE_BR.md`
 
 Struttura:
 
@@ -462,6 +473,16 @@ Regole:
 - [lista di cosa deve funzionare per considerare il perimetro chiuso]
 ```
 
+### 4.3 — Commit e push degli artefatti BR
+
+Dopo aver generato `GAP_REPORT_BR.md` e `PIANO_IMPLEMENTAZIONE_BR.md`, esegui commit e push verso `deloitte-profiles`:
+
+```bash
+git -C "<profiles_repo>" add "<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/"
+git -C "<profiles_repo>" commit -m "[br-analyzer] <nome>: gap report e piano di implementazione"
+git -C "<profiles_repo>" push origin main --quiet
+```
+
 ### Principi per la creazione delle task
 
 Quando scomponi il lavoro in task, questi principi guidano le decisioni:
@@ -493,53 +514,3 @@ Quando scomponi il lavoro in task, questi principi guidano le decisioni:
 - **`doc-to-markdown`** skill (`~/.claude/skills/doc-to-markdown/`) — per conversione DOCX/DOC (solo se br-reviewer non e' stato eseguito)
 - **`markitdown`** — per conversione PDF, PPTX, XLSX (solo se br-reviewer non e' stato eseguito)
 - **`br-reviewer`** — (opzionale ma consigliato) se eseguito prima, br-analyzer ne legge il REVIEW_BR.md e salta la conversione
-
----
-
-## Fase 5 — Aggiornamento Automatico Profilo
-
-Questa fase si esegue SOLO se il profilo progetto e' disponibile (caricato nella fase iniziale).
-
-Dopo aver completato la gap analysis, il codebase e' stato esplorato in dettaglio. Confronta quello che hai trovato col profilo esistente e rileva delta significativi.
-
-**Delta da rilevare:**
-
-- Nuovi package/moduli non presenti nel profilo
-- Rinominazione di classi base (es. `BaseEntity` → `BaseAuditEntity`)
-- Cambio di API prefix (es. `/api/v1` → `/api/v2`)
-- Nuovo framework o libreria (es. aggiunta di un message broker)
-- Cambiamenti nel design system (font, colori, componenti)
-- Nuovi stati di entita' rispetto al glossario
-
-**Delta da ignorare (rumore):**
-
-- File temporanei o di configurazione locale
-- Differenze di branch (file presenti solo su feature branch)
-- Dipendenze transitorie (non nel build file principale)
-
-**Se trovi delta significativi**, presentali all'utente:
-
-> Ho rilevato differenze tra il codebase e il profilo progetto:
->
-> | Aspetto | Profilo | Codebase | Delta |
-> |---|---|---|---|
-> | Base entity | BaseEntity | BaseAuditEntity | Rinominata |
-> | Nuovo package | — | com.progetto.notification | Aggiunto |
-> | API prefix | /api/v1 | /api/v2 (parziale) | Migrazione in corso |
-> | Font | Roboto | Inter | Cambiato |
->
-> Aggiorno il profilo?
-
-Se confermato:
-
-1. Aggiorna il `profile.json` nel repo profili
-2. Commit e push:
-   ```bash
-   cd <profiles_repo>
-   git add <profilo>/profile.json
-   git commit -m "chore: auto-update profile <profilo> from br-analyzer"
-   git push origin main
-   ```
-3. Tutti i developer avranno il profilo aggiornato al prossimo pull (automatico a ogni invocazione skill)
-
-**Se non trovi delta**, non mostrare nulla — passa silenziosamente alla fine.

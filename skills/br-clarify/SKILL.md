@@ -25,33 +25,72 @@ Il processo si compone di 6 fasi:
 
 ---
 
-## Fase 1 — Auto-detect REVIEW_BR.md
+## Risoluzione Path — deloitte-profiles
 
-Cerca automaticamente il report del review nella struttura `plans/`:
+Tutte le operazioni su file BR avvengono nella repo `deloitte-profiles`, non nella repo del codice.
+
+### Lettura `.br-local.json`
+
+All'avvio, leggi `.br-local.json` dalla root della repo corrente:
 
 ```bash
-ls plans/todo/*/REVIEW_BR.md 2>/dev/null
-ls plans/in-progress/*/REVIEW_BR.md 2>/dev/null
+cat .br-local.json 2>/dev/null
+```
+
+Estrai `profiles_repo`, `profilo`, `developer`.
+
+Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
+
+### Se `.br-local.json` non esiste
+
+Ferma l'esecuzione e avvisa:
+
+> `.br-local.json` non trovato. Devi prima eseguire `br-profile-setup`.
+
+### Sincronizzazione prima della lettura
+
+```bash
+git -C "<profiles_repo>" pull origin main --quiet
+```
+
+### Commit e push dopo la scrittura
+
+```bash
+git -C "<profiles_repo>" add .
+git -C "<profiles_repo>" commit -m "<messaggio>"
+git -C "<profiles_repo>" push origin main --quiet
+```
+
+---
+
+## Fase 1 — Auto-detect REVIEW_BR.md
+
+Cerca automaticamente il report del review nella struttura `plans/` centralizzata:
+
+```bash
+git -C "<profiles_repo>" pull origin main --quiet
+ls "<profiles_repo>/<profilo>/plans/todo"/*/REVIEW_BR.md 2>/dev/null
+ls "<profiles_repo>/<profilo>/plans/in-progress"/*/REVIEW_BR.md 2>/dev/null
 ```
 
 **Se trovi un solo REVIEW_BR.md**, proponilo:
 
 > Ho trovato il review del BR:
-> - `plans/todo/2026-04-28_monitoraggio/REVIEW_BR.md`
+> - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_monitoraggio/REVIEW_BR.md`
 >
 > Uso questo?
 
 **Se ne trovi piu' di uno**, elenca e chiedi:
 
 > Ho trovato piu' review:
-> - `plans/todo/2026-04-28_monitoraggio/REVIEW_BR.md`
-> - `plans/todo/2026-04-25_booking-v2/REVIEW_BR.md`
+> - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_monitoraggio/REVIEW_BR.md`
+> - `<profiles_repo>/<profilo>/plans/todo/2026-04-25_booking-v2/REVIEW_BR.md`
 >
 > Quale vuoi aggiornare?
 
 **Se non ne trovi nessuno**, informa:
 
-> Non ho trovato nessun REVIEW_BR.md nella struttura `plans/`.
+> Non ho trovato nessun REVIEW_BR.md nella struttura `<profiles_repo>/<profilo>/plans/`.
 > Devi prima eseguire `br-reviewer` per generare il report con le domande.
 
 Dopo l'identificazione, leggi il REVIEW_BR.md e analizza la sua struttura:
@@ -310,13 +349,23 @@ Assunzioni rigettate (risposta diversa dall'assunzione):
 Dopo aver aggiornato il REVIEW_BR.md, rigenera il DOCX:
 
 ```bash
-pandoc -f markdown -t docx "plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.md" -o "plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.docx"
+pandoc -f markdown -t docx "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.md" -o "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.docx"
 ```
 
-Se il file si trova in `plans/in-progress/`, usa quel path:
+Se il file si trova in `<profiles_repo>/<profilo>/plans/in-progress/`, usa quel path:
 
 ```bash
-pandoc -f markdown -t docx "plans/in-progress/<YYYY-MM-DD>_<nome>/REVIEW_BR.md" -o "plans/in-progress/<YYYY-MM-DD>_<nome>/REVIEW_BR.docx"
+pandoc -f markdown -t docx "<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/REVIEW_BR.md" -o "<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/REVIEW_BR.docx"
+```
+
+### 5.5 — Commit e push su deloitte-profiles
+
+Dopo la rigenerazione del DOCX, effettua commit e push su `deloitte-profiles`:
+
+```bash
+git -C "<profiles_repo>" add "<profilo>/plans/"
+git -C "<profiles_repo>" commit -m "[br-clarify] <nome>: aggiornato review con risposte funzionale"
+git -C "<profiles_repo>" push origin main --quiet
 ```
 
 ---

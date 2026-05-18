@@ -11,23 +11,53 @@ L'agente principale coordina il lavoro, delega l'implementazione a sottoagenti, 
 
 ---
 
-## Caricamento Profilo Progetto
+## Risoluzione Path — deloitte-profiles
 
-Prima di iniziare qualsiasi operazione, tenta di caricare il profilo progetto:
+Tutte le operazioni su file BR avvengono nella repo `deloitte-profiles`, non nella repo del codice. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
-1. Leggi `.br-local.json` dalla root del repo corrente
-2. Se contiene i campi `profilo` e `profiles_repo`:
-   a. Sincronizza il repo profili: `git -C <profiles_repo> pull origin main --quiet`
-   b. Leggi `<profiles_repo>/<profilo>/profile.json`
-   c. Se il campo `custom_agents` e' presente nel profilo, leggi anche i file .md degli agenti referenziati (path relativi alla cartella del profilo)
-   d. Salva il profilo in memoria per uso nelle fasi successive
-3. Se `.br-local.json` non ha `profilo` o `profiles_repo`, procedi senza profilo (comportamento attuale, retrocompatibilita' completa)
+### Lettura `.br-local.json`
 
-Quando il profilo e' disponibile:
-- Nella Fase 1, usa i campi `profilo` e `paths` da `.br-local.json` per pre-compilare le risposte
-- Nella Fase 3, instrada i sottoagenti al subagent_type corretto in base allo stack
-- Nella Fase 3, usa br-verifier per la verifica al posto della verifica inline
-- Inietta convenzioni e dominio dal profilo in tutti i prompt dei sottoagenti
+All'avvio, leggi `.br-local.json` dalla root della repo corrente:
+
+```bash
+cat .br-local.json 2>/dev/null
+```
+
+Estrai `profiles_repo`, `profilo`, `developer`.
+
+Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
+
+### Se `.br-local.json` non esiste
+
+Sei uno sviluppatore — per collegarti al profilo esistente serve:
+
+> `.br-local.json` non trovato. Per collegarti al profilo esistente, ho bisogno di:
+> 1. **Path del clone di deloitte-profiles** (es. `C:/Users/dev/Documents/deloitte-profiles`)
+> 2. **Nome del profilo** (es. `banca-agente`)
+> 3. **Il tuo nome** (come appare nel piano di implementazione)
+
+Crea `.br-local.json` con:
+```json
+{
+  "profilo": "<profilo>",
+  "profiles_repo": "<path>",
+  "developer": "<nome>"
+}
+```
+
+### Sincronizzazione prima della lettura
+
+```bash
+git -C "<profiles_repo>" pull origin main --quiet
+```
+
+### Commit e push dopo la scrittura
+
+```bash
+git -C "<profiles_repo>" add .
+git -C "<profiles_repo>" commit -m "<messaggio>"
+git -C "<profiles_repo>" push origin main --quiet
+```
 
 ---
 
@@ -37,27 +67,20 @@ Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 
 ### Domanda 1 — File del piano
 
-Prima di chiedere, verifica se esiste la struttura `plans/` nella working directory. Cerca cartelle BR nelle tre aree:
+Prima di chiedere, sincronizza la repo profili e verifica se esiste la struttura `plans/` nel profilo. Cerca cartelle BR nelle tre aree:
 
 ```bash
-ls -d plans/todo/*/ plans/in-progress/*/ plans/done/*/ 2>/dev/null
+git -C "<profiles_repo>" pull origin main --quiet
+ls -d "<profiles_repo>/<profilo>/plans/todo"/*/ "<profiles_repo>/<profilo>/plans/in-progress"/*/ "<profiles_repo>/<profilo>/plans/done"/*/ 2>/dev/null
 ```
 
 **Se trovi cartelle BR**, elencale e proponi:
 
 > Ho trovato queste cartelle BR:
-> - `plans/todo/2026-04-28_booking-v2/` (contiene GAP_REPORT_BR.md, PIANO_IMPLEMENTAZIONE_BR.md)
-> - `plans/in-progress/2026-04-15_monitoraggio/` (contiene PROGRESSO_BR.md)
+> - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_booking-v2/` (contiene GAP_REPORT_BR.md, PIANO_IMPLEMENTAZIONE_BR.md)
+> - `<profiles_repo>/<profilo>/plans/in-progress/2026-04-15_monitoraggio/` (contiene PROGRESSO_BR.md)
 >
 > Quale vuoi lavorare? Oppure dammi i path manualmente.
-
-**Se trovi file flat** (retrocompatibilita' con vecchio formato):
-
-> Ho trovato questi file nella cartella `plans/`:
-> - `plans/todo/GAP_REPORT_BR_2026-04-24.md`
-> - `plans/todo/PIANO_IMPLEMENTAZIONE_BR_2026-04-24.md`
->
-> Uso questi? Oppure dammi i path manualmente.
 
 **Se non trovi nulla**, chiedi:
 
@@ -73,32 +96,26 @@ Leggi tutti i file forniti. Estrai dal gap report e dal piano:
 
 ### Spostamento in `plans/in-progress/`
 
-Quando lo sviluppatore conferma e la lavorazione sta per iniziare, sposta l'intera cartella del BR da `plans/todo/` a `plans/in-progress/` (se non e' gia' li'):
+Quando lo sviluppatore conferma e la lavorazione sta per iniziare, sposta l'intera cartella del BR da `<profiles_repo>/<profilo>/plans/todo/` a `<profiles_repo>/<profilo>/plans/in-progress/` (se non e' gia' li'):
 
 ```bash
-mkdir -p plans/in-progress
-mv "plans/todo/<YYYY-MM-DD>_<nome>/" "plans/in-progress/" 2>/dev/null
+git -C "<profiles_repo>" mv "<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/" "<profilo>/plans/in-progress/"
+git -C "<profiles_repo>" add .
+git -C "<profiles_repo>" commit -m "[br-executor] <nome>: avvio lavorazione, spostato in in-progress"
+git -C "<profiles_repo>" push origin main --quiet
 ```
 
-Se stai lavorando con file flat (retrocompatibilita'), sposta i singoli file come prima:
-
-```bash
-mkdir -p plans/in-progress
-mv plans/todo/GAP_REPORT_BR_*.md plans/in-progress/ 2>/dev/null
-mv plans/todo/PIANO_IMPLEMENTAZIONE_BR_*.md plans/in-progress/ 2>/dev/null
-```
-
-Il file di progresso viene creato (o cercato) dentro la cartella del BR in `plans/in-progress/`.
+Il file di progresso viene creato (o cercato) dentro la cartella del BR in `<profiles_repo>/<profilo>/plans/in-progress/`.
 
 ### Domanda 2 — Path dei codebase locali
 
 Dal report e dal piano, estrai tutti i nomi e le sigle dei codebase/repository referenziati. Per ognuno, chiedi il path locale:
 
-> I file di br-analyzer fanno riferimento a queste repository:
+> Il piano fa riferimento a queste repository:
 > [per ogni repo trovata nei file:]
-> - **<Nome> (<SIGLA>)** — path originale: `<path dal report>`
+> - **<Nome> (<SIGLA>)** — path nel piano: `<path dal report>`
 >
-> Siccome lavori su un PC diverso, dammi i path locali di ogni repository che hai disponibile.
+> Conferma i path locali di ogni repository che hai disponibile.
 > Se una repo non ti serve per le tue task, dimmelo.
 
 ### Domanda 3 — Path della documentazione locale
@@ -142,7 +159,7 @@ Procedi solo dopo la conferma.
 
 ### Se il file non esiste — Crealo
 
-Crea il file `PROGRESSO_BR.md` nella stessa cartella del BR (es. `plans/in-progress/<YYYY-MM-DD>_<nome>/PROGRESSO_BR.md`), con questa struttura:
+Crea il file `PROGRESSO_BR.md` nella stessa cartella del BR (es. `<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/PROGRESSO_BR.md`), con questa struttura:
 
 ```
 # Progresso Implementazione [Nome BR]
@@ -191,6 +208,14 @@ Aggiorna il file di progresso a ogni cambio di stato significativo:
 
 Aggiorna sempre il campo "Ultimo aggiornamento" e aggiungi una riga al Log Attività.
 
+**Dopo ogni aggiornamento del PROGRESSO_BR.md, esegui commit + push sulla repo profili**, in modo che il progresso sia immediatamente visibile a tutti gli altri sviluppatori:
+
+```bash
+git -C "<profiles_repo>" add "<profilo>/plans/in-progress/<data>_<nome>/PROGRESSO_BR.md"
+git -C "<profiles_repo>" commit -m "[br-progress] <task-id> -> <progresso>%"
+git -C "<profiles_repo>" push origin main --quiet
+```
+
 ---
 
 ## Fase 3 — Lavorazione Task
@@ -212,63 +237,28 @@ Aspetta la conferma dello sviluppatore prima di iniziare qualsiasi lavoro.
 
 **Nota sulle merge task (T-MERGE-*)**: le merge task sono task speciali che non richiedono implementazione di codice. Quando l'executor incontra una merge task, guida lo sviluppatore attraverso il processo di merge: (1) merge del branch sorgente nel branch base, (2) verifica che la build compili correttamente, (3) mark come completata. Non vengono lanciati sottoagenti per le merge task.
 
-### Lettura progresso aggregata (cross-branch)
+### Lettura progresso
 
-Prima di leggere il file di progresso per qualsiasi operazione (controllo dipendenze, stato task), esegui l'aggregazione dai branch remoti per ottenere una vista aggiornata del progresso di TUTTE le task, non solo quelle visibili sul branch corrente.
+Prima di leggere il file di progresso, sincronizza la repo profili:
 
-Questo e' necessario perche' ogni sviluppatore aggiorna il PROGRESSO sul proprio feature branch. Senza aggregazione, il progresso degli altri non e' visibile.
+```bash
+git -C "<profiles_repo>" pull origin main --quiet
+```
 
-1. `git fetch origin` per sincronizzare i branch remoti
+Leggi il PROGRESSO_BR.md dalla cartella del BR in `<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/PROGRESSO_BR.md`.
 
-2. Leggi il PIANO_IMPLEMENTAZIONE_BR.md per estrarre:
-   - Gli ID di tutte le task (T-001, T-003, T-005, ...)
-   - Se il piano ha una colonna **Branch** nel backlog: estrai i nomi branch di ogni task
-   - Il nome del BR dalla cartella (es. `2026-05-04_monitoring` → `monitoring`)
-
-3. **Trova i branch remoti da controllare:**
-   - **Se il piano ha colonna Branch**: usa direttamente i nomi branch elencati nel piano. Per ogni branch con valore diverso da `—`, verifica che esista come remoto:
-     ```bash
-     git branch -r | grep "<branch-name>"
-     ```
-   - **Se il piano NON ha colonna Branch** (retrocompatibilita' con piani pre-esistenti): cerca tutti i branch remoti che contengono il nome del BR:
-     ```bash
-     git branch -r | grep -i "feature/<nome-br>"
-     ```
-
-4. Per ogni branch trovato, prova a leggere il PROGRESSO da 3 percorsi possibili (il file puo' essere in posizioni diverse a seconda dello stato):
-   ```bash
-   git show origin/<branch>:plans/in-progress/<cartella-br>/PROGRESSO_BR.md
-   git show origin/<branch>:plans/todo/<cartella-br>/PROGRESSO_BR.md
-   git show origin/<branch>:plans/done/<cartella-br>/PROGRESSO_BR.md
-   ```
-   Usa il primo che funziona. Se nessuno funziona, skip quel branch.
-
-5. Leggi anche il PROGRESSO dal branch base del piano (con gli stessi 3 percorsi). Se non esiste su nessun percorso, genera un baseline dal PIANO: tutte le task a 0%, stato "Da iniziare".
-
-6. Aggrega per task con la regola **"highest progress wins"**:
-   - Per ogni task, confronta le versioni da tutti i branch (incluso il baseline)
-   - Se una versione mostra "Completata" (100%), vince sempre
-   - Altrimenti, prendi la versione con il progresso % piu' alto
-   - Se due versioni hanno lo stesso %, prendi quella con lo stato piu' avanzato (In corso > Da iniziare)
-
-7. Ricalcola le metriche di riepilogo (task completate, in corso, progresso complessivo %) dalla vista aggregata.
-
-**Fallback**: se `git fetch` fallisce (no rete), usa il file di progresso locale e mostra un warning:
-
-> Impossibile sincronizzare con il remoto. Il progresso mostrato potrebbe non essere aggiornato.
-
-Usa la vista aggregata per tutte le operazioni successive (controllo dipendenze, selezione task).
+Tutti gli sviluppatori scrivono nello stesso file nella repo centralizzata, quindi il progresso e' sempre aggiornato dopo il pull.
 
 ### Controllo dipendenze
 
-Prima di iniziare una task, verifica le dipendenze usando la **vista aggregata** (vedi sezione "Lettura progresso aggregata" sopra). NON usare il file di progresso locale — potrebbe non riflettere il lavoro completato da altri sviluppatori sui loro branch.
+Prima di iniziare una task, verifica le dipendenze usando il **file di progresso** (dopo il pull e' gia' aggiornato con il lavoro di tutti gli sviluppatori).
 
-La regola e' semplice: una dipendenza e' soddisfatta quando il suo stato nella vista aggregata e' **"Completata"**. Non serve nessun controllo sugli stream — le dipendenze cross-stream sono gestite tramite merge task esplicite inserite nel piano da br-analyzer.
+La regola e' semplice: una dipendenza e' soddisfatta quando il suo stato nel file di progresso e' **"Completata"**. Non serve nessun controllo sugli stream — le dipendenze cross-stream sono gestite tramite merge task esplicite inserite nel piano da br-analyzer.
 
 Logica di verifica per ogni dipendenza:
 
-1. Esegui la lettura progresso aggregata (se non gia' fatta in questa sessione)
-2. Trova la task dipendenza nella vista aggregata
+1. Esegui il pull della repo profili (se non gia' fatto in questa sessione)
+2. Trova la task dipendenza nel file di progresso
 3. Verifica che lo stato sia "Completata"
 4. Se si', la dipendenza e' soddisfatta — procedi
 
@@ -277,7 +267,7 @@ Se tutte le dipendenze sono soddisfatte, procedi normalmente.
 Se una dipendenza non e' soddisfatta, avvisa e blocca:
 
 > La task **T-005** dipende da **T-003**.
-> T-003 risulta ancora [stato attuale nella vista aggregata]. Non posso procedere finche' non e' completata.
+> T-003 risulta ancora [stato attuale nel file di progresso]. Non posso procedere finche' non e' completata.
 >
 > Vuoi:
 > 1. Passare a un'altra task senza dipendenze bloccanti?
@@ -285,33 +275,27 @@ Se una dipendenza non e' soddisfatta, avvisa e blocca:
 
 ### Creazione branch
 
-Quando la task e' confermata e le dipendenze sono soddisfatte, crea i branch in TUTTE le repo coinvolte.
+Quando la task e' confermata e le dipendenze sono soddisfatte, crea i branch in TUTTE le repo di codice coinvolte. (La repo profili non riceve mai feature branch — lavora sempre su `main`.)
 
-1. Identifica le repo coinvolte dalla colonna **Area** del piano (es. BE, FE, BE+FE, EM, DM)
+1. Identifica le repo di codice coinvolte dalla colonna **Area** del piano (es. BE, FE, BE+FE, EM, DM) e i loro path locali forniti in Fase 1.
 2. **Determina il nome del branch:**
    - Se il piano ha una colonna **Branch** con un valore per questa task → usa quel nome esatto
    - Se il piano NON ha colonna Branch (retrocompatibilita') → genera il nome: `feature/<task-name>`
-3. **Repo del piano** (la repo corrente, dove stai lavorando):
-   - Verifica il branch corrente e lo stato del repository
-   - Crea il branch dal base branch del piano:
-     > Creo il branch `<nome-branch>` dal branch `<branch-base>`.
-   - Aggiorna il file di progresso con il nome del branch e lo stato "In corso"
-
-4. **Per ogni altra repo coinvolta** (identificata dalla colonna Area e dai path locali forniti in Fase 1):
-   - Verifica il branch corrente nella repo esterna:
+3. **Per ogni repo di codice coinvolta**:
+   - Verifica il branch corrente nella repo:
      ```bash
-     git -C <path-repo-esterna> branch --show-current
+     git -C <path-repo-codice> branch --show-current
      ```
-   - Crea il feature branch nella repo esterna con lo stesso nome:
+   - Crea il feature branch dal base branch del piano:
      ```bash
-     git -C <path-repo-esterna> checkout -b <nome-branch>
+     git -C <path-repo-codice> checkout -b <nome-branch>
      ```
    - Comunica al developer:
-     > Branch creato anche nella repo **<Nome> (<SIGLA>)**:
+     > Branch creato nella repo **<Nome> (<SIGLA>)**:
      > `<nome-branch>` da `<branch-corrente>`
-     > Path: `<path-repo-esterna>`
+     > Path: `<path-repo-codice>`
 
-4. Se la task riguarda SOLO la repo del piano (es. Area = "BE" e il piano sta in BE), crea un solo branch come al punto 2.
+4. Aggiorna il file di progresso (nella repo profili) con il nome del branch e lo stato "In corso", poi committa e pusha la repo profili come da template della sezione "Aggiornamento del progresso".
 
 ### Esecuzione con sottoagenti
 
@@ -327,61 +311,6 @@ Leggi la descrizione della task dal piano e dal gap report. Identifica i sotto-l
 - Implementazione componenti frontend
 - Scrittura test
 - Documentazione del codice
-
-#### Routing a Specialist per Stack
-
-**Se il profilo progetto e' disponibile**, usa il campo `tech_stack` per instradare il lavoro al subagent_type piu' adatto.
-
-Logica di routing:
-1. Determina l'area della task dalla colonna **Area** del piano (es. BE, FE, BE+FE)
-2. Per area BE: leggi `tech_stack.backend.framework` dal profilo e mappa:
-
-| Stack (dal profilo) | subagent_type |
-|---|---|
-| Spring Boot | `spring-boot-engineer` |
-| .NET Core | `csharp-developer` |
-| Django | `django-developer` |
-| FastAPI | `fastapi-developer` |
-| Node.js / Express | `node-specialist` |
-| Laravel | `laravel-specialist` |
-| Java (generico) | `java-architect` |
-| Python (generico) | `python-pro` |
-| Go | `golang-pro` |
-| Rust | `rust-engineer` |
-| Kotlin | `kotlin-specialist` |
-| Swift | `swift-expert` |
-| PHP | `php-pro` |
-
-3. Per area FE: leggi `tech_stack.frontend.framework` dal profilo e mappa:
-
-| Stack (dal profilo) | subagent_type |
-|---|---|
-| Angular | `angular-architect` |
-| React | `react-specialist` |
-| Vue | `vue-expert` |
-| Next.js | `nextjs-developer` |
-| Flutter | `flutter-expert` |
-
-4. Lancia il sottoagente con `Agent(subagent_type: "<tipo>", prompt: "<prompt>")` invece di `Agent(prompt: "<prompt>")`
-5. Se il framework non e' nella tabella o il profilo non e' disponibile, usa `general-purpose` (fallback, comportamento attuale)
-
-Per task multi-area (BE + FE), lancia specialist diversi per ogni sotto-step in sequenza: prima lo specialist BE per l'API, poi lo specialist FE per il componente che la consuma.
-
-**Iniezione profilo nel prompt del sottoagente:**
-
-Quando il profilo e' disponibile, aggiungi al prompt del sottoagente (dopo i vincoli):
-
-```
-Contesto progetto (dal profilo):
-- Framework: <tech_stack.backend.framework o frontend.framework>
-- Package structure: <conventions.package_structure>
-- Layers: <conventions.layers>
-- Base entity: <conventions.base_entity>
-- API prefix: <conventions.api_prefix>
-- Test framework: <conventions.test_framework>
-- Test naming: <conventions.test_naming>
-- Design system: <palette, typography, spacing se area FE>
-```
 
 #### Come istruire un sottoagente
 
@@ -433,21 +362,6 @@ Se i sotto-lavori sono indipendenti tra loro (es. entità e componente FE), lanc
 
 Dopo che ogni sottoagente completa il suo lavoro, esegui una verifica in 3 fasi:
 
-**Se il profilo progetto e' disponibile:**
-
-Delega la verifica all'agente `br-verifier` (leggendo le sue istruzioni da `~/.claude/agents/br-verifier.md`). Costruisci un prompt che includa:
-
-1. **Requisiti** — descrizione della task dal piano e dal gap report
-2. **File modificati** — lista completa dei file creati/modificati dal sottoagente
-3. **Risultati test** — esegui prima la suite di test e passa l'output
-4. **Convenzioni dal profilo** — `test_naming`, `base_entity`, `package_structure`, `commit_convention`
-
-Lancia il verifier e attendi il verdict. Se il verdict e' FAIL, leggi i dettagli e lancia un sottoagente di correzione. Ripeti la verifica. Solo quando il verdict e' PASS, il sotto-step e' considerato verificato.
-
-**Se il profilo NON e' disponibile (retrocompatibilita'):**
-
-Esegui la verifica inline in 3 fasi come segue:
-
 **Fase A — Verifica tecnica (automatica)**
 
 1. **Esegui i test** — lancia la suite di test e verifica che TUTTI i test passino (zero failure)
@@ -490,7 +404,7 @@ Solo quando TUTTE e 3 le fasi sono superate il sotto-step e' considerato verific
 
 L'agente non deve mai committare autonomamente. Quando il lavoro di un sotto-step e' completo e verificato, avvisa lo sviluppatore con suggerimenti separati per ogni repo coinvolta.
 
-**Se la task coinvolge solo la repo del piano:**
+**Se la task coinvolge una sola repo di codice:**
 
 > Il lavoro su [descrizione sotto-step] e' completo e verificato:
 > - [lista file creati/modificati]
@@ -508,34 +422,39 @@ L'agente non deve mai committare autonomamente. Quando il lavoro di un sotto-ste
 > git push origin <nome-branch>
 > ```
 >
+> **Repo profili** — il progresso e' gia' stato aggiornato e pushato automaticamente.
+>
 > Quando hai committato e pushato, dimmelo e proseguo.
 
-**Se la task coinvolge piu' repo:**
+**Se la task coinvolge piu' repo di codice:**
 
 > Il lavoro su [descrizione sotto-step] e' completo e verificato.
 >
-> **Repo <Nome Piano> (<SIGLA>)** — `<path-repo-piano>`:
-> - [lista file creati/modificati nella repo piano, incluso PROGRESSO_BR.md]
+> **Repo <Nome 1> (<SIGLA>)** — `<path-repo-1>`:
+> - [lista file creati/modificati nella repo 1]
 > Suggerisco:
 > ```
+> cd <path-repo-1>
 > git add [file specifici]
-> git commit -m "[br-progress] <task-id> -> <progresso>%"
+> git commit -m "feat(<area>): <descrizione concisa>"
 > ```
 >
-> **Repo <Nome Esterna> (<SIGLA>)** — `<path-repo-esterna>`:
-> - [lista file creati/modificati nella repo esterna]
+> **Repo <Nome 2> (<SIGLA>)** — `<path-repo-2>`:
+> - [lista file creati/modificati nella repo 2]
 > Suggerisco:
 > ```
-> cd <path-repo-esterna>
+> cd <path-repo-2>
 > git add [file specifici]
 > git commit -m "feat(<area>): <descrizione concisa>"
 > ```
 >
 > Dopo i commit, pusha entrambi i branch:
 > ```
-> git push origin <nome-branch>
-> cd <path-repo-esterna> && git push origin <nome-branch>
+> cd <path-repo-1> && git push origin <nome-branch>
+> cd <path-repo-2> && git push origin <nome-branch>
 > ```
+>
+> **Repo profili** — il progresso e' gia' stato aggiornato e pushato automaticamente.
 >
 > Quando hai committato e pushato, dimmelo e proseguo.
 
@@ -600,22 +519,15 @@ Dopo aver aggiornato il progresso, proponi la prossima task disponibile:
 Dopo aver completato una task, verifica nel file di progresso se **tutte** le task (non solo quelle dello sviluppatore corrente, ma tutte quelle nel piano) sono in stato "Completata". Se si':
 
 ```bash
-mkdir -p plans/done
-mv "plans/in-progress/<YYYY-MM-DD>_<nome>/" "plans/done/" 2>/dev/null
-```
-
-Se stai lavorando con file flat (retrocompatibilita'):
-
-```bash
-mkdir -p plans/done
-mv plans/in-progress/GAP_REPORT_BR_*.md plans/done/
-mv plans/in-progress/PIANO_IMPLEMENTAZIONE_BR_*.md plans/done/
-mv plans/in-progress/PROGRESSO_BR_*.md plans/done/
+git -C "<profiles_repo>" mv "<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/" "<profilo>/plans/done/"
+git -C "<profiles_repo>" add .
+git -C "<profiles_repo>" commit -m "[br-executor] <nome>: tutte le task completate, spostato in done"
+git -C "<profiles_repo>" push origin main --quiet
 ```
 
 Comunica:
 
-> Tutte le task del piano sono completate. Cartella del BR spostata in `plans/done/`.
+> Tutte le task del piano sono completate. Cartella del BR spostata in `<profiles_repo>/<profilo>/plans/done/`.
 
 ---
 
@@ -659,7 +571,7 @@ Non eseguire merge o rebase automaticamente — guida lo sviluppatore passo per 
 
 ## Regole Fondamentali
 
-1. **Mai committare autonomamente** — suggerisci sempre il commit e aspetta che lo sviluppatore lo faccia
+1. **Mai committare autonomamente sulle repo di codice** — suggerisci sempre il commit e aspetta che lo sviluppatore lo faccia. La repo profili e' l'unica eccezione: per gli aggiornamenti del PROGRESSO_BR.md e per gli spostamenti tra `plans/todo`, `plans/in-progress`, `plans/done`, esegui commit + push automatico per garantire visibilita' a tutti gli sviluppatori.
 2. **Mai procedere senza conferma** — tra una task e l'altra, tra un sotto-step e l'altro, chiedi sempre
 3. **Mai ignorare le dipendenze** — se una dipendenza non è soddisfatta, blocca e avvisa
 4. **Aggiorna sempre il progresso** — il file di progresso è la fonte di verità condivisa tra tutti gli agenti

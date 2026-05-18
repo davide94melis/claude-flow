@@ -291,8 +291,13 @@ Presenta il JSON all'utente per conferma finale:
 Procedi solo dopo conferma. Scrivi il file:
 
 ```bash
-mkdir -p "<profiles_repo>/<nome>"
-# Scrivi profile.json con il contenuto confermato
+mkdir -p "<profiles_repo>/<nome>/constitution"
+mkdir -p "<profiles_repo>/<nome>/agents"
+mkdir -p "<profiles_repo>/<nome>/references"
+mkdir -p "<profiles_repo>/<nome>/plans/todo"
+mkdir -p "<profiles_repo>/<nome>/plans/in-progress"
+mkdir -p "<profiles_repo>/<nome>/plans/done"
+# Scrivi constitution/profile.json con il contenuto confermato
 ```
 
 ---
@@ -364,7 +369,8 @@ Dopo aver completato tutti i codebase, conferma:
 
 > Profilo **<nome>** creato e configurato con successo.
 >
-> - Profilo: `<profiles_repo>/<nome>/profile.json`
+> - Profilo: `<profiles_repo>/<nome>/constitution/profile.json`
+> - Struttura: `constitution/`, `agents/`, `references/`, `plans/todo|in-progress|done/`
 > - References: `<profiles_repo>/<nome>/references/` (N file)
 > - `.br-local.json` aggiornato in N codebase
 >

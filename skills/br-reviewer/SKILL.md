@@ -21,21 +21,50 @@ Il processo si compone di 4 fasi:
 
 ---
 
-## Caricamento Profilo Progetto
+## Risoluzione Path — deloitte-profiles
 
-Prima di iniziare qualsiasi operazione, tenta di caricare il profilo progetto:
+Tutte le operazioni su file BR (piani, report, progressi) avvengono nella repo `deloitte-profiles`, non nella repo del codice.
 
-1. Leggi `.br-local.json` dalla root del repo corrente
-2. Se contiene i campi `profilo` e `profiles_repo`:
-   a. Sincronizza il repo profili: `git -C <profiles_repo> pull origin main --quiet`
-   b. Leggi `<profiles_repo>/<profilo>/profile.json`
-   c. Salva il profilo in memoria per uso nelle fasi successive
-3. Se `.br-local.json` non ha `profilo` o `profiles_repo`, procedi senza profilo (comportamento attuale, retrocompatibilita' completa)
+### Lettura `.br-local.json`
 
-Quando il profilo e' disponibile:
-- Nella Fase 3 (Analisi), il check leggero contro il codice usa il glossario dal profilo (`domain.glossary`) per un confronto terminologico piu' preciso
-- Gli stati delle entita' (`domain.entity_states`) vengono confrontati con quelli descritti nel BR
-- Le regole di business (`domain.business_rules`) vengono verificate per coerenza con la documentazione
+All'avvio, leggi `.br-local.json` dalla root della repo corrente:
+
+```bash
+cat .br-local.json 2>/dev/null
+```
+
+Estrai i campi:
+- `profiles_repo` — path assoluto al clone locale di `deloitte-profiles`
+- `profilo` — nome della cartella progetto in `deloitte-profiles`
+- `developer` — nome dello sviluppatore (opzionale per skill TL/PM)
+
+Il **base path** per tutti gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
+
+### Se `.br-local.json` non esiste
+
+Ferma l'esecuzione e avvisa:
+
+> `.br-local.json` non trovato. Devi prima eseguire `br-profile-setup` per creare il profilo del progetto e configurare il collegamento.
+
+### Sincronizzazione prima della lettura
+
+Prima di leggere qualsiasi file dalla repo profili:
+
+```bash
+git -C "<profiles_repo>" pull origin main --quiet
+```
+
+### Commit e push dopo la scrittura
+
+Dopo ogni scrittura di artefatti nella repo profili:
+
+```bash
+git -C "<profiles_repo>" add .
+git -C "<profiles_repo>" commit -m "<messaggio>"
+git -C "<profiles_repo>" push origin main --quiet
+```
+
+Se il push fallisce, avvisa l'utente e proponi: (1) riprovare, (2) creare un branch, (3) lasciare il commit locale.
 
 ---
 
@@ -49,7 +78,7 @@ Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 >
 > Esempio: "booking-v2", "monitoraggio-dashboard", "auth-refactor"
 
-Salva il nome. Verra' usato per creare la cartella `plans/todo/<YYYY-MM-DD>_<nome>/`.
+Salva il nome. Verra' usato per creare la cartella `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/`.
 
 ### Domanda 2 — Documentazione
 
@@ -78,7 +107,7 @@ Salva i nomi, le sigle e i path. Questi stessi dati verranno riutilizzati da br-
 Dopo aver raccolto tutti gli input, ricapitola e chiedi conferma:
 
 > Riepilogo:
-> - Nome BR: [nome] → cartella `plans/todo/<YYYY-MM-DD>_<nome>/`
+> - Nome BR: [nome] → cartella `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/`
 > - Documentazione: [lista con path]
 > - Repository coinvolte:
 >   [per ognuna: Nome (SIGLA) → path]
@@ -94,27 +123,28 @@ Procedi solo dopo la conferma.
 Crea la struttura cartelle:
 
 ```bash
-mkdir -p "plans/todo/<YYYY-MM-DD>_<nome>/br-docs-converted"
+git -C "<profiles_repo>" pull origin main --quiet
+mkdir -p "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements"
 ```
 
-Per ogni file di documentazione fornito, converti in MD e salva nella cartella `br-docs-converted/`:
+Per ogni file di documentazione fornito, converti in MD e salva nella cartella `requirements/`:
 
 **File `.docx` / `.doc`** — Usa la skill `doc-to-markdown` installata in `~/.claude/skills/doc-to-markdown/`:
 ```bash
 python3 ~/.claude/skills/doc-to-markdown/convert_word_to_markdown.py "<path-file>"
 ```
-Sposta il file `.md` risultante e l'eventuale cartella `_images/` in `plans/todo/<YYYY-MM-DD>_<nome>/br-docs-converted/`.
+Sposta il file `.md` risultante e l'eventuale cartella `_images/` in `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements/`.
 
 **File `.pdf` / `.pptx` / `.xlsx`** — Usa `markitdown` (la stessa dipendenza di doc-to-markdown):
 ```bash
 # Se markitdown e' disponibile globalmente
-markitdown "<path-file>" > "plans/todo/<YYYY-MM-DD>_<nome>/br-docs-converted/<nome-file>.md"
+markitdown "<path-file>" > "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements/<nome-file>.md"
 
 # Altrimenti via uvx
-uvx markitdown "<path-file>" > "plans/todo/<YYYY-MM-DD>_<nome>/br-docs-converted/<nome-file>.md"
+uvx markitdown "<path-file>" > "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements/<nome-file>.md"
 ```
 
-**File `.md`** — Copia direttamente in `br-docs-converted/`.
+**File `.md`** — Copia direttamente in `requirements/`.
 
 **Immagini (mockup `.png`, `.jpg`, ecc.)** — Non convertire. Leggile con Read (supporto multimodale) durante la fase di analisi e descrivi nel dettaglio cosa vedi.
 
@@ -125,8 +155,8 @@ Dopo la conversione, verifica che ogni file MD generato contenga contenuto valid
 Comunica all'utente lo stato della conversione:
 
 > Conversione completata:
-> - `BR_v24.docx` → `br-docs-converted/BR_v24.md` (OK)
-> - `Mockup_Booking.pptx` → `br-docs-converted/Mockup_Booking.md` (OK)
+> - `BR_v24.docx` → `requirements/BR_v24.md` (OK)
+> - `Mockup_Booking.pptx` → `requirements/Mockup_Booking.md` (OK)
 > - `mockup_dashboard.png` → letto direttamente come immagine
 >
 > Procedo con l'analisi della documentazione.
@@ -165,21 +195,6 @@ Lo scopo NON e' fare la gap analysis (quello lo fa `br-analyzer`) ma trovare pro
 
 Usa gli agent di tipo `Explore` per parallelizzare l'esplorazione dei diversi codebase quando possibile.
 
-#### Check terminologico con profilo
-
-**Se il profilo e' disponibile con `domain.glossary`:**
-
-Per ogni termine nel glossario del profilo, verifica se il BR lo usa con la stessa semantica:
-- Se il BR usa un termine diverso per lo stesso concetto → segnala come discrepanza terminologica
-- Se il BR introduce un nuovo termine non nel glossario → segnala come termine da aggiungere al glossario
-- Se il profilo ha `domain.entity_states` e il BR descrive transizioni di stato → confronta e segnala differenze
-
-Queste discrepanze finiscono nella **Parte 2 — Per il team tecnico** del report, nella sezione "Disallineamenti terminologici".
-
-**Se il profilo non e' disponibile:**
-
-Esegui il check terminologico standard (confronto diretto tra nomi nel BR e nel codice).
-
 ---
 
 ## Fase 4 — Generazione Output
@@ -207,7 +222,7 @@ Per ogni problema documenta:
 
 ### Generazione del REVIEW_BR.md
 
-Genera il file `plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.md` con questa struttura:
+Genera il file `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.md` con questa struttura:
 
 ```
 # Review Documentazione BR [nome/versione]
@@ -307,10 +322,22 @@ Bloccanti aperti: [lista dei bloccanti non ancora risolti, se si procede comunqu
 Dopo aver generato REVIEW_BR.md, converti in DOCX per facilitare la compilazione da parte del team funzionale:
 
 ```bash
-pandoc -f markdown -t docx "plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.md" -o "plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.docx"
+pandoc -f markdown -t docx "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.md" -o "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.docx"
 ```
 
 Entrambi i file (MD e DOCX) vengono salvati nella cartella del BR. Il DOCX contiene i placeholder "*(inserire qui la risposta)*" sotto ogni domanda, pronti per la compilazione.
+
+### Commit e push degli artefatti
+
+Dopo la generazione di REVIEW_BR.md e REVIEW_BR.docx, fai commit e push nella repo profili:
+
+```bash
+git -C "<profiles_repo>" add "<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/"
+git -C "<profiles_repo>" commit -m "[br-reviewer] <nome>: review documentazione completata"
+git -C "<profiles_repo>" push origin main --quiet
+```
+
+Se il push fallisce, avvisa l'utente e proponi: (1) riprovare, (2) creare un branch, (3) lasciare il commit locale.
 
 ### Presentazione all'utente
 
@@ -320,7 +347,7 @@ Dopo aver generato report e DOCX, presentali all'utente per revisione. L'utente 
 
 > Review completata. Nessun bloccante trovato.
 >
-> I report sono salvati in `plans/todo/<YYYY-MM-DD>_<nome>/`:
+> I report sono salvati in `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/`:
 > - `REVIEW_BR.md` — versione markdown
 > - `REVIEW_BR.docx` — versione Word, pronta per la compilazione
 >
@@ -333,7 +360,7 @@ Dopo aver generato report e DOCX, presentali all'utente per revisione. L'utente 
 
 > Review completata. Ci sono **N problemi bloccanti** ancora aperti.
 >
-> I report sono salvati in `plans/todo/<YYYY-MM-DD>_<nome>/`:
+> I report sono salvati in `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/`:
 > - `REVIEW_BR.md` — versione markdown
 > - `REVIEW_BR.docx` — versione Word, pronta per la compilazione
 >

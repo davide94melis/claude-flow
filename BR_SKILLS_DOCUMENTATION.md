@@ -1,22 +1,35 @@
 # BR Skills Suite — Documentazione Completa
 
-Suite di 10 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement: dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione delle task, dalla gestione degli aggiornamenti alla reportistica Excel, con un orchestratore pipeline che coordina il tutto. Include profili progetto centralizzati e agenti generici profilo-aware.
+Suite di 9 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement: dal setup del profilo progetto alla review della documentazione funzionale, dalla gestione delle risposte del funzionale all'analisi gap, dalla stima del team all'esecuzione delle task, dalla gestione degli aggiornamenti al debug post-rilascio, fino alla reportistica Excel. Tutti gli artefatti BR sono centralizzati nella repo `deloitte-profiles`, una repo separata e condivisa tra tutti gli sviluppatori e tutti i progetti.
 
 ## Architettura del Flusso
 
+Tutti i path qui sotto sono relativi a `<profiles_repo>/<profilo>/`, dove `<profiles_repo>` e' la repo `deloitte-profiles` clonata in locale e `<profilo>` e' il nome del progetto.
+
 ```
 BR / Documentazione
+        |
+        v
+  [br-profile-setup]  ──>  constitution/profile.json
+        |                  agents/
+        |                  references/
         |
         v
   [br-reviewer]   ──>  plans/todo/<data>_<nome>/
         |                  |
         |            REVIEW_BR.md
         |            REVIEW_BR.docx
-        |            br-docs-converted/
+        |            requirements/
         |
         v
   [br-clarify]    ──>  aggiorna REVIEW_BR.md/.docx
         |               con risposte del funzionale
+        |
+        v
+  [br-estimator]  ──>  plans/todo/<data>_<nome>/
+        |                  |
+        |            STIMA_BR.md
+        |            STIMA_BR.xlsx
         |
         v
   [br-analyzer]   ──>  plans/todo/<data>_<nome>/
@@ -29,25 +42,6 @@ BR / Documentazione
         |                  |
         |            + PROGRESSO_BR.md
         |
-        |   (se ci sono bug dal funzionale)
-        |         |
-        |         v
-        |   [br-debug]   ──>  + BUG_REPORT_BR.md
-        |                      fix con sottoagenti
-        |                      verifica 3 fasi
-        |
-        |   (profili progetto)
-        |         |
-        |         v
-        |   deloitte-profiles/       profili centralizzati
-        |   <progetto>/profile.json  stack, convenzioni, dominio
-        |
-        |   (agenti generici)
-        |         |
-        |         v
-        |   br-codebase-explorer     esplorazione profilo-aware
-        |   br-verifier              verifica 3 fasi profilo-aware
-        |
         |   (se BR aggiornato)
         |         |
         |         v
@@ -59,6 +53,12 @@ BR / Documentazione
         |         v
         |   [br-progress-report]  ──>  AVANZAMENTO_BR.xlsx
         |
+        |   (per bug post-testing)
+        |         |
+        |         v
+        |   [br-debug]  ──>  BUG_REPORT_BR.md
+        |                    fix con sottoagenti + verifica
+        |
         v
   (tutte le task completate)
         |
@@ -68,31 +68,81 @@ BR / Documentazione
 
 ## Struttura Cartelle
 
-Ogni BR ha la propria cartella con formato `<YYYY-MM-DD>_<nome-br>/`. La cartella si sposta come unita tra le tre aree:
+Tutti gli artefatti BR sono centralizzati nella repo `deloitte-profiles`. Ogni progetto ha il proprio profilo con costituzione, agenti custom, riferimenti visuali e piani BR. La repo del codice contiene solo `.br-local.json` per puntare al profilo.
 
 ```
-plans/
-├── todo/                              <-- br-reviewer e br-analyzer creano i report qui
-│   └── 2026-04-28_booking-v2/
-│       ├── br-docs-converted/         <-- documentazione convertita in MD (da br-reviewer)
-│       ├── REVIEW_BR.md               <-- output di br-reviewer (aggiornato da br-clarify)
-│       ├── REVIEW_BR.docx             <-- output di br-reviewer (per il funzionale)
-│       ├── GAP_REPORT_BR.md           <-- output di br-analyzer
-│       └── PIANO_IMPLEMENTAZIONE_BR.md
-├── in-progress/                       <-- br-executor sposta qui la cartella all'avvio
-│   └── 2026-04-28_booking-v2/
-│       ├── ...tutto il contenuto...
-│       └── PROGRESSO_BR.md            <-- creato da br-executor
-└── done/                              <-- br-executor sposta qui al completamento
-    └── 2026-04-28_booking-v2/
-        └── AVANZAMENTO_BR.xlsx        <-- creato da br-progress-report
+deloitte-profiles/                       # repo separata, centralizzata per tutti i progetti
+└── <nome-progetto>/
+    ├── constitution/
+    │   └── profile.json
+    ├── agents/                          # agenti custom .md per questo progetto
+    ├── references/                      # mockup, screenshot, style guide, codice gold-standard
+    └── plans/
+        ├── todo/
+        │   └── <data>_<nome-br>/
+        │       ├── requirements/        # documentazione BR convertita in markdown
+        │       ├── REVIEW_BR.md
+        │       ├── REVIEW_BR.docx
+        │       ├── GAP_REPORT_BR.md
+        │       ├── PIANO_IMPLEMENTAZIONE_BR.md
+        │       └── STIMA_BR.md / .xlsx
+        ├── in-progress/
+        │   └── <data>_<nome-br>/
+        │       ├── (tutti i file da todo +)
+        │       ├── PROGRESSO_BR.md
+        │       ├── BUG_REPORT_BR.md
+        │       ├── AVANZAMENTO_BR.xlsx
+        │       └── screenshots/
+        └── done/
+            └── <data>_<nome-br>/
+
+repo-progetto/                           # qualsiasi repo del codice del progetto
+└── .br-local.json                       # unico file BR nella repo del codice
+                                         # contiene: profilo, profiles_repo, developer
 ```
 
-Tutte le skill mantengono retrocompatibilita con il vecchio formato flat (es. `GAP_REPORT_BR_2026-04-28.md`).
+Ogni cartella BR ha formato `<YYYY-MM-DD>_<nome-br>/` e si sposta come unita' tra le tre aree (`todo` → `in-progress` → `done`).
+
+## Concorrenza
+
+Tutte le skill BR sincronizzano la repo profili prima di leggere (`git pull`) e committano+pushano subito dopo aver scritto. Questo minimizza la finestra di conflitto e garantisce che tutti gli sviluppatori vedano sempre lo stato aggiornato del progresso.
+
+Non sono necessari lock, file separati per developer, o aggregazione cross-branch — il modello centralizzato semplifica drasticamente la concorrenza.
 
 ---
 
-## 1. BR Reviewer
+## 1. BR Profile Setup
+
+**Skill**: `br-profile-setup`
+**Path**: `~/.claude/skills/br-profile-setup/SKILL.md`
+**Trigger**: "crea profilo progetto", "setup profilo", "nuovo profilo", "configura il profilo"
+
+### Scopo
+
+Creare un nuovo profilo progetto in `deloitte-profiles` con auto-detect del codebase, domande guidate su dominio e design system, e configurazione automatica di `.br-local.json` nella repo del codice. E' il primo passo per qualsiasi nuovo progetto BR.
+
+### Flusso Operativo
+
+1. **Auto-detect codebase**: ispeziona la repo del codice in cui viene invocata (linguaggi, framework, struttura cartelle, package manager, file di configurazione) e propone una bozza di profilo.
+2. **Domande guidate**: pone domande mirate su dominio funzionale (es. "booking", "ecommerce", "fintech"), design system in uso, convenzioni di naming, vincoli architetturali.
+3. **Creazione struttura**: in `<profiles_repo>/<nome-progetto>/` crea:
+   - `constitution/profile.json` — costituzione del progetto (dominio, vincoli, design)
+   - `agents/` — cartella per agenti custom MD (vuota inizialmente)
+   - `references/` — cartella per mockup/screenshot/gold-standard (vuota inizialmente)
+   - `plans/todo/`, `plans/in-progress/`, `plans/done/` — strutture vuote
+4. **Configurazione locale**: scrive `.br-local.json` nella repo del codice con: nome profilo, path della repo profili, nome sviluppatore.
+5. **Commit & push**: commit della struttura iniziale sulla repo profili e push immediato per rendere il profilo visibile agli altri sviluppatori.
+
+### Regole Fondamentali
+
+1. Mai sovrascrivere un profilo esistente senza conferma esplicita
+2. Sempre committare+pushare la struttura iniziale
+3. Validare che `<profiles_repo>` sia raggiungibile prima di scrivere
+4. Validare che la repo del codice non abbia gia' un `.br-local.json` (in tal caso chiedere conferma per sovrascrivere)
+
+---
+
+## 2. BR Reviewer
 
 **Skill**: `br-reviewer`
 **Path**: `~/.claude/skills/br-reviewer/SKILL.md`
@@ -108,13 +158,13 @@ Esegue anche un check leggero contro il codice per trovare disallineamenti termi
 
 ### Flusso Operativo
 
-La skill opera in 4 fasi sequenziali.
+La skill opera in 4 fasi sequenziali. Prima di ogni operazione legge `.br-local.json` per individuare la repo profili e il profilo, esegue `git pull` sulla repo profili, e committa+pusha subito dopo aver scritto.
 
 #### Fase 1 — Raccolta Input
 
 Pone 3 domande una alla volta:
 
-1. **Nome del BR** — identificativo per la cartella (es. "booking-v2" crea `plans/todo/2026-04-28_booking-v2/`)
+1. **Nome del BR** — identificativo per la cartella (es. "booking-v2" crea `<profiles_repo>/<profilo>/plans/todo/2026-04-28_booking-v2/`)
 2. **Documentazione** — path ai file del BR. Accetta MD, PDF, DOCX, XLSX, PPTX, immagini.
 3. **Codebase coinvolti** — nome, sigla, path per ogni repository. Servono per il check leggero contro il codice.
 
@@ -122,7 +172,7 @@ Prima di procedere, ricapitola tutti gli input e chiede conferma.
 
 #### Fase 2 — Conversione Documentazione in MD
 
-Stessa logica di conversione delle altre skill (doc-to-markdown per DOCX/DOC, markitdown per PDF/PPTX/XLSX, copia diretta per MD, Read per immagini). I file convertiti vanno nella cartella del BR: `plans/todo/<data>_<nome>/br-docs-converted/`.
+Stessa logica di conversione delle altre skill (doc-to-markdown per DOCX/DOC, markitdown per PDF/PPTX/XLSX, copia diretta per MD, Read per immagini). I file convertiti vanno nella cartella del BR: `<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/requirements/`.
 
 Questa fase viene eseguita da br-reviewer: br-analyzer non la ripete se trova i file gia convertiti.
 
@@ -164,7 +214,7 @@ Se ci sono bloccanti, consiglia di attendere chiarimenti dal funzionale prima di
 
 ---
 
-## 2. BR Clarify
+## 3. BR Clarify
 
 **Skill**: `br-clarify`
 **Path**: `~/.claude/skills/br-clarify/SKILL.md`
@@ -178,7 +228,7 @@ Gestire le risposte del team funzionale alle domande sollevate da br-reviewer ne
 
 #### Fase 1 — Auto-detect REVIEW_BR.md
 
-Cerca automaticamente `plans/todo/*/REVIEW_BR.md` e `plans/in-progress/*/REVIEW_BR.md`. Se ne trova uno lo propone, se piu di uno chiede quale usare, se nessuno informa che serve prima br-reviewer. Analizza lo stato: quante domande hanno gia risposta e quante sono ancora aperte.
+Esegue `git pull` sulla repo profili, poi cerca automaticamente `<profiles_repo>/<profilo>/plans/todo/*/REVIEW_BR.md` e `<profiles_repo>/<profilo>/plans/in-progress/*/REVIEW_BR.md`. Se ne trova uno lo propone, se piu di uno chiede quale usare, se nessuno informa che serve prima br-reviewer. Analizza lo stato: quante domande hanno gia risposta e quante sono ancora aperte.
 
 #### Fase 2 — Modalita Input
 
@@ -206,7 +256,7 @@ Aggiorna REVIEW_BR.md:
 - Aggiorna la tabella assunzioni con colonne "Stato" e "Risposta funzionale"
 - Sostituisce la sezione "Riepilogo per br-analyzer" con formato arricchito: bloccanti risolti con sintesi risposta, bloccanti ancora aperti, stato di ogni assunzione (confermata/rigettata/in attesa), marcatore "Ultimo aggiornamento: \<data\> (br-clarify)"
 
-Rigenera REVIEW_BR.docx con pandoc.
+Rigenera REVIEW_BR.docx con pandoc. Committa+pusha subito dopo la scrittura.
 
 #### Round Multipli
 
@@ -230,7 +280,7 @@ La skill puo essere eseguita piu volte sullo stesso REVIEW_BR.md. A ogni esecuzi
 
 ---
 
-## 3. BR Analyzer
+## 4. BR Analyzer
 
 **Skill**: `br-analyzer`
 **Path**: `~/.claude/skills/br-analyzer/SKILL.md`
@@ -242,7 +292,7 @@ Analizzare un nuovo Business Requirement confrontandolo con i codebase esistenti
 
 ### Flusso Operativo
 
-La skill opera in 4 fasi sequenziali.
+La skill opera in 4 fasi sequenziali. Prima di ogni operazione legge `.br-local.json`, esegue `git pull` sulla repo profili, e committa+pusha subito dopo aver scritto.
 
 #### Fase 1 — Raccolta Input
 
@@ -263,7 +313,7 @@ Converte tutti i documenti non-MD in formato Markdown per ridurre il consumo di 
 - **MD**: copia diretta
 - **Immagini (mockup)**: lette direttamente con supporto multimodale
 
-I file convertiti vengono salvati in `br-docs-converted/`. Se una conversione fallisce, segnala all'utente e usa il Read diretto come fallback. Da questo punto l'analisi lavora solo sui file MD convertiti.
+I file convertiti vengono salvati in `<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/requirements/`. Se una conversione fallisce, segnala all'utente e usa il Read diretto come fallback. Da questo punto l'analisi lavora solo sui file MD convertiti.
 
 #### Fase 3 — Analisi Gap
 
@@ -285,16 +335,16 @@ Per ogni gap documenta: cosa richiede il BR (con riferimento a sezione/pagina), 
 
 #### Fase 4 — Generazione Output
 
-Crea la struttura `plans/todo/`, `plans/in-progress/`, `plans/done/` e genera due file in `plans/todo/`:
+Crea la struttura `<profiles_repo>/<profilo>/plans/todo/`, `<profiles_repo>/<profilo>/plans/in-progress/`, `<profiles_repo>/<profilo>/plans/done/` (se non esiste) e genera due file in `<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/`:
 
-**GAP_REPORT_BR_\<data\>.md** contiene:
+**GAP_REPORT_BR.md** contiene:
 - Metadati: data verifica, branch verificati, perimetro documentale, codebase verificati
 - Esito sintetico: 2-3 frasi sullo stato complessivo
 - Matrice di verifica: una riga per ogni requisito con stato FE/BE, evidenze con path esatti, descrizione del gap
 - Gap aperti reali: sezione dettagliata per ogni gap con cosa richiede il BR, cosa esiste, cosa manca, impatto sui moduli
 - Conclusione finale: riepilogo per funzionalita
 
-**PIANO_IMPLEMENTAZIONE_BR_\<data\>.md** contiene:
+**PIANO_IMPLEMENTAZIONE_BR.md** contiene:
 - Assunzioni e team disponibile
 - Obiettivo (massimizzare parallelismo)
 - Strategia di esecuzione (fondazioni, stream paralleli, integrazione)
@@ -325,7 +375,7 @@ Crea la struttura `plans/todo/`, `plans/in-progress/`, `plans/done/` e genera du
 
 ---
 
-## 4. BR Executor
+## 5. BR Executor
 
 **Skill**: `br-executor`
 **Path**: `~/.claude/skills/br-executor/SKILL.md`
@@ -333,31 +383,33 @@ Crea la struttura `plans/todo/`, `plans/in-progress/`, `plans/done/` e genera du
 
 ### Scopo
 
-Permettere a ogni sviluppatore, assistito da un agente Claude Code, di eseguire le task assegnate dal piano generato da br-analyzer. L'agente principale coordina il lavoro, delega l'implementazione a sottoagenti Claude, verifica i risultati e tiene aggiornato un file di progresso condiviso.
+Permettere a ogni sviluppatore, assistito da un agente Claude Code, di eseguire le task assegnate dal piano generato da br-analyzer. L'agente principale coordina il lavoro, delega l'implementazione a sottoagenti Claude, verifica i risultati e tiene aggiornato un file di progresso condiviso nella repo profili centralizzata.
 
 ### Flusso Operativo
 
+Prima di ogni operazione legge `.br-local.json` per identificare la repo profili e lo sviluppatore, esegue `git pull` sulla repo profili, e committa+pusha subito dopo aver aggiornato il progresso.
+
 #### Fase 1 — Raccolta Input
 
-Cerca automaticamente i file nella struttura `plans/` e li propone. Pone le domande una alla volta:
+Cerca automaticamente i file nella struttura `<profiles_repo>/<profilo>/plans/` e li propone. Pone le domande una alla volta:
 
-1. **File del piano**: gap report, piano di implementazione, file di progresso (opzionale). Se trova file in `plans/todo/` o `plans/in-progress/`, li propone direttamente.
+1. **File del piano**: gap report, piano di implementazione, file di progresso (opzionale). Se trova file in `<profiles_repo>/<profilo>/plans/todo/` o `<profiles_repo>/<profilo>/plans/in-progress/`, li propone direttamente.
 2. **Path dei codebase locali**: poiche lo sviluppatore lavora su un PC diverso, estrae tutti i path dei codebase menzionati nel report e chiede i corrispondenti path locali.
 3. **Path della documentazione locale**: estrae i nomi dei file di documentazione dal report e chiede i path locali. Se non sono tutti disponibili, lavora dal gap report che contiene gia i dettagli estratti.
-4. **Identita sviluppatore**: mostra la lista dal piano e chiede quale sviluppatore si e.
+4. **Identita sviluppatore**: legge il developer da `.br-local.json` e propone la lista delle sue task dal piano. Se manca, mostra la lista completa dal piano e chiede.
 
-Alla conferma, sposta report e piano da `plans/todo/` a `plans/in-progress/`.
+Alla conferma, sposta report e piano da `<profiles_repo>/<profilo>/plans/todo/` a `<profiles_repo>/<profilo>/plans/in-progress/`.
 
 #### Fase 2 — Gestione del File di Progresso
 
-Se il file non esiste, lo crea (`PROGRESSO_BR_<data>.md`) in `plans/in-progress/` con:
+Se il file non esiste, lo crea (`PROGRESSO_BR.md`) in `<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/` con:
 - Tabella riepilogativa (task totali, completate, in corso, da iniziare, bloccate, progresso complessivo)
 - Tabella stato task (ID, Attivita, Owner, Progresso %, Stato, Branch, Note) con tutte le task a 0%
 - Log attivita cronologico
 
 Se il file esiste, lo legge, sincronizza con il piano e mostra lo stato attuale delle task dello sviluppatore.
 
-Aggiorna il progresso a ogni cambio di stato significativo: task che passa a "In corso", sottoagente che completa una parte, task completata, task bloccata.
+Aggiorna il progresso a ogni cambio di stato significativo: task che passa a "In corso", sottoagente che completa una parte, task completata, task bloccata. Dopo ogni aggiornamento, commit+push immediato sulla repo profili.
 
 #### Fase 3 — Lavorazione Task
 
@@ -384,7 +436,7 @@ Se le dipendenze non sono soddisfatte, blocca e propone alternative: passare a u
 
 Se una qualsiasi fase fallisce, il sottoagente corregge e il ciclo riparte dalla Fase A. Solo quando tutte e tre le fasi passano il sotto-step e considerato verificato.
 
-**Suggerimento commit**: non committa mai autonomamente. Quando un sotto-step e completo e verificato, avvisa lo sviluppatore con lista file, stato test/build e messaggio di commit suggerito. Aspetta conferma prima di proseguire.
+**Suggerimento commit**: non committa mai autonomamente sul codice. Quando un sotto-step e completo e verificato, avvisa lo sviluppatore con lista file, stato test/build e messaggio di commit suggerito. Aspetta conferma prima di proseguire. (Il commit+push sulla repo profili per il file di progresso e' invece automatico.)
 
 **Completamento task — Ciclo di verifica finale**: una task e completa solo quando TUTTI i criteri sono soddisfatti e il ciclo di verifica finale e superato:
 
@@ -407,7 +459,7 @@ Se una qualsiasi fase fallisce, il sottoagente corregge e il ciclo riparte dalla
 
 Al completamento, aggiorna il progresso a 100% con stato "Completata" e propone la prossima task disponibile.
 
-**Spostamento in done**: quando tutte le task del piano (non solo quelle dello sviluppatore) sono in stato "Completata", sposta tutti i file in `plans/done/`.
+**Spostamento in done**: quando tutte le task del piano (non solo quelle dello sviluppatore) sono in stato "Completata", sposta tutti i file in `<profiles_repo>/<profilo>/plans/done/<data>_<nome>/`.
 
 #### Fase 4 — Gestione Situazioni Speciali
 
@@ -417,16 +469,16 @@ Al completamento, aggiorna il progresso a 100% con stato "Completata" e propone 
 
 ### Regole Fondamentali
 
-1. Mai committare autonomamente
+1. Mai committare autonomamente sulla repo del codice
 2. Mai procedere senza conferma
 3. Mai ignorare le dipendenze
-4. Aggiornare sempre il progresso
+4. Aggiornare sempre il progresso e fare commit+push immediato sulla repo profili
 5. Verificare prima di dichiarare completo
 6. Il sottoagente implementa, l'agente principale coordina
 
 ---
 
-## 5. BR Updater
+## 6. BR Updater
 
 **Skill**: `br-updater`
 **Path**: `~/.claude/skills/br-updater/SKILL.md`
@@ -438,9 +490,11 @@ Quando il BR o la documentazione vengono aggiornati, propagare le modifiche al g
 
 ### Flusso Operativo
 
+Prima di ogni operazione legge `.br-local.json`, esegue `git pull` sulla repo profili, e committa+pusha subito dopo aver scritto.
+
 #### Fase 1 — Raccolta Input
 
-Cerca automaticamente i file esistenti in `plans/` e pone le domande una alla volta:
+Cerca automaticamente i file esistenti in `<profiles_repo>/<profilo>/plans/` e pone le domande una alla volta:
 
 1. **File esistenti**: gap report, piano, progresso da usare come base
 2. **Documentazione aggiornata**: path dei file nuovi/modificati, specificando se sostituiscono un documento esistente o sono nuovi
@@ -449,7 +503,7 @@ Cerca automaticamente i file esistenti in `plans/` e pone le domande una alla vo
 
 #### Fase 2 — Analisi Delta Documentazione
 
-1. **Conversione**: converte i nuovi documenti in MD (stessa procedura di br-analyzer)
+1. **Conversione**: converte i nuovi documenti in MD (stessa procedura di br-analyzer) in `<profiles_repo>/<profilo>/plans/<area>/<data>_<nome>/requirements/`
 2. **Identificazione delta**: confronta la documentazione aggiornata con quella referenziata nel report e identifica:
    - **Requisiti nuovi**: presenti nella nuova documentazione ma assenti dal report
    - **Requisiti modificati**: presenti in entrambi ma con differenze
@@ -496,7 +550,67 @@ Presenta riepilogo completo: file aggiornati, task aggiunte/modificate/annullate
 
 ---
 
-## 6. BR Progress Report
+## 7. BR Debug
+
+**Skill**: `br-debug`
+**Path**: `~/.claude/skills/br-debug/SKILL.md`
+**Trigger**: "ci sono dei bug", "bug dal funzionale", "segnalazioni test", "lavora il bug", "fix il bug", "debug br"
+
+### Scopo
+
+Gestire i bug segnalati dai funzionali durante e dopo il testing di un Business Requirement. Importa bug da Excel o Jira, li collega alle task del piano, li assegna agli sviluppatori, esegue i fix con sottoagenti Claude e li verifica in 3 fasi, gestisce la chiusura con validazione funzionale e il re-import iterativo.
+
+### Flusso Operativo
+
+Prima di ogni operazione legge `.br-local.json`, esegue `git pull` sulla repo profili, e committa+pusha subito dopo aver scritto.
+
+#### Fase 1 — Import Bug
+
+Due modalita supportate:
+
+1. **Excel**: l'utente fornisce un file Excel con i bug segnalati. La skill legge le colonne (ID, Titolo, Descrizione, Severita, Owner, Stato, ...), normalizza i campi e propone un riepilogo.
+2. **Jira**: tramite la skill `jira` o l'integrazione MCP, importa i ticket della query/filtro specificato.
+
+I bug importati vengono salvati in `BUG_REPORT_BR.md` nella cartella `<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/`. Ogni bug viene collegato (quando possibile) alla task del piano di provenienza.
+
+#### Fase 2 — Assegnazione
+
+Assegna i bug agli sviluppatori basandosi su: owner della task collegata, competenza (BE/FE), carico attuale. L'utente puo' confermare o modificare le assegnazioni.
+
+#### Fase 3 — Fix con Sottoagenti
+
+Per ogni bug:
+
+1. **Riproduzione**: legge la descrizione, esplora il codice impattato, identifica la root cause
+2. **Implementazione**: lancia un sottoagente con prompt autosufficiente per implementare il fix
+3. **Verifica in 3 fasi** (stessa di br-executor):
+   - **Fase A -- Tecnica**: test verdi, build pulita, regressione esistente non rotta
+   - **Fase B -- Coerenza**: il fix risolve effettivamente il bug descritto
+   - **Fase C -- Riesame**: il fix non introduce nuovi problemi, e' nel posto giusto, e' minimo
+
+#### Fase 4 — Chiusura
+
+Dopo il fix verificato, lo stato del bug passa a "Fix pronto". L'utente conferma di averlo testato col funzionale. Solo dopo conferma funzionale, lo stato passa a "Chiuso".
+
+#### Fase 5 — Re-Import Iterativo
+
+La skill puo' essere re-eseguita con un nuovo Excel/import Jira per importare bug aggiunti, riaperti, o aggiornati. I bug esistenti non vengono sovrascritti — solo aggiornati nei campi che cambiano (stato, note).
+
+### Regole Fondamentali
+
+1. Mai chiudere un bug senza conferma del funzionale
+2. Mai sovrascrivere bug gia' fissati (solo aggiornare stato)
+3. Sempre eseguire la verifica in 3 fasi
+4. Sempre commit+push sulla repo profili dopo ogni aggiornamento
+
+### Dipendenze
+
+- `openpyxl` (Python) — per lettura Excel bug
+- `jira` skill o MCP — per import da Jira (opzionale)
+
+---
+
+## 8. BR Progress Report
 
 **Skill**: `br-progress-report`
 **Path**: `~/.claude/skills/br-progress-report/SKILL.md`
@@ -508,14 +622,16 @@ Generare o aggiornare un file Excel con il riepilogo completo delle task, dei pr
 
 ### Flusso Operativo
 
+Prima di ogni operazione legge `.br-local.json`, esegue `git pull` sulla repo profili, e committa+pusha subito dopo aver scritto.
+
 #### Fase 1 — Individuazione File Sorgente
 
-Cerca automaticamente nella struttura `plans/`:
+Cerca automaticamente nella struttura `<profiles_repo>/<profilo>/plans/`:
 - **Piano di Implementazione** (obbligatorio)
 - **File di Progresso** (opzionale — se non esiste, tutte le task partono da 0%)
 - **Gap Report** (opzionale — usato per arricchire le descrizioni)
 
-Verifica se esiste gia un file `AVANZAMENTO_BR_*.xlsx`:
+Verifica se esiste gia un file `AVANZAMENTO_BR.xlsx`:
 - **Se esiste**: modalita aggiornamento (solo i dati cambiano, note manuali preservate)
 - **Se non esiste**: modalita creazione da zero
 
@@ -579,7 +695,7 @@ Riga "TOTALE" in fondo con le somme.
 
 #### Fase 4 — Salvataggio
 
-Salva `AVANZAMENTO_BR_<data>.xlsx` nella stessa cartella del piano. In modalita aggiornamento preserva eventuali note manuali aggiunte dall'utente. Comunica riepilogo: task totali, completate, in corso, progresso complessivo, eventuali task bloccate.
+Salva `AVANZAMENTO_BR.xlsx` nella stessa cartella del piano (`<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/`). In modalita aggiornamento preserva eventuali note manuali aggiunte dall'utente. Comunica riepilogo: task totali, completate, in corso, progresso complessivo, eventuali task bloccate.
 
 ### Dipendenze
 
@@ -587,280 +703,68 @@ Salva `AVANZAMENTO_BR_<data>.xlsx` nella stessa cartella del piano. In modalita 
 
 ---
 
-## 7. BR Pipeline
-
-**Skill**: `br-pipeline`
-**Path**: `~/.claude/skills/br-pipeline/SKILL.md`
-**Trigger**: "br-pipeline", "pipeline br", "le mie task", "stato dei br"
-
-### Scopo
-
-Orchestratore unico per il ciclo di vita dei BR. Legge lo stato dal `manifest.json` di ogni BR nel repo, rileva il ruolo dell'utente (TL/PM o Dev) e mostra una dashboard con lo stato di ogni BR, proponendo il prossimo step e delegando alle skill appropriate.
-
-### Rilevamento Ruolo
-
-- **TL/PM**: l'utente dice "br-pipeline", "pipeline br", "stato dei br" → vista completa con tutti i BR
-- **Dev**: l'utente dice "le mie task" → solo le task assegnate, filtrate da `.br-local.json`
-
-### Flusso Pipeline
-
-```
-onboard → review → clarify → analyze → approve → execute → done
-                                                      ↕
-                                                   update
-```
-
-| Stato | Azione | Skill delegata |
-|---|---|---|
-| `onboard` | Lancia il review della documentazione | `br-reviewer` |
-| `review` | Gestisci le risposte del funzionale | `br-clarify` |
-| `clarify` | Procedi con analisi o attendi risposte | `br-clarify` / `br-analyzer` |
-| `analyze` | Lancia l'analisi gap e genera il piano | `br-analyzer` |
-| `approved` | Piano approvato, avvia esecuzione | `br-executor` |
-| `execute` | Mostra progresso, lavora le task | `br-executor` |
-| `done` | Tutte le task completate | — |
-| `update` | Il BR e' cambiato, aggiorna il piano | `br-updater` |
-
-### Dashboard TL/PM
-
-Mostra tabella con tutti i BR attivi (nome, stato, data creazione, codebase, team, ultimo evento). Per ogni BR propone il next step. Il progresso usa l'**aggregazione cross-branch** per mostrare dati aggiornati da tutti i feature branch.
-
-### Dashboard Dev
-
-Legge `.br-local.json` per identificare lo sviluppatore. Filtra le task assegnate dai BR con piano approvato. Propone la prossima task disponibile (non bloccata, priorita' piu' alta, wave piu' bassa).
-
-### Creazione Nuovo BR
-
-Raccolta dati conversazionale (nome, repository coinvolte, chi lo crea). Genera `brs/<nome>/manifest.json` con `stato_pipeline: "onboard"`.
-
-### Regole
-
-1. Mai reimplementare la logica — la pipeline propone e delega
-2. Sempre aggiornare il manifest con timeline
-3. Sempre chiedere conferma prima di ogni transizione
-4. Rilevare lo stato dagli artefatti per correggere disallineamenti
-5. Rispettare il ruolo (TL/PM vede tutto, Dev vede solo le sue task)
-
----
-
-## 8. BR Debug
-
-**Skill**: `br-debug`
-**Path**: `~/.claude/skills/br-debug/SKILL.md`
-**Trigger**: "ci sono dei bug", "bug dal funzionale", "segnalazioni test", "lavora il bug", "debug br"
-
-### Scopo
-
-Gestire i bug segnalati dai funzionali durante e dopo il testing. Importa bug da Excel o Jira, li collega alle task del piano, li assegna agli sviluppatori, esegue i fix con sottoagenti e verifica in 3 fasi, gestisce la chiusura con validazione funzionale e il re-import iterativo.
-
-Opera come stage parallelo: coesiste con l'esecuzione delle task senza interromperla.
-
-### Doppia Modalita'
-
-| Contesto | Source of truth |
-|---|---|
-| claude-flow (standalone) | `BUG_REPORT_BR.md` in `plans/` |
-| portal-flow (con pipeline) | `manifest.bugs[]` + vista MD generata |
-
-### Ciclo di Vita del Bug
-
-```
-aperto → assegnato → in_corso → verificato → chiuso
-                        ↓
-                     bloccato
-```
-
-### Flusso Operativo
-
-#### Fase 1 — Import dei Bug
-
-Supporta 3 sorgenti: Excel, Jira, o entrambi.
-
-**Excel:** mapping intelligente delle colonne con pattern matching. Supporta formati flessibili (mapping dei tipi: DEFECT/BUG, MINOR, CAMBIO LABEL, CR). Le CR hanno sempre severita' `minore`. Filtra automaticamente i bug gia' chiusi.
-
-**Jira:** usa la skill `jira` o l'MCP Jira. Mappa i campi Jira standard.
-
-Per ogni bug, la skill tenta il collegamento automatico alle task/stream del piano, propone l'assegnazione (default: owner della task collegata, override dal TL/PM), e chiede conferma prima di scrivere.
-
-#### Fase 2 — Esecuzione Fix
-
-Per ogni bug assegnato:
-1. Analisi del bug con localizzazione del codice e ipotesi di root cause
-2. Creazione branch `fix/<br-name>-BUG-<NNN>-<slug>`
-3. Esecuzione con sottoagenti (prompt autosufficiente con contesto completo)
-4. Verifica in 3 fasi (tecnica + coerenza col bug + riesame)
-5. Suggerimento commit (mai autonomo)
-6. Bug passa a stato `verificato`
-
-Bug minori nella stessa sezione possono essere raggruppati su un unico branch.
-
-#### Fase 3 — Chiusura e Re-import
-
-Tre flussi di chiusura: Excel aggiornato, Jira sincronizzato, o conversazione. Bug riaperti tornano a stato `aperto` preservando note e fix precedenti. La skill supporta re-import iterativo senza duplicazioni.
-
-### Regole Fondamentali
-
-1. Mai committare autonomamente nel codebase del progetto
-2. Mai procedere senza conferma
-3. Verificare prima di dichiarare verificato (3 fasi complete)
-4. Mai duplicare bug al re-import
-5. Mai sovrascrivere note precedenti
-6. Le CR hanno sempre severita' minore
-
-### Dipendenze
-
-| Dipendenza | Installazione |
-|---|---|
-| `openpyxl` (Python) | `pip install openpyxl` |
-| skill `jira` | gia' nell'ecosistema (opzionale) |
-
----
-
-## 9. Profili Progetto
-
-### Repo deloitte-profiles
-
-Repository centralizzato con un `profile.json` per progetto. Contiene stack tecnico, convenzioni, dominio e design system.
-
-| Sezione | Contenuto | Obbligatoria |
-|---|---|---|
-| `project` | Nome, cliente, descrizione | Si |
-| `tech_stack` | Backend + frontend: linguaggio, framework, DB, ORM | Si |
-| `conventions` | Package structure, layers, API prefix, test naming | No |
-| `design_system` | Palette, tipografia, spaziatura, componenti | No |
-| `domain` | Glossario, regole di business, stati entita' | No |
-| `custom_agents` | Path a agenti specifici del progetto | No |
-
-### Configurazione locale (.br-local.json)
-
-Due nuovi campi:
-
-| Campo | Descrizione |
-|---|---|
-| `profilo` | Nome della cartella nel repo profili (es. "pnrr") |
-| `profiles_repo` | Path locale del clone di deloitte-profiles |
-
-### Caricamento automatico
-
-Tutte le skill BR caricano il profilo allo startup:
-1. Leggono `.br-local.json`
-2. `git pull` sul repo profili
-3. Leggono `profile.json`
-4. Iniettano il contesto nei prompt dei sottoagenti
-
-Fallback: senza `profilo`/`profiles_repo`, le skill funzionano come prima.
-
-### Manutenzione automatica
-
-`br-analyzer` aggiorna il profilo dopo ogni gap analysis confrontando codebase vs profilo. Delta significativi vengono proposti all'utente.
-
----
-
-## 10. Agenti Generici
-
-### br-codebase-explorer
-
-**File**: `~/.claude/agents/br-codebase-explorer.md`
-**Usato da**: br-analyzer, br-updater
-
-Esploratore di codebase generico. Riceve profilo, documentazione BR, e path del codebase. Produce output strutturato per la gap analysis. Usa il profilo per navigare in modo mirato (package structure, layers, API prefix, terminologia).
-
-### br-verifier
-
-**File**: `~/.claude/agents/br-verifier.md`
-**Usato da**: br-executor, br-debug
-
-Verificatore in 3 fasi del lavoro dei sottoagenti. Riceve requisiti, file modificati, risultati test, e convenzioni dal profilo. Produce verdict PASS/FAIL strutturato.
-
-### Routing a Specialist
-
-Le skill br-executor e br-debug instradano al subagent_type giusto in base al `tech_stack` dal profilo:
-
-| Stack | subagent_type |
-|---|---|
-| Spring Boot | `spring-boot-engineer` |
-| .NET Core | `csharp-developer` |
-| Angular | `angular-architect` |
-| React | `react-specialist` |
-| Vue | `vue-expert` |
-| Next.js | `nextjs-developer` |
-| Flutter | `flutter-expert` |
-| Django | `django-developer` |
-| FastAPI | `fastapi-developer` |
-| Node.js / Express | `node-specialist` |
-| Laravel | `laravel-specialist` |
-| (non riconosciuto) | `general-purpose` (fallback) |
-
----
-
-## 11. BR Profile Setup
-
-**Skill**: `br-profile-setup`
-**Path**: `~/.claude/skills/br-profile-setup/SKILL.md`
-**Trigger**: "crea profilo progetto", "setup profilo", "nuovo profilo"
-
-Creazione guidata di un profilo progetto con auto-detect del codebase (10 step):
-1. Nome progetto
-2. Path repo profili
-3. Codebase coinvolti
-4. Auto-detect framework, convenzioni, design system
-5. Conferma e correzione
-6. Domande dominio (glossario, regole, stati)
-7. Reference files (opzionali)
-8. Genera profile.json
-9. Commit + push su deloitte-profiles
-10. Aggiorna .br-local.json nei codebase
-
----
-
-## 12. BR Estimator
+## 9. BR Estimator
 
 **Skill**: `br-estimator`
 **Path**: `~/.claude/skills/br-estimator/SKILL.md`
-**Trigger**: "stima il br", "quanti sviluppatori servono", "simulazione team", "stima effort"
+**Trigger**: "stima il br", "quanti sviluppatori servono", "simulazione team", "stima effort", "stima team"
 
 ### Scopo
 
-Stima il team necessario per completare un BR entro una deadline, con simulazioni what-if su team, deadline, scope e rischio.
+Stimare il team necessario per completare un BR entro una deadline, con simulazioni what-if su team, deadline, scope e rischio. Produce scenari ottimistico/realistico/pessimistico con timeline, bottleneck, allocazione team e suggerimenti scope cut. Genera report MD + Excel.
 
-### Due Modalita'
+### Modalita
 
-| Modalita' | Quando | Input | Precisione |
-|---|---|---|---|
-| Rough | Pre-analisi (prima di br-analyzer) | Documentazione BR | ±30-40% |
-| Dettagliata | Post-analisi (dopo br-analyzer) | Piano di implementazione | ±10-15% |
+Due modalita supportate:
 
-### Sottoagenti
+1. **Rough (pre-analisi)**: stima derivata dalla documentazione BR convertita in markdown, prima che br-analyzer sia stato eseguito. Utile per fornire indicazioni iniziali sul team in fase di pre-vendita o pianificazione.
+2. **Dettagliata (post-analisi)**: stima derivata dal `PIANO_IMPLEMENTAZIONE_BR.md` e dal `GAP_REPORT_BR.md`. Molto piu' precisa, usa la granularita' delle task e le wave del piano.
 
-| Agente | File | Usato in | Ruolo |
-|---|---|---|---|
-| br-estimation-analyst | `~/.claude/agents/br-estimation-analyst.md` | Solo rough | Estrae funzionalita' e stima task dalla documentazione |
-| br-estimation-historian | `~/.claude/agents/br-estimation-historian.md` | Entrambe | Scansiona BR completati per calibrazione storica |
-| br-estimation-scenario | `~/.claude/agents/br-estimation-scenario.md` | Entrambe | Calcola scenari, timeline, bottleneck, scope cutting |
+### Flusso Operativo
 
-### Scenari
+Prima di ogni operazione legge `.br-local.json`, esegue `git pull` sulla repo profili, e committa+pusha subito dopo aver scritto.
 
-Modello ibrido deterministico + rischio. Ogni stima produce 3 scenari:
-- **Ottimistico** — moltiplicatori ridotti
-- **Realistico** — moltiplicatori standard
-- **Pessimistico** — moltiplicatori aumentati
+#### Fase 1 — Identificazione Modalita
 
-Con moltiplicatori differenziati per tipo di rischio (standard, integrazione, dominio nuovo, migrazione).
+Cerca in `<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/` la presenza di `PIANO_IMPLEMENTAZIONE_BR.md`:
+- Se presente → modalita dettagliata
+- Se assente ma `requirements/` presente → modalita rough
+- Se entrambi assenti → richiede di eseguire prima br-reviewer (per requirements) o br-analyzer (per piano)
 
-### Simulazioni What-If
+#### Fase 2 — Raccolta Input
 
-Ciclo interattivo: aggiungi/rimuovi dev, cambia deadline, taglia scope, modifica parametri. Ogni what-if mostra il delta rispetto allo scenario precedente.
+- **Deadline**: data target di consegna
+- **Pool risorse disponibili**: composizione del team disponibile (numero per ruolo/seniority)
+- **Costo (opzionale)**: per stime di budget
+- **Rischio**: fattore di buffer (low/medium/high) — default: medium
 
-### Output
+#### Fase 3 — Calcolo Scenari
 
-- **STIMA_BR.md** — report dettagliato con scenari, team, parametri, storico
-- **STIMA_BR.xlsx** — Excel con 4 fogli (Scenari, Timeline Gantt-like, Team allocation, Parametri)
+Tre scenari sempre calcolati:
 
-### Integrazione Pipeline
+- **Ottimistico**: massima parallelizzazione, team senior, nessun blocco esterno
+- **Realistico**: parallelizzazione tipica, mix di seniority, qualche blocco
+- **Pessimistico**: bottleneck attesi, team meno esperto, blocchi esterni
 
-Azione opzionale nella dashboard TL/PM:
-- Dopo review/clarify: "Stima team (rough)"
-- Dopo analyze/approved: "Stima team (dettagliata)"
+Per ogni scenario calcola: durata calendario, FTE necessari per ruolo, picco team, bottleneck identificati, fattibilita' della deadline.
+
+#### Fase 4 — Simulazioni What-If
+
+Permette di simulare:
+- Aumento/riduzione team
+- Modifica deadline
+- Scope cut: suggerisce quali task tagliare per rispettare la deadline con team dato
+- Cambio mix di seniority
+
+#### Fase 5 — Output
+
+Genera in `<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/`:
+- `STIMA_BR.md`: report completo con scenari, simulazioni, bottleneck, raccomandazioni
+- `STIMA_BR.xlsx`: foglio Excel con tabelle scenari, allocazione team per settimana, what-if
+
+### Dipendenze
+
+- `openpyxl` (Python) — per generazione Excel
 
 ---
 
@@ -895,19 +799,20 @@ Le dipendenze cross-stream sono gestite tramite **merge task esplicite** (`T-MER
 | `doc-to-markdown` skill | br-reviewer, br-analyzer, br-updater | gia installata in `~/.claude/skills/doc-to-markdown/` |
 | `markitdown` | br-reviewer, br-analyzer, br-updater | `pip install 'markitdown[all]'` oppure via `uvx` |
 | `pandoc` | br-reviewer, br-clarify | disponibile su PATH |
-| `openpyxl` | br-progress-report, br-debug | `pip install openpyxl` |
+| `openpyxl` | br-progress-report, br-debug, br-estimator | `pip install openpyxl` |
+| `git` | tutte (sync repo profili) | disponibile su PATH |
+| `jira` skill / MCP | br-debug (opzionale) | configurato globalmente |
 
 ## Trigger Registrati (CLAUDE.md)
 
 | Frase | Skill |
 |---|---|
+| "crea profilo progetto" / "setup profilo" / "nuovo profilo" / "configura il profilo" | br-profile-setup |
 | "rivedi il br" / "review del br" / "controlla la documentazione" / "verifica il br" | br-reviewer |
 | "chiarimenti ricevuti" / "risposte ricevute" / "il funzionale ha risposto" / "ho le risposte" | br-clarify |
 | "abbiamo un nuovo br" | br-analyzer |
 | "lavora il task" / "inizia a lavorare" / "esegui il piano" | br-executor |
 | "il br e stato aggiornato" / "aggiorna il piano" / "nuova versione del br" | br-updater |
+| "ci sono dei bug" / "bug dal funzionale" / "lavora il bug" / "debug br" | br-debug |
 | "genera il report excel" / "aggiorna l'excel" / "stato avanzamento" / "esporta il progresso" | br-progress-report |
-| "br-pipeline" / "pipeline br" / "le mie task" / "stato dei br" | br-pipeline |
-| "ci sono dei bug" / "bug dal funzionale" / "segnalazioni test" / "lavora il bug" / "debug br" / "aggiorna i bug" | br-debug |
-| "crea profilo progetto" / "setup profilo" / "nuovo profilo" / "configura il profilo" | br-profile-setup |
-| "stima il br" / "quanti sviluppatori servono" / "simulazione team" / "stima effort" / "stima team" | br-estimator |
+| "stima il br" / "quanti sviluppatori servono" / "simulazione team" / "stima effort" | br-estimator |

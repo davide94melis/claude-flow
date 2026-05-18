@@ -11,21 +11,41 @@ Il principio guida: **mai sovrascrivere il progresso**. Le task completate resta
 
 ---
 
-## Caricamento Profilo Progetto
+## Risoluzione Path — deloitte-profiles
 
-Prima di iniziare qualsiasi operazione, tenta di caricare il profilo progetto:
+Tutte le operazioni su file BR avvengono nella repo `deloitte-profiles`, non nella repo del codice.
 
-1. Leggi `.br-local.json` dalla root del repo corrente
-2. Se contiene i campi `profilo` e `profiles_repo`:
-   a. Sincronizza il repo profili: `git -C <profiles_repo> pull origin main --quiet`
-   b. Leggi `<profiles_repo>/<profilo>/profile.json`
-   c. Se il campo `custom_agents` e' presente nel profilo, leggi anche i file .md degli agenti referenziati (path relativi alla cartella del profilo)
-   d. Salva il profilo in memoria per uso nelle fasi successive
-3. Se `.br-local.json` non ha `profilo` o `profiles_repo`, procedi senza profilo (comportamento attuale, retrocompatibilita' completa)
+### Lettura `.br-local.json`
 
-Quando il profilo e' disponibile:
-- Usa br-codebase-explorer con il profilo iniettato per ri-verificare il codebase aggiornato
-- Il profilo fornisce contesto su dove guardare e che terminologia aspettarsi
+All'avvio, leggi `.br-local.json` dalla root della repo corrente:
+
+```bash
+cat .br-local.json 2>/dev/null
+```
+
+Estrai `profiles_repo`, `profilo`, `developer`.
+
+Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
+
+### Se `.br-local.json` non esiste
+
+Ferma l'esecuzione e avvisa:
+
+> `.br-local.json` non trovato. Devi prima eseguire `br-profile-setup`.
+
+### Sincronizzazione prima della lettura
+
+```bash
+git -C "<profiles_repo>" pull origin main --quiet
+```
+
+### Commit e push dopo la scrittura
+
+```bash
+git -C "<profiles_repo>" add .
+git -C "<profiles_repo>" commit -m "<messaggio>"
+git -C "<profiles_repo>" push origin main --quiet
+```
 
 ---
 
@@ -38,28 +58,20 @@ Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 Cerca automaticamente cartelle BR nella struttura `plans/`:
 
 ```bash
-ls -d plans/in-progress/*/ plans/todo/*/ 2>/dev/null
+git -C "<profiles_repo>" pull origin main --quiet
+ls -d "<profiles_repo>/<profilo>/plans/in-progress"/*/ "<profiles_repo>/<profilo>/plans/todo"/*/ 2>/dev/null
 ```
 
 **Se trovi cartelle BR**, elencale con il loro contenuto:
 
 > Ho trovato questa cartella BR:
-> - `plans/in-progress/2026-04-28_booking-v2/`
+> - `<profiles_repo>/<profilo>/plans/in-progress/2026-04-28_booking-v2/`
 >   - `GAP_REPORT_BR.md`
 >   - `PIANO_IMPLEMENTAZIONE_BR.md`
 >   - `PROGRESSO_BR.md`
 >   - `REVIEW_BR.md`
 >
 > Uso questa come base? Oppure dammi i path manualmente.
-
-**Se trovi file flat** (retrocompatibilita'):
-
-> Ho trovato questi file:
-> - `plans/in-progress/GAP_REPORT_BR_2026-04-24.md`
-> - `plans/in-progress/PIANO_IMPLEMENTAZIONE_BR_2026-04-24.md`
-> - `plans/in-progress/PROGRESSO_BR_2026-04-24.md`
->
-> Uso questi come base? Oppure dammi i path manualmente.
 
 **Se non trovi nulla**, chiedi:
 
@@ -117,7 +129,7 @@ Converti i nuovi documenti in MD (stessa procedura di `br-analyzer`):
 - MD → copia diretta
 - Immagini → Read diretto
 
-Salva nella cartella `br-docs-converted/` dentro la cartella del BR (es. `plans/in-progress/<YYYY-MM-DD>_<nome>/br-docs-converted/`), sovrascrivendo i file precedenti dove applicabile. Se stai lavorando con file flat, salva in `br-docs-converted/` nella working directory corrente.
+Salva nella cartella `requirements/` dentro la cartella del BR (es. `<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/requirements/`), sovrascrivendo i file precedenti dove applicabile.
 
 ### 2.2 — Identificazione delta
 
@@ -145,21 +157,6 @@ Per ogni requisito nuovo o modificato, verifica lo stato nel codice attuale (com
 - Genera la classificazione gap: Coperto / Parziale / Mancante / Discrepanza / Da chiarire
 
 Per i requisiti rimossi, verifica se il codice corrispondente era già stato implementato (task completate nel progresso).
-
-### Ri-esplorazione con br-codebase-explorer
-
-**Se il profilo progetto e' disponibile:**
-
-Per ogni codebase coinvolto nel delta, lancia un agente `br-codebase-explorer` (leggendo le sue istruzioni da `~/.claude/agents/br-codebase-explorer.md`) con:
-- Il profilo progetto completo (JSON)
-- I NUOVI requisiti dalla documentazione aggiornata
-- Il path del codebase da esplorare
-
-L'explorer usa il profilo per navigare in modo mirato e confrontare la terminologia. L'output strutturato viene usato per aggiornare il gap report.
-
-**Se il profilo NON e' disponibile (retrocompatibilita'):**
-
-Esplora il codebase direttamente come oggi, analizzando struttura, modello dati, API, servizi, frontend e configurazione.
 
 ---
 
@@ -261,6 +258,16 @@ Se il file di progresso esiste, aggiornalo:
 - Segna le task sospese con stato "Sospesa"
 - Aggiorna il riepilogo (totali, percentuali)
 - Aggiungi voce al log attività: `[data] — Aggiornamento piano da nuova documentazione BR: N task aggiunte, M modificate, K annullate`
+
+### 3.4 — Commit e push aggiornamenti
+
+Dopo aver aggiornato report, piano e progresso, committa e pusha le modifiche nella repo `deloitte-profiles`:
+
+```bash
+git -C "<profiles_repo>" add "<profilo>/plans/"
+git -C "<profiles_repo>" commit -m "[br-updater] <nome>: aggiornato piano da nuova documentazione"
+git -C "<profiles_repo>" push origin main --quiet
+```
 
 ---
 

@@ -13,16 +13,47 @@ Due modalita':
 
 ---
 
+## Risoluzione Path — deloitte-profiles
+
+Tutte le operazioni su file BR avvengono nella repo `deloitte-profiles`, non nella repo del codice.
+
+### Lettura `.br-local.json`
+
+```bash
+cat .br-local.json 2>/dev/null
+```
+
+Estrai `profiles_repo`, `profilo`, `developer`.
+
+Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
+
+### Se `.br-local.json` non esiste
+
+Ferma l'esecuzione e avvisa:
+
+> `.br-local.json` non trovato. Devi prima eseguire `br-profile-setup`.
+
+### Sincronizzazione prima della lettura
+
+```bash
+git -C "<profiles_repo>" pull origin main --quiet
+```
+
+### Commit e push dopo la scrittura
+
+```bash
+git -C "<profiles_repo>" add .
+git -C "<profiles_repo>" commit -m "<messaggio>"
+git -C "<profiles_repo>" push origin main --quiet
+```
+
 ## Rilevamento Contesto
 
-La skill rileva automaticamente il contesto operativo:
-
-- **Se trova `brs/<nome>/manifest.json`** → modalita' **portal-flow**
-- **Se trova `plans/*/PIANO_IMPLEMENTAZIONE_BR.md` senza manifest** → modalita' **claude-flow**
+La skill cerca il piano di implementazione in `<profiles_repo>/<profilo>/plans/`.
 
 ## Rilevamento Modalita'
 
-- **Se esiste un piano** (`PIANO_IMPLEMENTAZIONE_BR.md` o `manifest.piano.task[]`) → modalita' **dettagliata**
+- **Se esiste un piano** (`PIANO_IMPLEMENTAZIONE_BR.md`) → modalita' **dettagliata**
 - **Se non esiste un piano ma ci sono documenti BR** → modalita' **rough**
 
 La skill comunica la modalita' rilevata:
@@ -42,16 +73,11 @@ Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 
 ### Domanda 1 — BR di riferimento
 
-Cerca i BR attivi in base al contesto:
+Cerca i BR attivi:
 
-**Claude-flow:**
 ```bash
-ls -d plans/todo/*/ plans/in-progress/*/ 2>/dev/null
-```
-
-**Portal-flow:**
-```bash
-ls brs/*/manifest.json 2>/dev/null
+git -C "<profiles_repo>" pull origin main --quiet
+ls -d "<profiles_repo>/<profilo>/plans/todo"/*/ "<profiles_repo>/<profilo>/plans/in-progress"/*/ 2>/dev/null
 ```
 
 Se ne trovi uno, proponilo. Se piu' di uno, chiedi quale. Se nessuno, avvisa che serve almeno la documentazione BR.
@@ -99,7 +125,7 @@ Se l'utente sceglie personalizza, mostra i default in tabella e permetti di camb
 
 1. Lancia in **parallelo**:
    - **Analista BR** (`br-estimation-analyst`): leggi le sue istruzioni da `~/.claude/agents/br-estimation-analyst.md`. Passagli la documentazione BR e il profilo progetto (se disponibile da `.br-local.json` → `profiles_repo`/`profilo`).
-   - **Storico** (`br-estimation-historian`): leggi le sue istruzioni da `~/.claude/agents/br-estimation-historian.md`. Passagli il path a `plans/done/` (claude-flow) o `brs/` (portal-flow) e i parametri di default.
+   - **Storico** (`br-estimation-historian`): leggi le sue istruzioni da `~/.claude/agents/br-estimation-historian.md`. Passagli il path a `<profiles_repo>/<profilo>/plans/done/` e i parametri di default.
 
 2. Ricevi i risultati:
    - Dall'analista: tabella funzionalita' con task stimate, complessita', rischio, area
@@ -121,7 +147,7 @@ Se l'utente sceglie personalizza, mostra i default in tabella e permetti di camb
 
 ### Modalita' Dettagliata
 
-1. Leggi il piano (`PIANO_IMPLEMENTAZIONE_BR.md` o `manifest.piano.task[]`). Per ogni task, estrai: ID, nome, complessita', area, wave, dipendenze, owner.
+1. Leggi il piano (`PIANO_IMPLEMENTAZIONE_BR.md`). Per ogni task, estrai: ID, nome, complessita', area, wave, dipendenze, owner.
 
 2. Lancia lo **Storico** come sopra per il fattore di calibrazione.
 
@@ -200,8 +226,7 @@ Quando l'utente sceglie "Salva e genera report":
 ### STIMA_BR.md
 
 Scrivi il file nella cartella del BR:
-- Claude-flow: `plans/todo/<data>_<nome>/STIMA_BR.md` o `plans/in-progress/<data>_<nome>/STIMA_BR.md`
-- Portal-flow: `brs/<nome>/STIMA_BR.md`
+`<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/STIMA_BR.md` (o `in-progress/` se il BR è già in lavorazione)
 
 Struttura:
 
@@ -298,8 +323,9 @@ Salva il file nella stessa cartella del STIMA_BR.md.
 Dopo aver scritto entrambi i file:
 
 ```bash
-git add <cartella-br>/STIMA_BR.md <cartella-br>/STIMA_BR.xlsx
-git commit -m "[br-estimator] <nome-br>: stima team (<modalita'>)"
+git -C "<profiles_repo>" add "<profilo>/plans/"
+git -C "<profiles_repo>" commit -m "[br-estimator] <nome-br>: stima team (<modalita'>)"
+git -C "<profiles_repo>" push origin main --quiet
 ```
 
 ---
@@ -311,8 +337,7 @@ git commit -m "[br-estimator] <nome-br>: stima team (<modalita'>)"
 3. **Delta espliciti** — ogni what-if mostra il confronto col precedente
 4. **Parametri trasparenti** — mostra sempre come il numero e' calcolato
 5. **Fallback senza dati** — funziona anche senza storico e senza profilo
-6. **Supportare entrambe le modalita'** (claude-flow e portal-flow) senza compromessi
-7. **Scope cutting con cascata** — il risparmio tiene conto delle dipendenze
+6. **Scope cutting con cascata** — il risparmio tiene conto delle dipendenze
 
 ---
 
