@@ -1,11 +1,11 @@
 ---
-name: br-updater
+name: sdlc-updater
 description: Aggiorna gap report e piano di implementazione quando il BR o la documentazione viene modificata. Confronta la nuova documentazione con quella precedente, identifica i delta, e aggiorna report e piano preservando il progresso delle task già completate o in corso. Supporta qualsiasi composizione di repository — le sigle e i nomi vengono letti dinamicamente dai file esistenti. Usa questa skill quando l'utente dice "il br è stato aggiornato", "nuova versione del br", "aggiorna il piano", "documentazione aggiornata", "c'è un aggiornamento al br", "mockup aggiornati", "nuova versione documentazione", o qualsiasi variazione che implichi una modifica alla documentazione di un BR già analizzato.
 ---
 
-# BR Updater — Aggiornamento Report e Piano su Documentazione Modificata
+# SDLC Updater — Aggiornamento PLAN e TASKS su Documentazione Modificata
 
-Questa skill è il terzo tassello del flusso BR, dopo `br-analyzer` (analisi iniziale) e `br-executor` (esecuzione task). Si attiva quando la documentazione del BR viene aggiornata e bisogna propagare le modifiche al gap report e al piano di implementazione, senza perdere il lavoro già fatto.
+Questa skill è il terzo tassello del flusso BR, dopo `sdlc-analyzer` (analisi iniziale) e `sdlc-executor` (esecuzione task). Si attiva quando la documentazione del BR viene aggiornata e bisogna propagare le modifiche al PLAN e al TASKS, senza perdere il lavoro già fatto.
 
 Il principio guida: **mai sovrascrivere il progresso**. Le task completate restano completate, quelle in corso restano in corso. Solo i gap nuovi o modificati generano aggiornamenti al piano.
 
@@ -31,7 +31,7 @@ Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `br-profile-setup`.
+> `.br-local.json` non trovato. Devi prima eseguire `sdlc-profile-setup`.
 
 ### Sincronizzazione prima della lettura
 
@@ -66,18 +66,18 @@ ls -d "<profiles_repo>/<profilo>/plans/in-progress"/*/ "<profiles_repo>/<profilo
 
 > Ho trovato questa cartella BR:
 > - `<profiles_repo>/<profilo>/plans/in-progress/2026-04-28_booking-v2/`
->   - `GAP_REPORT_BR.md`
->   - `PIANO_IMPLEMENTAZIONE_BR.md`
+>   - `PLAN.md`
+>   - `TASKS.md`
 >   - `PROGRESSO_BR.md`
->   - `REVIEW_BR.md`
+>   - `CLARIFY.md`
 >
 > Uso questa come base? Oppure dammi i path manualmente.
 
 **Se non trovi nulla**, chiedi:
 
 > Dammi i path dei file da aggiornare:
-> 1. **Gap Report** esistente
-> 2. **Piano di Implementazione** esistente
+> 1. **PLAN** esistente
+> 2. **TASKS** esistente
 > 3. **File di Progresso** (se esiste)
 
 Leggi tutti i file. Estrai lo stato attuale completo: task, progresso, codebase, documentazione originale.
@@ -122,7 +122,7 @@ Leggi tutti i file. Estrai lo stato attuale completo: task, progresso, codebase,
 
 ### 2.1 — Conversione documenti aggiornati
 
-Converti i nuovi documenti in MD (stessa procedura di `br-analyzer`):
+Converti i nuovi documenti in MD (stessa procedura di `sdlc-analyzer`):
 
 - DOCX/DOC → `~/.claude/skills/doc-to-markdown/convert_word_to_markdown.py`
 - PDF/PPTX/XLSX → `markitdown`
@@ -152,7 +152,7 @@ Per ogni delta, documenta:
 
 ### 2.3 — Verifica delta contro il codice
 
-Per ogni requisito nuovo o modificato, verifica lo stato nel codice attuale (come nella Fase 3 di `br-analyzer`):
+Per ogni requisito nuovo o modificato, verifica lo stato nel codice attuale (come nella Fase 3 di `sdlc-analyzer`):
 - Esiste già? Parzialmente? Per niente?
 - Genera la classificazione gap: Coperto / Parziale / Mancante / Discrepanza / Da chiarire
 
@@ -187,9 +187,9 @@ Prima di modificare qualsiasi file, presenta il riepilogo dei delta:
 
 Aspetta conferma.
 
-### 3.1 — Aggiornamento Gap Report
+### 3.1 — Aggiornamento PLAN
 
-Aggiorna il file gap report esistente (non crearne uno nuovo):
+Aggiorna il file PLAN esistente (non crearne uno nuovo):
 
 1. **Aggiorna l'header** — data aggiornamento, lista documenti aggiornata
 2. **Aggiungi una sezione "Storico aggiornamenti"** in fondo al report:
@@ -212,9 +212,9 @@ Aggiorna il file gap report esistente (non crearne uno nuovo):
 4. **Aggiorna "Gap aperti reali"** — aggiungi i nuovi gap, aggiorna quelli modificati, segna come risolti quelli rimossi
 5. **Aggiorna "Esito sintetico"** e "Conclusione finale"
 
-### 3.2 — Aggiornamento Piano di Implementazione
+### 3.2 — Aggiornamento TASKS
 
-Aggiorna il piano preservando il progresso.
+Aggiorna il TASKS preservando il progresso.
 
 **Pre-step: colonna Branch** — Se il backlog operativo del piano NON ha una colonna **Branch**, aggiungila PRIMA di qualsiasi altra modifica. Per ogni task esistente, genera il nome branch seguendo il pattern `feature/<br-name>-<slug-attivita>` (dove `<br-name>` e' il nome del BR e `<slug>` e' derivato dal nome dell'attivita'). Per le merge task (T-MERGE-*), il valore e' `—`. Comunica all'utente:
 
@@ -265,7 +265,7 @@ Dopo aver aggiornato report, piano e progresso, committa e pusha le modifiche ne
 
 ```bash
 git -C "<profiles_repo>" add "<profilo>/plans/"
-git -C "<profiles_repo>" commit -m "[br-updater] <nome>: aggiornato piano da nuova documentazione"
+git -C "<profiles_repo>" commit -m "[sdlc-updater] <nome>: aggiornato piano da nuova documentazione"
 git -C "<profiles_repo>" push origin main --quiet
 ```
 

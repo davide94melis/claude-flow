@@ -1,15 +1,15 @@
 ---
-name: br-estimator
+name: sdlc-estimator
 description: Stima il team necessario per completare un BR entro una deadline, con simulazioni what-if su team, deadline, scope e rischio. Due modalita' — rough (pre-analisi, dalla documentazione) e dettagliata (post-analisi, dal piano). Produce scenari ottimistico/realistico/pessimistico con timeline, bottleneck, allocazione team e suggerimenti scope cut. Genera report MD + Excel. Usa questa skill quando l'utente dice "stima il br", "quanti sviluppatori servono", "simulazione team", "stima effort", "stima team", o qualsiasi variazione che implichi la necessita' di stimare l'effort o il team per un BR.
 ---
 
-# BR Estimator — Stima Team e Simulazioni What-If
+# SDLC Estimator — Stima Team e Simulazioni What-If
 
 Questa skill stima quanti sviluppatori servono per completare un BR entro una deadline, con simulazioni interattive per variare team, deadline e scope. Produce 3 scenari (ottimistico/realistico/pessimistico) e report esportabili.
 
 Due modalita':
 - **Rough** (pre-analisi) — dalla documentazione BR, stima approssimativa (±30-40%)
-- **Dettagliata** (post-analisi) — dal piano di implementazione, stima precisa (±10-15%)
+- **Dettagliata** (post-analisi) — dal TASKS, stima precisa (±10-15%)
 
 ---
 
@@ -31,7 +31,7 @@ Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `br-profile-setup`.
+> `.br-local.json` non trovato. Devi prima eseguire `sdlc-profile-setup`.
 
 ### Sincronizzazione prima della lettura
 
@@ -49,21 +49,21 @@ git -C "<profiles_repo>" push origin main --quiet
 
 ## Rilevamento Contesto
 
-La skill cerca il piano di implementazione in `<profiles_repo>/<profilo>/plans/`.
+La skill cerca il TASKS in `<profiles_repo>/<profilo>/plans/`.
 
 ## Rilevamento Modalita'
 
-- **Se esiste un piano** (`PIANO_IMPLEMENTAZIONE_BR.md`) → modalita' **dettagliata**
-- **Se non esiste un piano ma ci sono documenti BR** → modalita' **rough**
+- **Se esiste un TASKS** (`TASKS.md`) → modalita' **dettagliata**
+- **Se non esiste un TASKS ma ci sono documenti BR** → modalita' **rough**
 
 La skill comunica la modalita' rilevata:
 
-> Ho rilevato che il BR **<nome>** ha un piano di implementazione.
+> Ho rilevato che il BR **<nome>** ha un TASKS.
 > Uso la modalita' **dettagliata** (precisione ±10-15%).
 
 oppure:
 
-> Il BR **<nome>** non ha ancora un piano. Uso la modalita' **rough** dalla documentazione (precisione ±30-40%).
+> Il BR **<nome>** non ha ancora un TASKS. Uso la modalita' **rough** dalla documentazione (precisione ±30-40%).
 
 ---
 
@@ -94,7 +94,7 @@ Converti in data ISO (YYYY-MM-DD). Se la data e' vaga (es. "fine giugno"), usa l
 
 Tenta di proporre il team dai dati disponibili:
 
-1. Se il piano ha gia' owner assegnati → proponi quelli con seniority dedotta dal ruolo nel piano
+1. Se il TASKS ha gia' owner assegnati → proponi quelli con seniority dedotta dal ruolo nel TASKS
 2. Se `.br-local.json` ha `developer` → includilo nella proposta
 3. Altrimenti chiedi:
 
@@ -124,8 +124,8 @@ Se l'utente sceglie personalizza, mostra i default in tabella e permetti di camb
 ### Modalita' Rough
 
 1. Lancia in **parallelo**:
-   - **Analista BR** (`br-estimation-analyst`): leggi le sue istruzioni da `~/.claude/agents/br-estimation-analyst.md`. Passagli la documentazione BR e il profilo progetto (se disponibile da `.br-local.json` → `profiles_repo`/`profilo`).
-   - **Storico** (`br-estimation-historian`): leggi le sue istruzioni da `~/.claude/agents/br-estimation-historian.md`. Passagli il path a `<profiles_repo>/<profilo>/plans/done/` e i parametri di default.
+   - **Analista BR** (`sdlc-estimation-analyst`): leggi le sue istruzioni da `~/.claude/agents/sdlc-estimation-analyst.md`. Passagli la documentazione BR e il profilo progetto (se disponibile da `.br-local.json` → `profiles_repo`/`profilo`).
+   - **Storico** (`sdlc-estimation-historian`): leggi le sue istruzioni da `~/.claude/agents/sdlc-estimation-historian.md`. Passagli il path a `<profiles_repo>/<profilo>/plans/done/` e i parametri di default.
 
 2. Ricevi i risultati:
    - Dall'analista: tabella funzionalita' con task stimate, complessita', rischio, area
@@ -143,11 +143,11 @@ Se l'utente sceglie personalizza, mostra i default in tabella e permetti di camb
 >
 > Procedo con il calcolo degli scenari?
 
-4. Dopo conferma, lancia lo **Scenarista** (`br-estimation-scenario`): leggi le sue istruzioni da `~/.claude/agents/br-estimation-scenario.md`. Passagli le task stimate, il team, la deadline, il fattore di calibrazione e i parametri.
+4. Dopo conferma, lancia lo **Scenarista** (`sdlc-estimation-scenario`): leggi le sue istruzioni da `~/.claude/agents/sdlc-estimation-scenario.md`. Passagli le task stimate, il team, la deadline, il fattore di calibrazione e i parametri.
 
 ### Modalita' Dettagliata
 
-1. Leggi il piano (`PIANO_IMPLEMENTAZIONE_BR.md`). Per ogni task, estrai: ID, nome, complessita', area, wave, dipendenze, owner.
+1. Leggi il TASKS (`TASKS.md`). Per ogni task, estrai: ID, nome, complessita', area, wave, dipendenze, owner.
 
 2. Lancia lo **Storico** come sopra per il fattore di calibrazione.
 
@@ -306,7 +306,7 @@ Genera con Python + openpyxl un file Excel con 4 fogli:
 - Righe successive: una riga per task
 - Celle colorate con il colore del dev assegnato per i giorni in cui lavora sulla task
 - Bottleneck evidenziati con sfondo rosso
-- Usare colori distinti per dev (stesso schema di br-progress-report se disponibile)
+- Usare colori distinti per dev (stesso schema di sdlc-progress-report se disponibile)
 
 **Foglio 3 — Team:**
 - Tabella: Dev | Seniority | Area | Task assegnate | Giorni occupato | Giorni libero | Utilizzo
@@ -324,7 +324,7 @@ Dopo aver scritto entrambi i file:
 
 ```bash
 git -C "<profiles_repo>" add "<profilo>/plans/"
-git -C "<profiles_repo>" commit -m "[br-estimator] <nome-br>: stima team (<modalita'>)"
+git -C "<profiles_repo>" commit -m "[sdlc-estimator] <nome-br>: stima team (<modalita'>)"
 git -C "<profiles_repo>" push origin main --quiet
 ```
 
@@ -346,6 +346,6 @@ git -C "<profiles_repo>" push origin main --quiet
 | Dipendenza | Usata per | Installazione |
 |---|---|---|
 | `openpyxl` (Python) | Generazione Excel | `pip install openpyxl` |
-| Agente `br-estimation-analyst` | Stima rough | `~/.claude/agents/` |
-| Agente `br-estimation-historian` | Calibrazione storica | `~/.claude/agents/` |
-| Agente `br-estimation-scenario` | Calcolo scenari | `~/.claude/agents/` |
+| Agente `sdlc-estimation-analyst` | Stima rough | `~/.claude/agents/` |
+| Agente `sdlc-estimation-historian` | Calibrazione storica | `~/.claude/agents/` |
+| Agente `sdlc-estimation-scenario` | Calcolo scenari | `~/.claude/agents/` |

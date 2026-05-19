@@ -1,9 +1,9 @@
 ---
-name: br-profile-setup
+name: sdlc-profile-setup
 description: Crea un nuovo profilo progetto in deloitte-profiles con auto-detect del codebase, domande guidate su dominio e design system, e configurazione automatica di .br-local.json. Usa questa skill quando l'utente dice "crea profilo progetto", "setup profilo", "nuovo profilo", "configura il profilo", o qualsiasi variazione che implichi la creazione o configurazione di un profilo progetto per le skill BR.
 ---
 
-# BR Profile Setup — Creazione Guidata Profilo Progetto
+# SDLC Profile Setup — Creazione Guidata Profilo Progetto
 
 Questa skill guida la creazione di un nuovo profilo progetto nel repository `deloitte-profiles/`. Il profilo contiene tech stack, convenzioni, dominio e design system utilizzati da tutte le skill BR. Il flusso e' composto da 10 step sequenziali: una domanda alla volta, con auto-detect del codebase prima delle domande manuali.
 
@@ -374,7 +374,7 @@ Dopo aver completato tutti i codebase, conferma:
 > - References: `<profiles_repo>/<nome>/references/` (N file)
 > - `.br-local.json` aggiornato in N codebase
 >
-> Il profilo e' un documento vivente: `br-analyzer` lo aggiornera' automaticamente quando rileva nuove convenzioni durante l'analisi.
+> Il profilo e' un documento vivente: `sdlc-analyzer` lo aggiornera' automaticamente quando rileva nuove convenzioni durante l'analisi.
 
 ---
 
@@ -384,4 +384,4 @@ Dopo aver completato tutti i codebase, conferma:
 2. **Auto-detect prima delle domande** — Rileva tutto il possibile dal codice prima di chiedere all'utente.
 3. **Mai scrivere senza conferma** — Mostra sempre il contenuto proposto e aspetta l'OK prima di scrivere file.
 4. **I campi opzionali sono opzionali** — Se l'utente salta una sezione, non insistere. Ometti la sezione dal JSON.
-5. **Profilo vivente** — Il profilo e' un documento vivente. `br-analyzer` lo aggiorna automaticamente quando rileva nuove convenzioni durante l'analisi dei codebase. Non serve che sia perfetto al primo setup.
+5. **Profilo vivente** — Il profilo e' un documento vivente. `sdlc-analyzer` lo aggiorna automaticamente quando rileva nuove convenzioni durante l'analisi dei codebase. Non serve che sia perfetto al primo setup.

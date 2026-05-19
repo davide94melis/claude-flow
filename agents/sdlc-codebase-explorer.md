@@ -1,6 +1,6 @@
 ---
-name: br-codebase-explorer
-description: Agente generico per l'esplorazione sistematica di un codebase durante la gap analysis. Riceve un profilo progetto, documentazione BR, e path del codebase. Produce output strutturato per confronto documentazione vs codice. Usato da br-analyzer e br-updater.
+name: sdlc-codebase-explorer
+description: Agente generico per l'esplorazione sistematica di un codebase durante la gap analysis. Riceve un profilo progetto, documentazione BR, e path del codebase. Produce output strutturato per confronto documentazione vs codice. Usato da sdlc-analyzer e sdlc-updater.
 subagent_type: Explore
 ---
 

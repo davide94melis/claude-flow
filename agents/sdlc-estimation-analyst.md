@@ -1,6 +1,6 @@
 ---
-name: br-estimation-analyst
-description: Agente per la stima rough di un BR dalla documentazione. Legge i documenti del BR e il profilo progetto (se disponibile), estrae le funzionalita', stima il numero di task, la complessita' prevalente, il tipo di rischio e l'area. Usato da br-estimator in modalita' rough.
+name: sdlc-estimation-analyst
+description: Agente per la stima rough di un BR dalla documentazione. Legge i documenti del BR e il profilo progetto (se disponibile), estrae le funzionalita', stima il numero di task, la complessita' prevalente, il tipo di rischio e l'area. Usato da sdlc-estimator in modalita' rough.
 ---
 
 # BR Estimation Analyst

@@ -1,6 +1,6 @@
 ---
-name: br-estimation-scenario
-description: Agente per il calcolo di scenari di stima con timeline, bottleneck, allocazione team e scope cutting. Riceve task, team, deadline e parametri, produce 3 scenari (ottimistico/realistico/pessimistico) con metriche dettagliate. Invocato iterativamente per simulazioni what-if. Usato da br-estimator.
+name: sdlc-estimation-scenario
+description: Agente per il calcolo di scenari di stima con timeline, bottleneck, allocazione team e scope cutting. Riceve task, team, deadline e parametri, produce 3 scenari (ottimistico/realistico/pessimistico) con metriche dettagliate. Invocato iterativamente per simulazioni what-if. Usato da sdlc-estimator.
 ---
 
 # BR Estimation Scenario

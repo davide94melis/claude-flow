@@ -1,23 +1,23 @@
 ---
-name: br-reviewer
+name: sdlc-reviewer
 description: Verifica la qualita', coerenza e completezza della documentazione funzionale di un BR prima dell'analisi tecnica. Produce un report duale — una parte per il team funzionale (problemi da chiarire) e una parte per il team tecnico (assunzioni di default). Esegue anche un check leggero contro il codice per trovare disallineamenti terminologici e strutturali. Usa questa skill quando l'utente dice "rivedi il br", "review del br", "controlla la documentazione", "verifica il br", "nuovo br da verificare", "c'e' un br da rivedere", o qualsiasi variazione che implichi la necessita' di verificare la qualita' della documentazione funzionale prima di procedere con l'analisi tecnica.
 ---
 
-# BR Reviewer — Review Qualita' Documentazione Funzionale
+# SDLC Reviewer — Review Qualita' Documentazione Funzionale
 
-Questa skill si posiziona *prima* di `br-analyzer` nel flusso BR. Analizza la documentazione funzionale per qualita', coerenza e completezza, produce un report duale (per il funzionale e per il tecnico) e, se si decide di procedere, passa le assunzioni a br-analyzer tramite handoff automatico.
+Questa skill si posiziona *prima* di `sdlc-analyzer` nel flusso BR. Analizza la documentazione funzionale per qualita', coerenza e completezza, produce un report duale (per il funzionale e per il tecnico) e, se si decide di procedere, passa le assunzioni a sdlc-analyzer tramite handoff automatico.
 
 Il flusso BR completo:
 ```
-br-reviewer → br-clarify → br-analyzer → br-executor → br-updater
-                                                      ↘ br-progress-report
+sdlc-reviewer → sdlc-clarify → sdlc-analyzer → sdlc-executor → sdlc-updater
+                                                      ↘ sdlc-progress-report
 ```
 
 Il processo si compone di 4 fasi:
 1. **Raccolta input** (domande conversazionali, una alla volta)
 2. **Conversione documentazione** (tutti i documenti vengono convertiti in MD)
 3. **Analisi della documentazione** (intra-documento, inter-documento, vs codice)
-4. **Generazione output** (REVIEW_BR.md con report duale)
+4. **Generazione output** (CLARIFY.md con report duale)
 
 ---
 
@@ -44,7 +44,7 @@ Il **base path** per tutti gli artefatti BR e': `<profiles_repo>/<profilo>/plans
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `br-profile-setup` per creare il profilo del progetto e configurare il collegamento.
+> `.br-local.json` non trovato. Devi prima eseguire `sdlc-profile-setup` per creare il profilo del progetto e configurare il collegamento.
 
 ### Sincronizzazione prima della lettura
 
@@ -100,7 +100,7 @@ Salva il nome. Verra' usato per creare la cartella `<profiles_repo>/<profilo>/pl
 > Queste servono per verificare la coerenza della documentazione con il codice esistente.
 > Se una repo non e' coinvolta nel BR, non includerla.
 
-Salva i nomi, le sigle e i path. Questi stessi dati verranno riutilizzati da br-analyzer.
+Salva i nomi, le sigle e i path. Questi stessi dati verranno riutilizzati da sdlc-analyzer.
 
 ### Prima di procedere
 
@@ -191,7 +191,7 @@ Per ogni codebase fornito, verifica superficialmente:
 - **API/endpoint** — il BR descrive operazioni che nel codice corrispondono ad API con naming o struttura diversa?
 - **Flussi e stati** — il BR descrive transizioni di stato che nel codice funzionano diversamente?
 
-Lo scopo NON e' fare la gap analysis (quello lo fa `br-analyzer`) ma trovare problemi di *documentazione* visibili solo confrontando col codice: il BR presuppone strutture che nel codice esistono ma sono diverse. Questi disallineamenti vanno segnalati al team funzionale perche' possono essere errori nel BR o evoluzioni non documentate.
+Lo scopo NON e' fare la gap analysis (quello lo fa `sdlc-analyzer`) ma trovare problemi di *documentazione* visibili solo confrontando col codice: il BR presuppone strutture che nel codice esistono ma sono diverse. Questi disallineamenti vanno segnalati al team funzionale perche' possono essere errori nel BR o evoluzioni non documentate.
 
 Usa gli agent di tipo `Explore` per parallelizzare l'esplorazione dei diversi codebase quando possibile.
 
@@ -220,9 +220,9 @@ Per ogni problema documenta:
 - **Domanda per il funzionale**: domanda precisa a cui serve risposta
 - **Assunzione proposta** (solo per i non-bloccanti): cosa il team tecnico assumera' se non arriva chiarimento, con indicazione del rischio e del costo di correzione se l'assunzione si rivela errata
 
-### Generazione del REVIEW_BR.md
+### Generazione del CLARIFY.md
 
-Genera il file `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.md` con questa struttura:
+Genera il file `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/CLARIFY.md` con questa struttura:
 
 ```
 # Review Documentazione BR [nome/versione]
@@ -307,9 +307,9 @@ per capirla.]
 
 ---
 
-## Riepilogo per br-analyzer
+## Riepilogo per sdlc-analyzer
 
-[Sezione tecnica consumata automaticamente da br-analyzer.
+[Sezione tecnica consumata automaticamente da sdlc-analyzer.
 Contiene le assunzioni in formato strutturato che l'analyzer
 puo' incorporare direttamente nel gap report e nel piano.]
 
@@ -317,23 +317,23 @@ Assunzioni confermate: [lista A-XXX delle assunzioni validate dall'utente]
 Bloccanti aperti: [lista dei bloccanti non ancora risolti, se si procede comunque]
 ```
 
-### Generazione REVIEW_BR.docx
+### Generazione CLARIFY.docx
 
-Dopo aver generato REVIEW_BR.md, converti in DOCX per facilitare la compilazione da parte del team funzionale:
+Dopo aver generato CLARIFY.md, converti in DOCX per facilitare la compilazione da parte del team funzionale:
 
 ```bash
-pandoc -f markdown -t docx "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.md" -o "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.docx"
+pandoc -f markdown -t docx "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/CLARIFY.md" -o "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/CLARIFY.docx"
 ```
 
 Entrambi i file (MD e DOCX) vengono salvati nella cartella del BR. Il DOCX contiene i placeholder "*(inserire qui la risposta)*" sotto ogni domanda, pronti per la compilazione.
 
 ### Commit e push degli artefatti
 
-Dopo la generazione di REVIEW_BR.md e REVIEW_BR.docx, fai commit e push nella repo profili:
+Dopo la generazione di CLARIFY.md e CLARIFY.docx, fai commit e push nella repo profili:
 
 ```bash
 git -C "<profiles_repo>" add "<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/"
-git -C "<profiles_repo>" commit -m "[br-reviewer] <nome>: review documentazione completata"
+git -C "<profiles_repo>" commit -m "[sdlc-reviewer] <nome>: review documentazione completata"
 git -C "<profiles_repo>" push origin main --quiet
 ```
 
@@ -348,29 +348,29 @@ Dopo aver generato report e DOCX, presentali all'utente per revisione. L'utente 
 > Review completata. Nessun bloccante trovato.
 >
 > I report sono salvati in `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/`:
-> - `REVIEW_BR.md` — versione markdown
-> - `REVIEW_BR.docx` — versione Word, pronta per la compilazione
+> - `CLARIFY.md` — versione markdown
+> - `CLARIFY.docx` — versione Word, pronta per la compilazione
 >
 > Puoi inviare il **DOCX** al team funzionale: contiene i placeholder per le risposte sotto ogni domanda.
 >
-> Quando ricevi le risposte, usa `br-clarify` per integrarle nel review.
-> Quando vuoi, puoi procedere con `br-analyzer` per l'analisi tecnica — le assunzioni verranno incorporate automaticamente.
+> Quando ricevi le risposte, usa `sdlc-clarify` per integrarle nel review.
+> Quando vuoi, puoi procedere con `sdlc-analyzer` per l'analisi tecnica — le assunzioni verranno incorporate automaticamente.
 
 **Se ci sono bloccanti:**
 
 > Review completata. Ci sono **N problemi bloccanti** ancora aperti.
 >
 > I report sono salvati in `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/`:
-> - `REVIEW_BR.md` — versione markdown
-> - `REVIEW_BR.docx` — versione Word, pronta per la compilazione
+> - `CLARIFY.md` — versione markdown
+> - `CLARIFY.docx` — versione Word, pronta per la compilazione
 >
 > Puoi inviare il **DOCX** al team funzionale: contiene i placeholder per le risposte sotto ogni domanda.
 >
 > **Ti consiglio di attendere chiarimenti dal funzionale prima di procedere con l'analisi tecnica** — il rischio e' di pianificare lavoro su basi fragili che dovra' essere rifatto.
 >
-> Quando ricevi le risposte, usa `br-clarify` per integrarle nel review.
+> Quando ricevi le risposte, usa `sdlc-clarify` per integrarle nel review.
 >
-> Pero' la decisione e' tua: se vuoi procedere comunque con `br-analyzer`, le assunzioni proposte verranno incorporate nel piano e i bloccanti aperti saranno segnalati.
+> Pero' la decisione e' tua: se vuoi procedere comunque con `sdlc-analyzer`, le assunzioni proposte verranno incorporate nel piano e i bloccanti aperti saranno segnalati.
 
 ---
 
@@ -378,4 +378,4 @@ Dopo aver generato report e DOCX, presentali all'utente per revisione. L'utente 
 
 - **`doc-to-markdown`** skill (`~/.claude/skills/doc-to-markdown/`) — per conversione DOCX/DOC in input
 - **`markitdown`** — per conversione PDF, PPTX, XLSX (installato come dipendenza di doc-to-markdown, oppure via `pip install 'markitdown[all]'` o `uvx`)
-- **`pandoc`** — per generazione REVIEW_BR.docx. Deve essere disponibile su PATH.
+- **`pandoc`** — per generazione CLARIFY.docx. Deve essere disponibile su PATH.

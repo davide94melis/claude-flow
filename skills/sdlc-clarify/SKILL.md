@@ -1,26 +1,26 @@
 ---
-name: br-clarify
-description: Gestisce le risposte del team funzionale alle domande sollevate in REVIEW_BR.md da br-reviewer. Aggiorna il report con le risposte ricevute, ri-valuta bloccanti e assunzioni, e rigenera il DOCX. Supporta risposte via DOCX compilato o conversazione diretta, e puo' essere eseguita piu' volte per risposte parziali. Usa questa skill quando l'utente dice "chiarimenti ricevuti", "risposte ricevute", "aggiorna con i chiarimenti", "il funzionale ha risposto", "ho le risposte", "risposte al review", o qualsiasi variazione che implichi la ricezione di risposte dal team funzionale alle domande del review BR.
+name: sdlc-clarify
+description: Gestisce le risposte del team funzionale alle domande sollevate in CLARIFY.md da sdlc-reviewer. Aggiorna il report con le risposte ricevute, ri-valuta bloccanti e assunzioni, e rigenera il DOCX. Supporta risposte via DOCX compilato o conversazione diretta, e puo' essere eseguita piu' volte per risposte parziali. Usa questa skill quando l'utente dice "chiarimenti ricevuti", "risposte ricevute", "aggiorna con i chiarimenti", "il funzionale ha risposto", "ho le risposte", "risposte al review", o qualsiasi variazione che implichi la ricezione di risposte dal team funzionale alle domande del review BR.
 ---
 
-# BR Clarify — Risposte del Funzionale e Aggiornamento Review
+# SDLC Clarify — Risposte del Funzionale e Aggiornamento Review
 
-Questa skill si posiziona tra `br-reviewer` e `br-analyzer` nel flusso BR. Riceve le risposte del team funzionale alle domande sollevate nel REVIEW_BR.md, aggiorna il report, ri-valuta bloccanti e assunzioni, e rigenera il DOCX.
+Questa skill si posiziona tra `sdlc-reviewer` e `sdlc-analyzer` nel flusso BR. Riceve le risposte del team funzionale alle domande sollevate nel CLARIFY.md, aggiorna il report, ri-valuta bloccanti e assunzioni, e rigenera il DOCX.
 
 Il flusso BR completo:
 ```
-br-reviewer → br-clarify → br-analyzer → br-executor → br-updater
-                                                      ↘ br-progress-report
+sdlc-reviewer → sdlc-clarify → sdlc-analyzer → sdlc-executor → sdlc-updater
+                                                      ↘ sdlc-progress-report
 ```
 
-Questa skill puo' essere eseguita **piu' volte** sullo stesso REVIEW_BR.md: ogni esecuzione aggiunge le nuove risposte senza sovrascrivere quelle gia' registrate. Questo supporta lo scenario tipico in cui il funzionale risponde a domande diverse in momenti diversi.
+Questa skill puo' essere eseguita **piu' volte** sullo stesso CLARIFY.md: ogni esecuzione aggiunge le nuove risposte senza sovrascrivere quelle gia' registrate. Questo supporta lo scenario tipico in cui il funzionale risponde a domande diverse in momenti diversi.
 
 Il processo si compone di 6 fasi:
-1. **Auto-detect** (trova il REVIEW_BR.md)
+1. **Auto-detect** (trova il CLARIFY.md)
 2. **Modalita' input** (DOCX compilato o conversazione)
 3. **Acquisizione risposte** (raccolta e conferma)
 4. **Rivalutazione** (aggiorna bloccanti e assunzioni)
-5. **Aggiornamento REVIEW_BR.md** (integra risposte e rigenera DOCX)
+5. **Aggiornamento CLARIFY.md** (integra risposte e rigenera DOCX)
 6. **Riepilogo** (stato aggiornato per l'utente)
 
 ---
@@ -45,7 +45,7 @@ Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `br-profile-setup`.
+> `.br-local.json` non trovato. Devi prima eseguire `sdlc-profile-setup`.
 
 ### Sincronizzazione prima della lettura
 
@@ -63,37 +63,37 @@ git -C "<profiles_repo>" push origin main --quiet
 
 ---
 
-## Fase 1 — Auto-detect REVIEW_BR.md
+## Fase 1 — Auto-detect CLARIFY.md
 
 Cerca automaticamente il report del review nella struttura `plans/` centralizzata:
 
 ```bash
 git -C "<profiles_repo>" pull origin main --quiet
-ls "<profiles_repo>/<profilo>/plans/todo"/*/REVIEW_BR.md 2>/dev/null
-ls "<profiles_repo>/<profilo>/plans/in-progress"/*/REVIEW_BR.md 2>/dev/null
+ls "<profiles_repo>/<profilo>/plans/todo"/*/CLARIFY.md 2>/dev/null
+ls "<profiles_repo>/<profilo>/plans/in-progress"/*/CLARIFY.md 2>/dev/null
 ```
 
-**Se trovi un solo REVIEW_BR.md**, proponilo:
+**Se trovi un solo CLARIFY.md**, proponilo:
 
 > Ho trovato il review del BR:
-> - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_monitoraggio/REVIEW_BR.md`
+> - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_monitoraggio/CLARIFY.md`
 >
 > Uso questo?
 
 **Se ne trovi piu' di uno**, elenca e chiedi:
 
 > Ho trovato piu' review:
-> - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_monitoraggio/REVIEW_BR.md`
-> - `<profiles_repo>/<profilo>/plans/todo/2026-04-25_booking-v2/REVIEW_BR.md`
+> - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_monitoraggio/CLARIFY.md`
+> - `<profiles_repo>/<profilo>/plans/todo/2026-04-25_booking-v2/CLARIFY.md`
 >
 > Quale vuoi aggiornare?
 
 **Se non ne trovi nessuno**, informa:
 
-> Non ho trovato nessun REVIEW_BR.md nella struttura `<profiles_repo>/<profilo>/plans/`.
-> Devi prima eseguire `br-reviewer` per generare il report con le domande.
+> Non ho trovato nessun CLARIFY.md nella struttura `<profiles_repo>/<profilo>/plans/`.
+> Devi prima eseguire `sdlc-reviewer` per generare il report con le domande.
 
-Dopo l'identificazione, leggi il REVIEW_BR.md e analizza la sua struttura:
+Dopo l'identificazione, leggi il CLARIFY.md e analizza la sua struttura:
 - Conta i **problemi bloccanti** e quanti gia' hanno "Risposta del funzionale"
 - Conta i **problemi non bloccanti** e quanti gia' hanno risposta
 - Identifica le **assunzioni proposte** e il loro stato
@@ -111,7 +111,7 @@ Presenta il riepilogo:
 Se tutte le domande hanno gia' risposta:
 
 > Tutte le domande hanno gia' ricevuto risposta.
-> Se vuoi aggiornare una risposta specifica, dimmelo. Altrimenti il review e' completo e puoi procedere con `br-analyzer`.
+> Se vuoi aggiornare una risposta specifica, dimmelo. Altrimenti il review e' completo e puoi procedere con `sdlc-analyzer`.
 
 ---
 
@@ -121,7 +121,7 @@ Chiedi come arrivano le risposte:
 
 > Come arrivano le risposte del funzionale?
 >
-> 1. **DOCX compilato** — il funzionale ha compilato il REVIEW_BR.docx inserendo le risposte sotto ogni domanda
+> 1. **DOCX compilato** — il funzionale ha compilato il CLARIFY.docx inserendo le risposte sotto ogni domanda
 > 2. **Te le dico io** — ho le risposte da email, riunione, chat, o altri canali
 
 Aspetta la risposta prima di procedere.
@@ -134,15 +134,15 @@ Aspetta la risposta prima di procedere.
 
 1. Chiedi il path del DOCX compilato:
 
-> Dammi il path del REVIEW_BR.docx compilato dal funzionale.
+> Dammi il path del CLARIFY.docx compilato dal funzionale.
 
 2. Converti il DOCX in markdown con pandoc:
 
 ```bash
-pandoc -f docx -t markdown "<path-docx-compilato>" -o "<cartella-br>/REVIEW_BR_risposte_temp.md"
+pandoc -f docx -t markdown "<path-docx-compilato>" -o "<cartella-br>/CLARIFY_risposte_temp.md"
 ```
 
-3. Confronta il file convertito con il REVIEW_BR.md originale. Per ogni domanda, cerca differenze nel testo dopo il campo "**Risposta:**":
+3. Confronta il file convertito con il CLARIFY.md originale. Per ogni domanda, cerca differenze nel testo dopo il campo "**Risposta:**":
    - Se il placeholder `*(inserire qui la risposta)*` e' stato sostituito con testo diverso → risposta rilevata
    - Se il placeholder e' invariato o il campo e' assente → nessuna risposta
 
@@ -165,7 +165,7 @@ Se si', passa alla Modalita' B per le domande rimanenti.
 6. Rimuovi il file temporaneo:
 
 ```bash
-rm "<cartella-br>/REVIEW_BR_risposte_temp.md"
+rm "<cartella-br>/CLARIFY_risposte_temp.md"
 ```
 
 ### Modalita' B — Conversazione
@@ -237,17 +237,17 @@ Prima di modificare qualsiasi file, presenta il riepilogo:
 >
 > **Domande ancora aperte**: N
 >
-> Procedo con l'aggiornamento del REVIEW_BR.md?
+> Procedo con l'aggiornamento del CLARIFY.md?
 
 Aspetta conferma.
 
 ---
 
-## Fase 5 — Aggiornamento REVIEW_BR.md e DOCX
+## Fase 5 — Aggiornamento CLARIFY.md e DOCX
 
 ### 5.1 — Aggiornamento problemi (Parte 1)
 
-Per ogni problema che ha ricevuto risposta, aggiorna il blocco nel REVIEW_BR.md aggiungendo i campi:
+Per ogni problema che ha ricevuto risposta, aggiorna il blocco nel CLARIFY.md aggiungendo i campi:
 
 **Per i bloccanti risolti:**
 
@@ -307,14 +307,14 @@ Aggiorna la tabella delle assunzioni aggiungendo le colonne "Stato" e "Risposta 
 | A-005 | NB-5 | [assunzione] | [rischio] | Basso | **Rigettata** | "[risposta diversa]" |
 ```
 
-### 5.3 — Aggiornamento "Riepilogo per br-analyzer"
+### 5.3 — Aggiornamento "Riepilogo per sdlc-analyzer"
 
-Sostituisci l'intera sezione "Riepilogo per br-analyzer" con il formato arricchito:
+Sostituisci l'intera sezione "Riepilogo per sdlc-analyzer" con il formato arricchito:
 
 ```
-## Riepilogo per br-analyzer
+## Riepilogo per sdlc-analyzer
 
-Ultimo aggiornamento: <YYYY-MM-DD> (br-clarify)
+Ultimo aggiornamento: <YYYY-MM-DD> (sdlc-clarify)
 
 ### Bloccanti risolti
 
@@ -346,16 +346,16 @@ Assunzioni rigettate (risposta diversa dall'assunzione):
 
 ### 5.4 — Rigenerazione DOCX
 
-Dopo aver aggiornato il REVIEW_BR.md, rigenera il DOCX:
+Dopo aver aggiornato il CLARIFY.md, rigenera il DOCX:
 
 ```bash
-pandoc -f markdown -t docx "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.md" -o "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/REVIEW_BR.docx"
+pandoc -f markdown -t docx "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/CLARIFY.md" -o "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/CLARIFY.docx"
 ```
 
 Se il file si trova in `<profiles_repo>/<profilo>/plans/in-progress/`, usa quel path:
 
 ```bash
-pandoc -f markdown -t docx "<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/REVIEW_BR.md" -o "<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/REVIEW_BR.docx"
+pandoc -f markdown -t docx "<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/CLARIFY.md" -o "<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/CLARIFY.docx"
 ```
 
 ### 5.5 — Commit e push su deloitte-profiles
@@ -364,7 +364,7 @@ Dopo la rigenerazione del DOCX, effettua commit e push su `deloitte-profiles`:
 
 ```bash
 git -C "<profiles_repo>" add "<profilo>/plans/"
-git -C "<profiles_repo>" commit -m "[br-clarify] <nome>: aggiornato review con risposte funzionale"
+git -C "<profiles_repo>" commit -m "[sdlc-clarify] <nome>: aggiornato review con risposte funzionale"
 git -C "<profiles_repo>" push origin main --quiet
 ```
 
@@ -379,23 +379,23 @@ Presenta all'utente il riepilogo completo:
 > ## Aggiornamento review completato
 >
 > **File aggiornati**:
-> - `[path]/REVIEW_BR.md` — aggiornato con N risposte
-> - `[path]/REVIEW_BR.docx` — rigenerato
+> - `[path]/CLARIFY.md` — aggiornato con N risposte
+> - `[path]/CLARIFY.docx` — rigenerato
 >
 > **Stato**:
 > - Bloccanti: tutti risolti (N su N)
 > - Assunzioni confermate: X | Rigettate: Y | In attesa: Z
 > - Domande ancora aperte: K
 >
-> **Il review e' pronto per `br-analyzer`**. Puoi procedere con l'analisi tecnica — le risposte e le assunzioni verranno incorporate automaticamente nel gap report e nel piano di implementazione.
+> **Il review e' pronto per `sdlc-analyzer`**. Puoi procedere con l'analisi tecnica — le risposte e le assunzioni verranno incorporate automaticamente nel gap report e nel piano di implementazione.
 
 **Se ci sono ancora bloccanti aperti:**
 
 > ## Aggiornamento review completato
 >
 > **File aggiornati**:
-> - `[path]/REVIEW_BR.md` — aggiornato con N risposte
-> - `[path]/REVIEW_BR.docx` — rigenerato
+> - `[path]/CLARIFY.md` — aggiornato con N risposte
+> - `[path]/CLARIFY.docx` — rigenerato
 >
 > **Stato**:
 > - Bloccanti risolti: X su N
@@ -405,8 +405,8 @@ Presenta all'utente il riepilogo completo:
 > - Domande ancora aperte: K
 >
 > **Ci sono ancora bloccanti aperti.** Puoi:
-> 1. Attendere le risposte rimanenti e rieseguire `br-clarify`
-> 2. Procedere comunque con `br-analyzer` (i bloccanti verranno segnalati come "Da chiarire" nel gap report)
+> 1. Attendere le risposte rimanenti e rieseguire `sdlc-clarify`
+> 2. Procedere comunque con `sdlc-analyzer` (i bloccanti verranno segnalati come "Da chiarire" nel gap report)
 
 **Se ci sono assunzioni rigettate:**
 
@@ -416,7 +416,7 @@ Aggiungi al riepilogo:
 > Le seguenti assunzioni del team tecnico sono state corrette dal funzionale:
 > - A-XXX: "[assunzione]" → "[risposta corretta]"
 >
-> Queste correzioni verranno automaticamente incorporate da `br-analyzer`.
+> Queste correzioni verranno automaticamente incorporate da `sdlc-analyzer`.
 
 ---
 
@@ -424,7 +424,7 @@ Aggiungi al riepilogo:
 
 1. **Mai modificare le domande o le categorie originali** — i problemi restano invariati, solo le risposte vengono aggiunte
 2. **Mai sovrascrivere risposte precedenti** — in caso di round multipli, ogni risposta viene aggiunta, non sostituita. Se una risposta deve essere corretta, l'utente lo dice esplicitamente
-3. **Sempre chiedere conferma** — prima di scrivere sul REVIEW_BR.md, mostra la rivalutazione e aspetta conferma
+3. **Sempre chiedere conferma** — prima di scrivere sul CLARIFY.md, mostra la rivalutazione e aspetta conferma
 4. **Sempre rigenerare il DOCX** — dopo ogni modifica al MD, il DOCX deve essere rigenerato
 5. **Preservare la tracciabilita'** — ogni risposta ha la data, ogni assunzione ha lo stato. La storia completa e' sempre leggibile
 6. **Non interpretare le risposte** — riporta la risposta del funzionale cosi' com'e'. La rivalutazione (risolto/non risolto, confermata/rigettata) e' una tua valutazione tecnica che presenti all'utente per conferma
@@ -434,4 +434,4 @@ Aggiungi al riepilogo:
 ## Dipendenze
 
 - **`pandoc`** — per conversione DOCX ↔ MD e rigenerazione DOCX. Deve essere disponibile su PATH.
-- **`br-reviewer`** — deve essere stato eseguito prima (REVIEW_BR.md deve esistere)
+- **`sdlc-reviewer`** — deve essere stato eseguito prima (CLARIFY.md deve esistere)

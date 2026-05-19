@@ -1,9 +1,9 @@
 ---
-name: br-debug
+name: sdlc-debug
 description: Gestisce i bug segnalati dai funzionali durante e dopo il testing di un Business Requirement. Importa bug da Excel o Jira, li collega alle task del piano, li assegna agli sviluppatori, esegue i fix con sottoagenti Claude e verifica in 3 fasi, gestisce la chiusura con validazione funzionale e il re-import iterativo. Supporta qualsiasi composizione di repository. Usa questa skill quando l'utente dice "ci sono dei bug", "bug dal funzionale", "segnalazioni test", "defect ricevuti", "lavora il bug", "fix il bug", "debug br", "il funzionale ha testato", "bug confermati", "aggiorna i bug", o qualsiasi variazione che implichi la gestione di bug su un BR. Attivala anche quando l'utente menziona un file di segnalazioni o chiede di lavorare i defect.
 ---
 
-# BR Debug — Gestione Bug da Testing Funzionale
+# SDLC Debug — Gestione Bug da Testing Funzionale
 
 Questa skill gestisce i bug segnalati dai funzionali durante e dopo il testing di un Business Requirement. Copre l'intero ciclo: importazione, analisi, fix con sottoagenti, verifica, chiusura con validazione funzionale, e re-import iterativo.
 
@@ -78,7 +78,7 @@ Dopo aver risolto i path (vedi sezione "Risoluzione Path"), se il profilo è dis
 
 Quando il profilo è disponibile:
 - Nella Fase 2, instrada i sottoagenti al subagent_type corretto in base allo stack del codebase coinvolto
-- Nella Fase 2, usa br-verifier per la verifica al posto della verifica inline
+- Nella Fase 2, usa sdlc-verifier per la verifica al posto della verifica inline
 - Inietta convenzioni e dominio dal profilo nei prompt dei sottoagenti
 
 ---
@@ -135,7 +135,7 @@ git -C "<profiles_repo>" pull origin main --quiet
 ls -d "<profiles_repo>/<profilo>/plans/todo"/*/ "<profiles_repo>/<profilo>/plans/in-progress"/*/ "<profiles_repo>/<profilo>/plans/done"/*/ 2>/dev/null
 ```
 
-Se ne trovi uno, proponilo. Se piu' di uno, chiedi quale. Se nessuno, avvisa che serve prima un piano di implementazione.
+Se ne trovi uno, proponilo. Se piu' di uno, chiedi quale. Se nessuno, avvisa che serve prima un TASKS.
 
 ### Domanda 2 — Sorgente dei bug
 
@@ -272,7 +272,7 @@ Dopo la scrittura, esegui commit + push su deloitte-profiles:
 
 ```bash
 git -C "<profiles_repo>" add "<profilo>/plans/"
-git -C "<profiles_repo>" commit -m "[br-debug] <nome>: importati N bug da <sorgente>"
+git -C "<profiles_repo>" commit -m "[sdlc-debug] <nome>: importati N bug da <sorgente>"
 git -C "<profiles_repo>" push origin main --quiet
 ```
 
@@ -314,7 +314,7 @@ Se confermato, lancia un sottoagente unico con tutti i bug del gruppo.
 Prima di lanciare il sottoagente:
 
 1. **Leggi la descrizione completa** del bug, inclusi tutti gli Update inline
-2. **Leggi la task collegata** dal piano e dal gap report per il contesto funzionale originale
+2. **Leggi la task collegata** dal TASKS e dal PLAN per il contesto funzionale originale
 3. **Localizza il codice coinvolto** — usa fase/sezione del bug e i file della task collegata. Se necessario, usa un agente `Explore` per trovare il codice rilevante nei codebase
 4. **Leggi gli screenshot** se presenti
 5. **Formula un'ipotesi di root cause** basata su descrizione + codice trovato
@@ -346,7 +346,7 @@ Dopo la conferma, crea il branch in tutte le repo coinvolte:
    git checkout -b fix/<br-name>-BUG-<NNN>-<slug>
    ```
 
-3. **Per ogni altra repo coinvolta** (da `.br-local.json` o dai path forniti nella Fase 1 di br-executor):
+3. **Per ogni altra repo coinvolta** (da `.br-local.json` o dai path forniti nella Fase 1 di sdlc-executor):
    ```bash
    git -C <path-repo-esterna> checkout -b fix/<br-name>-BUG-<NNN>-<slug>
    ```
@@ -442,7 +442,7 @@ Dopo che il sottoagente completa il fix, esegui la verifica in 3 fasi:
 
 **Se il profilo progetto e' disponibile:**
 
-Delega la verifica all'agente `br-verifier` (leggendo le sue istruzioni da `~/.claude/agents/br-verifier.md`). Passa:
+Delega la verifica all'agente `sdlc-verifier` (leggendo le sue istruzioni da `~/.claude/agents/sdlc-verifier.md`). Passa:
 - Requisiti: descrizione del bug + ipotesi di root cause
 - File modificati: lista dei file toccati dal sottoagente
 - Risultati test: output dell'esecuzione test
@@ -509,7 +509,7 @@ Mai committare autonomamente. Suggerisci per ogni repo coinvolta:
 
 **Se il fix coinvolge piu' repo:**
 
-Fornisci suggerimenti separati per ogni repo, come fa br-executor.
+Fornisci suggerimenti separati per ogni repo, come fa sdlc-executor.
 
 Aspetta la conferma prima di proseguire.
 
@@ -614,7 +614,7 @@ Dopo la scrittura, esegui commit + push:
 
 ```bash
 git -C "<profiles_repo>" add "<profilo>/plans/"
-git -C "<profiles_repo>" commit -m "[br-debug] <nome>: debug completato (N bug risolti)"
+git -C "<profiles_repo>" commit -m "[sdlc-debug] <nome>: debug completato (N bug risolti)"
 git -C "<profiles_repo>" push origin main --quiet
 ```
 
@@ -703,13 +703,13 @@ Ultimo aggiornamento: <data e ora>
 ## Context
 
 This is one of the skills in the BR (Business Requirement) lifecycle suite. The other skills are:
-- br-reviewer: reviews functional documentation quality
-- br-clarify: manages functional team responses to review questions
-- br-analyzer: gap analysis between BR docs and codebase
-- br-executor: executes implementation tasks from the plan
-- br-updater: updates plan when BR documentation changes
-- br-progress-report: generates Excel progress reports
+- sdlc-reviewer: reviews functional documentation quality
+- sdlc-clarify: manages functional team responses to review questions
+- sdlc-analyzer: gap analysis between BR docs and codebase
+- sdlc-executor: executes implementation tasks from the plan
+- sdlc-updater: updates plan when BR documentation changes
+- sdlc-progress-report: generates Excel progress reports
 
-br-debug fits as a PARALLEL stage alongside br-executor. It uses the same patterns: subagent delegation, 3-phase verification, progress tracking.
+sdlc-debug fits as a PARALLEL stage alongside sdlc-executor. It uses the same patterns: subagent delegation, 3-phase verification, progress tracking.
 
-All BR artifacts (PIANO_IMPLEMENTAZIONE_BR.md, GAP_REPORT_BR.md, PROGRESSO_BR.md, BUG_REPORT_BR.md, screenshots) live centrally in `<profiles_repo>/<profilo>/plans/`, not in the code repository. `BUG_REPORT_BR.md` is the source of truth for bugs.
+All BR artifacts (TASKS.md, PLAN.md, PROGRESSO_BR.md, BUG_REPORT_BR.md, screenshots) live centrally in `<profiles_repo>/<profilo>/plans/`, not in the code repository. `BUG_REPORT_BR.md` is the source of truth for bugs.

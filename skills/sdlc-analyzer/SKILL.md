@@ -1,21 +1,21 @@
 ---
-name: br-analyzer
+name: sdlc-analyzer
 description: Analizza un nuovo Business Requirement (BR) confrontandolo con i codebase esistenti del progetto, genera un gap report dettagliato per funzionalità e un piano di implementazione con task indipendenti assegnate a sviluppatori muniti di Claude Code. Usa questa skill quando l'utente dice "abbiamo un nuovo br", "nuovo br", "c'è un br nuovo", "analizza il br", "gap analysis br", "nuovo business requirement", o qualsiasi variazione che implichi l'arrivo di un nuovo documento di requisiti da analizzare e pianificare. Attivala anche quando l'utente menziona la necessità di confrontare documentazione di requisiti con il codice per trovare cosa manca e pianificare lo sviluppo.
 ---
 
-# BR Analyzer — Gap Report & Piano di Implementazione
+# SDLC Analyzer — PLAN & TASKS
 
 Questa skill guida l'analisi di un nuovo Business Requirement: dal confronto con i codebase al piano di sviluppo con task indipendenti per un team di sviluppatori, ognuno munito di Claude Code.
 
 Il flusso BR completo:
 ```
-br-reviewer → br-clarify → br-analyzer → br-executor → br-updater
-                                                      ↘ br-progress-report
+sdlc-reviewer → sdlc-clarify → sdlc-analyzer → sdlc-executor → sdlc-updater
+                                                      ↘ sdlc-progress-report
 ```
 
 Il processo si compone di 4 fasi:
 1. **Raccolta input** (domande conversazionali, una alla volta)
-2. **Conversione documentazione** (solo se `br-reviewer` non e' stato eseguito prima — se trova `requirements/` nella cartella del BR, salta questa fase)
+2. **Conversione documentazione** (solo se `sdlc-reviewer` non e' stato eseguito prima — se trova `requirements/` nella cartella del BR, salta questa fase)
 3. **Analisi gap** (confronto documentazione vs codice)
 4. **Generazione output** (2 file MD: gap report + piano di implementazione, nella cartella del BR)
 
@@ -41,7 +41,7 @@ Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `br-profile-setup`.
+> `.br-local.json` non trovato. Devi prima eseguire `sdlc-profile-setup`.
 
 ### Sincronizzazione prima della lettura
 
@@ -65,35 +65,35 @@ Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 
 ### Domanda 0 — Cartella BR esistente
 
-Prima di chiedere qualsiasi cosa, verifica se esiste una cartella BR in `<profiles_repo>/<profilo>/plans/todo/` con un `REVIEW_BR.md` (segno che `br-reviewer` e' stato eseguito):
+Prima di chiedere qualsiasi cosa, verifica se esiste una cartella BR in `<profiles_repo>/<profilo>/plans/todo/` con un `CLARIFY.md` (segno che `sdlc-reviewer` e' stato eseguito):
 
 ```bash
 git -C "<profiles_repo>" pull origin main --quiet
-ls "<profiles_repo>/<profilo>/plans/todo"/*/REVIEW_BR.md 2>/dev/null
+ls "<profiles_repo>/<profilo>/plans/todo"/*/CLARIFY.md 2>/dev/null
 ```
 
-**Se trovi una cartella con REVIEW_BR.md**, proponila:
+**Se trovi una cartella con CLARIFY.md**, proponila:
 
 > Ho trovato una cartella BR con review gia' completata:
-> - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_booking-v2/REVIEW_BR.md`
+> - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_booking-v2/CLARIFY.md`
 > - Documentazione convertita in `requirements/`
 >
 > Uso questa come base? Le assunzioni dalla review verranno incorporate nel piano.
 
 Se l'utente conferma:
-- Leggi il `REVIEW_BR.md`, in particolare la sezione "Riepilogo per br-analyzer"
-- Controlla se `br-clarify` e' stato eseguito: cerca "Ultimo aggiornamento:" con "(br-clarify)" nel riepilogo
-- **Se br-clarify e' stato eseguito**:
+- Leggi il `CLARIFY.md`, in particolare la sezione "Riepilogo per sdlc-analyzer"
+- Controlla se `sdlc-clarify` e' stato eseguito: cerca "Ultimo aggiornamento:" con "(sdlc-clarify)" nel riepilogo
+- **Se sdlc-clarify e' stato eseguito**:
   - Estrai i bloccanti risolti → usali come fatti certi nell'analisi gap
   - Estrai le assunzioni confermate dal funzionale → usale come fatti
   - Estrai le assunzioni rigettate → usa la risposta del funzionale al posto dell'assunzione
   - Estrai le assunzioni adottate senza risposta → usale con rischio segnalato
   - Mostra all'utente: "Review con chiarimenti: N bloccanti risolti, M assunzioni confermate, K bloccanti ancora aperti"
   - I bloccanti ancora aperti vengono segnalati come "Da chiarire" nel gap report
-- **Se br-clarify NON e' stato eseguito**:
-  - Usa la sezione "Riepilogo per br-analyzer" nella sua forma originale (assunzioni confermate dall'utente e bloccanti aperti)
+- **Se sdlc-clarify NON e' stato eseguito**:
+  - Usa la sezione "Riepilogo per sdlc-analyzer" nella sua forma originale (assunzioni confermate dall'utente e bloccanti aperti)
 - Usa i file in `requirements/` per l'analisi (salta la Fase 2)
-- Salta le domande su documentazione e codebase — leggile dal REVIEW_BR.md
+- Salta le domande su documentazione e codebase — leggile dal CLARIFY.md
 - Procedi direttamente alla Domanda 3 (Team di sviluppo)
 
 **Se non trovi nulla**, chiedi il nome del BR:
@@ -157,9 +157,9 @@ Procedi solo dopo la conferma.
 
 ## Fase 2 — Conversione Documentazione in Markdown
 
-**Se `br-reviewer` e' stato eseguito** e la cartella `requirements/` esiste gia' nella cartella del BR (`<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/requirements/`), **salta completamente questa fase** e vai alla Fase 3. La conversione e' gia' stata fatta da br-reviewer.
+**Se `sdlc-reviewer` e' stato eseguito** e la cartella `requirements/` esiste gia' nella cartella del BR (`<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/requirements/`), **salta completamente questa fase** e vai alla Fase 3. La conversione e' gia' stata fatta da sdlc-reviewer.
 
-**Se `br-reviewer` non e' stato eseguito**, converti tutti i documenti non-MD in formato Markdown. Questo riduce significativamente il contesto necessario e rende i documenti piu' leggibili per l'analisi.
+**Se `sdlc-reviewer` non e' stato eseguito**, converti tutti i documenti non-MD in formato Markdown. Questo riduce significativamente il contesto necessario e rende i documenti piu' leggibili per l'analisi.
 
 ### Procedura di conversione
 
@@ -260,19 +260,19 @@ Il livello di dettaglio deve essere sufficiente perché un agente Claude Code, l
 
 ## Fase 4 — Generazione Output
 
-Se la cartella del BR non esiste ancora (br-reviewer non eseguito), creala:
+Se la cartella del BR non esiste ancora (sdlc-reviewer non eseguito), creala:
 
 ```bash
 mkdir -p "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements"
 ```
 
-(in-progress e done sono già create da br-profile-setup)
+(in-progress e done sono già create da sdlc-profile-setup)
 
-Genera entrambi i file nella cartella del BR in `<profiles_repo>/<profilo>/plans/todo/`. Questo e' lo stato iniziale: la cartella intera si sposta in `in-progress/` quando uno sviluppatore avvia la lavorazione con `br-executor`, e in `done/` al completamento di tutte le task.
+Genera entrambi i file nella cartella del BR in `<profiles_repo>/<profilo>/plans/todo/`. Questo e' lo stato iniziale: la cartella intera si sposta in `in-progress/` quando uno sviluppatore avvia la lavorazione con `sdlc-executor`, e in `done/` al completamento di tutte le task.
 
-### 4.1 — Gap Report
+### 4.1 — PLAN
 
-**Path file**: `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/GAP_REPORT_BR.md`
+**Path file**: `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/PLAN.md`
 
 Struttura:
 
@@ -296,14 +296,14 @@ Codebase verificati:
 
 ## Assunzioni da review
 
-[Se br-reviewer non e' stato eseguito:]
+[Se sdlc-reviewer non e' stato eseguito:]
 Nessuna review preventiva eseguita.
 
-[Se br-reviewer eseguito ma br-clarify NON eseguito:]
-Assunzioni confermate dall'utente: [lista A-XXX dal REVIEW_BR.md]
-Bloccanti aperti: [lista dal REVIEW_BR.md, segnalati come "Da chiarire" nei gap]
+[Se sdlc-reviewer eseguito ma sdlc-clarify NON eseguito:]
+Assunzioni confermate dall'utente: [lista A-XXX dal CLARIFY.md]
+Bloccanti aperti: [lista dal CLARIFY.md, segnalati come "Da chiarire" nei gap]
 
-[Se br-clarify e' stato eseguito:]
+[Se sdlc-clarify e' stato eseguito:]
 Bloccanti risolti (risposte del funzionale, usate come fatti nell'analisi):
 - [B1] [Titolo] → [sintesi risposta]
 [...]
@@ -353,9 +353,9 @@ Genera dinamicamente una colonna per ogni repository coinvolta, usando le sigle 
 
 Ogni riga della matrice e ogni gap aperto deve contenere path esatti ai file rilevanti, in modo che gli agenti Claude Code possano navigare direttamente al codice interessato.
 
-### 4.2 — Piano di Implementazione
+### 4.2 — TASKS
 
-**Path file**: `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/PIANO_IMPLEMENTAZIONE_BR.md`
+**Path file**: `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/TASKS.md`
 
 Struttura:
 
@@ -366,7 +366,7 @@ Data: `<data>`
 
 Assunzioni:
 - [contesto, cosa e' gia' completato, perimetro residuo]
-- [se br-reviewer e' stato eseguito, includi qui tutte le assunzioni confermate dalla review, con riferimento al REVIEW_BR.md]
+- [se sdlc-reviewer e' stato eseguito, includi qui tutte le assunzioni confermate dalla review, con riferimento al CLARIFY.md]
 - team disponibile:
   - [per ogni sviluppatore: ruolo e seniority]
 
@@ -402,7 +402,7 @@ Regole:
 - Le task di Wave 0 (fondazioni) vanno tipicamente in uno stream dedicato `stream-fondazioni`
 - Lo stream è un campo organizzativo per raggruppare le task — NON ha ruolo nella logica di sblocco delle dipendenze dell'executor
 
-**Dipendenze cross-stream e merge task automatici**: quando una task in uno stream dipende da una task in un altro stream, br-analyzer inserisce automaticamente una **merge task** tra le due. La merge task rappresenta l'atto di mergiare il branch dello stream sorgente nel branch base condiviso. Questo rende esplicita la dipendenza: l'executor non deve conoscere la logica degli stream — tutte le dipendenze si sbloccano semplicemente quando lo stato è "Completata". All'interno dello stesso stream, le dipendenze dirette sono sufficienti e non serve alcuna merge task.
+**Dipendenze cross-stream e merge task automatici**: quando una task in uno stream dipende da una task in un altro stream, sdlc-analyzer inserisce automaticamente una **merge task** tra le due. La merge task rappresenta l'atto di mergiare il branch dello stream sorgente nel branch base condiviso. Questo rende esplicita la dipendenza: l'executor non deve conoscere la logica degli stream — tutte le dipendenze si sbloccano semplicemente quando lo stato è "Completata". All'interno dello stesso stream, le dipendenze dirette sono sufficienti e non serve alcuna merge task.
 
 [Lista degli stream identificati con descrizione, es:]
 - `stream-fondazioni` — entità, enum, migration condivise
@@ -475,11 +475,11 @@ Regole:
 
 ### 4.3 — Commit e push degli artefatti BR
 
-Dopo aver generato `GAP_REPORT_BR.md` e `PIANO_IMPLEMENTAZIONE_BR.md`, esegui commit e push verso `deloitte-profiles`:
+Dopo aver generato `PLAN.md` e `TASKS.md`, esegui commit e push verso `deloitte-profiles`:
 
 ```bash
 git -C "<profiles_repo>" add "<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/"
-git -C "<profiles_repo>" commit -m "[br-analyzer] <nome>: gap report e piano di implementazione"
+git -C "<profiles_repo>" commit -m "[sdlc-analyzer] <nome>: gap report e piano di implementazione"
 git -C "<profiles_repo>" push origin main --quiet
 ```
 
@@ -489,7 +489,7 @@ Quando scomponi il lavoro in task, questi principi guidano le decisioni:
 
 **Organizzazione in stream** — Raggruppa le task in stream funzionali coesi (es. `stream-booking`, `stream-monitoraggio`). Le task nello stesso stream condividono il contesto di codice e possono dipendere direttamente tra loro. Per le dipendenze cross-stream, inserisci sempre una merge task esplicita tra la task sorgente e quella dipendente.
 
-**Merge task per dipendenze cross-stream** — Quando una task in stream-X dipende da una task in stream-Y, br-analyzer DEVE inserire una merge task tra di esse (es. `T-005` in `stream-fondazioni` -> `T-MERGE-005` -> `T-010` in `stream-booking`). La merge task:
+**Merge task per dipendenze cross-stream** — Quando una task in stream-X dipende da una task in stream-Y, sdlc-analyzer DEVE inserire una merge task tra di esse (es. `T-005` in `stream-fondazioni` -> `T-MERGE-005` -> `T-010` in `stream-booking`). La merge task:
 - Appartiene allo stream sorgente (stream-Y)
 - Ha come owner suggerito lo sviluppatore che ha completato la task sorgente
 - Ha effort ~0.5gg e type "merge"
@@ -511,6 +511,6 @@ Quando scomponi il lavoro in task, questi principi guidano le decisioni:
 
 ## Dipendenze
 
-- **`doc-to-markdown`** skill (`~/.claude/skills/doc-to-markdown/`) — per conversione DOCX/DOC (solo se br-reviewer non e' stato eseguito)
-- **`markitdown`** — per conversione PDF, PPTX, XLSX (solo se br-reviewer non e' stato eseguito)
-- **`br-reviewer`** — (opzionale ma consigliato) se eseguito prima, br-analyzer ne legge il REVIEW_BR.md e salta la conversione
+- **`doc-to-markdown`** skill (`~/.claude/skills/doc-to-markdown/`) — per conversione DOCX/DOC (solo se sdlc-reviewer non e' stato eseguito)
+- **`markitdown`** — per conversione PDF, PPTX, XLSX (solo se sdlc-reviewer non e' stato eseguito)
+- **`sdlc-reviewer`** — (opzionale ma consigliato) se eseguito prima, sdlc-analyzer ne legge il CLARIFY.md e salta la conversione

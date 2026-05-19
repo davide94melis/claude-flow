@@ -1,11 +1,11 @@
 ---
-name: br-progress-report
-description: Genera o aggiorna un file Excel con il riepilogo completo delle task, progressi e avanzamenti per sviluppatore a partire dal piano e dal file di progresso di br-analyzer/br-executor. Supporta qualsiasi composizione di repository — i nomi e le sigle vengono letti dinamicamente dal piano. Usa questa skill quando l'utente dice "genera il report excel", "aggiorna l'excel", "stato avanzamento excel", "esporta il progresso", "report avanzamento", "excel dei progressi", "aggiorna il foglio", "com'è la situazione delle task", o qualsiasi variazione che implichi la necessità di un report Excel sullo stato di avanzamento delle task di un piano BR.
+name: sdlc-progress-report
+description: Genera o aggiorna un file Excel con il riepilogo completo delle task, progressi e avanzamenti per sviluppatore a partire dal piano e dal file di progresso di sdlc-analyzer/sdlc-executor. Supporta qualsiasi composizione di repository — i nomi e le sigle vengono letti dinamicamente dal piano. Usa questa skill quando l'utente dice "genera il report excel", "aggiorna l'excel", "stato avanzamento excel", "esporta il progresso", "report avanzamento", "excel dei progressi", "aggiorna il foglio", "com'è la situazione delle task", o qualsiasi variazione che implichi la necessità di un report Excel sullo stato di avanzamento delle task di un piano BR.
 ---
 
-# BR Progress Report — Export Excel Avanzamento Task
+# SDLC Progress Report — Export Excel Avanzamento Task
 
-Questa skill genera o aggiorna un file Excel con il riepilogo completo delle task, dei progressi per sviluppatore e dello stato di avanzamento complessivo, a partire dal piano e dal file di progresso generati da `br-analyzer` / `br-executor`.
+Questa skill genera o aggiorna un file Excel con il riepilogo completo delle task, dei progressi per sviluppatore e dello stato di avanzamento complessivo, a partire dal piano e dal file di progresso generati da `sdlc-analyzer` / `sdlc-executor`.
 
 ---
 
@@ -27,7 +27,7 @@ Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `br-profile-setup`.
+> `.br-local.json` non trovato. Devi prima eseguire `sdlc-profile-setup`.
 
 ### Sincronizzazione prima della lettura
 
@@ -57,15 +57,15 @@ ls -d "<profiles_repo>/<profilo>/plans/in-progress"/*/ "<profiles_repo>/<profilo
 ```
 
 Serve trovare:
-- **Piano di Implementazione** (`PIANO_IMPLEMENTAZIONE_BR.md`) — obbligatorio
+- **TASKS** (`TASKS.md`) — obbligatorio
 - **File di Progresso** (`PROGRESSO_BR.md`) — opzionale, se non esiste le task partono tutte da 0%
-- **Gap Report** (`GAP_REPORT_BR.md`) — opzionale, usato per arricchire le descrizioni
+- **PLAN** (`PLAN.md`) — opzionale, usato per arricchire le descrizioni
 
 **Se trovi cartelle BR**, proponile:
 
 > Ho trovato:
 > - `<profiles_repo>/<profilo>/plans/in-progress/2026-04-28_booking-v2/`
->   - `PIANO_IMPLEMENTAZIONE_BR.md`
+>   - `TASKS.md`
 >   - `PROGRESSO_BR.md`
 >
 > Uso questa cartella per generare l'Excel?
@@ -242,7 +242,7 @@ Salva nella stessa cartella del BR all'interno della repo centralizzata:
 
 Se il file esiste già, non ricrearlo da zero. Aggiorna solo:
 - I valori di progresso e stato (dal file di progresso aggiornato)
-- Eventuali task nuove (aggiunte da `br-updater`)
+- Eventuali task nuove (aggiunte da `sdlc-updater`)
 - Eventuali task annullate/sospese
 - Il foglio "Per Sviluppatore" e "Riepilogo" ricalcolati
 - Preserva eventuali note manuali aggiunte dall'utente nelle celle Note
@@ -269,7 +269,7 @@ Dopo aver salvato l'Excel, fai commit e push nella repo centralizzata:
 
 ```bash
 git -C "<profiles_repo>" add "<profilo>/plans/"
-git -C "<profiles_repo>" commit -m "[br-progress-report] <nome>: aggiornato Excel avanzamento"
+git -C "<profiles_repo>" commit -m "[sdlc-progress-report] <nome>: aggiornato Excel avanzamento"
 git -C "<profiles_repo>" push origin main --quiet
 ```
 

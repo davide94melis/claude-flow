@@ -1,11 +1,11 @@
 ---
-name: br-executor
-description: Esegue i task del piano di implementazione generato da br-analyzer. Ogni sviluppatore/agente usa questa skill per lavorare le proprie task assegnate, con sottoagenti Claude che implementano codice e test mentre l'agente principale coordina, verifica e traccia il progresso. Supporta qualsiasi composizione di repository — il progetto può avere una o più repo con nomi arbitrari. Usa questa skill quando l'utente dice "lavora il task", "inizia a lavorare", "esegui il piano", "sono lo sviluppatore X", "devo lavorare le mie task", "task executor", "esegui task", o qualsiasi variazione che implichi l'inizio della lavorazione di task da un piano di implementazione BR. Attivala anche quando l'utente menziona un file di progresso o chiede di riprendere il lavoro su task assegnate.
+name: sdlc-executor
+description: Esegue i task del piano di implementazione generato da sdlc-analyzer. Ogni sviluppatore/agente usa questa skill per lavorare le proprie task assegnate, con sottoagenti Claude che implementano codice e test mentre l'agente principale coordina, verifica e traccia il progresso. Supporta qualsiasi composizione di repository — il progetto può avere una o più repo con nomi arbitrari. Usa questa skill quando l'utente dice "lavora il task", "inizia a lavorare", "esegui il piano", "sono lo sviluppatore X", "devo lavorare le mie task", "task executor", "esegui task", o qualsiasi variazione che implichi l'inizio della lavorazione di task da un piano di implementazione BR. Attivala anche quando l'utente menziona un file di progresso o chiede di riprendere il lavoro su task assegnate.
 ---
 
-# BR Executor — Esecuzione Task da Piano di Implementazione
+# SDLC Executor — Esecuzione Task da TASKS
 
-Questa skill è il complemento operativo di `br-analyzer`. Mentre `br-analyzer` analizza un BR e genera gap report + piano di implementazione, questa skill permette a ogni sviluppatore (assistito da un agente Claude Code) di eseguire le proprie task assegnate.
+Questa skill è il complemento operativo di `sdlc-analyzer`. Mentre `sdlc-analyzer` analizza un BR e genera PLAN + TASKS, questa skill permette a ogni sviluppatore (assistito da un agente Claude Code) di eseguire le proprie task assegnate.
 
 L'agente principale coordina il lavoro, delega l'implementazione a sottoagenti, verifica i risultati e tiene aggiornato il file di progresso.
 
@@ -77,16 +77,16 @@ ls -d "<profiles_repo>/<profilo>/plans/todo"/*/ "<profiles_repo>/<profilo>/plans
 **Se trovi cartelle BR**, elencale e proponi:
 
 > Ho trovato queste cartelle BR:
-> - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_booking-v2/` (contiene GAP_REPORT_BR.md, PIANO_IMPLEMENTAZIONE_BR.md)
+> - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_booking-v2/` (contiene PLAN.md, TASKS.md)
 > - `<profiles_repo>/<profilo>/plans/in-progress/2026-04-15_monitoraggio/` (contiene PROGRESSO_BR.md)
 >
 > Quale vuoi lavorare? Oppure dammi i path manualmente.
 
 **Se non trovi nulla**, chiedi:
 
-> Per iniziare mi servono i file generati da br-analyzer:
-> 1. **Gap Report** — il file `GAP_REPORT_BR.md`
-> 2. **Piano di Implementazione** — il file `PIANO_IMPLEMENTAZIONE_BR.md`
+> Per iniziare mi servono i file generati da sdlc-analyzer:
+> 1. **PLAN** — il file `PLAN.md`
+> 2. **TASKS** — il file `TASKS.md`
 > 3. **File di Progresso** — se esiste gia' un file `PROGRESSO_BR.md`, dammi il path. Se non esiste ancora, lo creo io.
 
 Leggi tutti i file forniti. Estrai dal gap report e dal piano:
@@ -101,7 +101,7 @@ Quando lo sviluppatore conferma e la lavorazione sta per iniziare, sposta l'inte
 ```bash
 git -C "<profiles_repo>" mv "<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/" "<profilo>/plans/in-progress/"
 git -C "<profiles_repo>" add .
-git -C "<profiles_repo>" commit -m "[br-executor] <nome>: avvio lavorazione, spostato in in-progress"
+git -C "<profiles_repo>" commit -m "[sdlc-executor] <nome>: avvio lavorazione, spostato in in-progress"
 git -C "<profiles_repo>" push origin main --quiet
 ```
 
@@ -212,7 +212,7 @@ Aggiorna sempre il campo "Ultimo aggiornamento" e aggiungi una riga al Log Attiv
 
 ```bash
 git -C "<profiles_repo>" add "<profilo>/plans/in-progress/<data>_<nome>/PROGRESSO_BR.md"
-git -C "<profiles_repo>" commit -m "[br-progress] <task-id> -> <progresso>%"
+git -C "<profiles_repo>" commit -m "[sdlc-progress] <task-id> -> <progresso>%"
 git -C "<profiles_repo>" push origin main --quiet
 ```
 
@@ -253,7 +253,7 @@ Tutti gli sviluppatori scrivono nello stesso file nella repo centralizzata, quin
 
 Prima di iniziare una task, verifica le dipendenze usando il **file di progresso** (dopo il pull e' gia' aggiornato con il lavoro di tutti gli sviluppatori).
 
-La regola e' semplice: una dipendenza e' soddisfatta quando il suo stato nel file di progresso e' **"Completata"**. Non serve nessun controllo sugli stream — le dipendenze cross-stream sono gestite tramite merge task esplicite inserite nel piano da br-analyzer.
+La regola e' semplice: una dipendenza e' soddisfatta quando il suo stato nel file di progresso e' **"Completata"**. Non serve nessun controllo sugli stream — le dipendenze cross-stream sono gestite tramite merge task esplicite inserite nel piano da sdlc-analyzer.
 
 Logica di verifica per ogni dipendenza:
 
@@ -521,7 +521,7 @@ Dopo aver completato una task, verifica nel file di progresso se **tutte** le ta
 ```bash
 git -C "<profiles_repo>" mv "<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/" "<profilo>/plans/done/"
 git -C "<profiles_repo>" add .
-git -C "<profiles_repo>" commit -m "[br-executor] <nome>: tutte le task completate, spostato in done"
+git -C "<profiles_repo>" commit -m "[sdlc-executor] <nome>: tutte le task completate, spostato in done"
 git -C "<profiles_repo>" push origin main --quiet
 ```
 

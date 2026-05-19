@@ -1,6 +1,6 @@
 ---
-name: br-estimation-historian
-description: Agente per l'analisi storica dei BR completati. Scansiona la directory dei BR completati, estrae metriche reali (task, giorni, dev) e calcola un fattore di calibrazione per correggere le stime default. Usato da br-estimator in entrambe le modalita'.
+name: sdlc-estimation-historian
+description: Agente per l'analisi storica dei BR completati. Scansiona la directory dei BR completati, estrae metriche reali (task, giorni, dev) e calcola un fattore di calibrazione per correggere le stime default. Usato da sdlc-estimator in entrambe le modalita'.
 ---
 
 # BR Estimation Historian
@@ -21,7 +21,7 @@ ls -d "<plans_done_path>"/*/ 2>/dev/null
 ```
 
 Per ogni cartella trovata, leggi:
-- `PIANO_IMPLEMENTAZIONE_BR.md` — per la lista task con complessita'
+- `TASKS.md` — per la lista task con complessita'
 - `PROGRESSO_BR.md` — per le date effettive di completamento, gli sviluppatori, le percentuali
 
 Estrai per ogni BR:
