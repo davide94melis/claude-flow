@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 # migrate-sdlc-naming.sh
-# Rinomina i file BR legacy (REVIEW_BR/GAP_REPORT_BR/PIANO_IMPLEMENTAZIONE_BR/
-# PROGRESSO_BR/AVANZAMENTO_BR) ai nomi nuovi (CLARIFY/PLAN/TASKS/PROGRESS.md/
-# PROGRESS.xlsx) nelle cartelle plans/{in-progress,todo}/ del repo profili.
+# Rinomina i file BR legacy (con suffisso _BR) ai nomi nuovi nelle cartelle
+# plans/{in-progress,todo}/ del repo profili. Mapping:
+#   REVIEW_BR.md/.docx           -> CLARIFY.md/.docx
+#   GAP_REPORT_BR.md             -> PLAN.md
+#   PIANO_IMPLEMENTAZIONE_BR.md  -> TASKS.md
+#   PROGRESSO_BR.md              -> PROGRESS.md
+#   AVANZAMENTO_BR.xlsx          -> PROGRESS.xlsx
+#   STIMA_BR.md/.xlsx            -> ESTIMATE.md/.xlsx
+#   BUG_REPORT_BR.md             -> BUG_REPORT.md
 #
 # Default: dry-run. Usa --apply per eseguire i git mv.
 # Default root: C:/Users/davmelis/Documents/MyGitHub/deloitte-profiles
@@ -38,6 +44,9 @@ declare -A MAP=(
   ["PIANO_IMPLEMENTAZIONE_BR.md"]="TASKS.md"
   ["PROGRESSO_BR.md"]="PROGRESS.md"
   ["AVANZAMENTO_BR.xlsx"]="PROGRESS.xlsx"
+  ["STIMA_BR.md"]="ESTIMATE.md"
+  ["STIMA_BR.xlsx"]="ESTIMATE.xlsx"
+  ["BUG_REPORT_BR.md"]="BUG_REPORT.md"
 )
 
 PREFIX="[DRY-RUN]"

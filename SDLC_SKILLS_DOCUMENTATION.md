@@ -28,8 +28,8 @@ BR / Documentazione
         v
   [sdlc-estimator]  ──>  plans/todo/<data>_<nome>/
         |                  |
-        |            STIMA_BR.md
-        |            STIMA_BR.xlsx
+        |            ESTIMATE.md
+        |            ESTIMATE.xlsx
         |
         v
   [sdlc-analyzer]   ──>  plans/todo/<data>_<nome>/
@@ -56,7 +56,7 @@ BR / Documentazione
         |   (per bug post-testing)
         |         |
         |         v
-        |   [sdlc-debug]  ──>  BUG_REPORT_BR.md
+        |   [sdlc-debug]  ──>  BUG_REPORT.md
         |                    fix con sottoagenti + verifica
         |
         v
@@ -85,12 +85,12 @@ deloitte-profiles/                       # repo separata, centralizzata per tutt
         │       ├── CLARIFY.docx
         │       ├── PLAN.md
         │       ├── TASKS.md
-        │       └── STIMA_BR.md / .xlsx
+        │       └── ESTIMATE.md / .xlsx
         ├── in-progress/
         │   └── <data>_<nome-br>/
         │       ├── (tutti i file da todo +)
         │       ├── PROGRESS.md
-        │       ├── BUG_REPORT_BR.md
+        │       ├── BUG_REPORT.md
         │       ├── PROGRESS.xlsx
         │       └── screenshots/
         └── done/
@@ -571,7 +571,7 @@ Due modalita supportate:
 1. **Excel**: l'utente fornisce un file Excel con i bug segnalati. La skill legge le colonne (ID, Titolo, Descrizione, Severita, Owner, Stato, ...), normalizza i campi e propone un riepilogo.
 2. **Jira**: tramite la skill `jira` o l'integrazione MCP, importa i ticket della query/filtro specificato.
 
-I bug importati vengono salvati in `BUG_REPORT_BR.md` nella cartella `<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/`. Ogni bug viene collegato (quando possibile) alla task del piano di provenienza.
+I bug importati vengono salvati in `BUG_REPORT.md` nella cartella `<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/`. Ogni bug viene collegato (quando possibile) alla task del piano di provenienza.
 
 #### Fase 2 — Assegnazione
 
@@ -759,8 +759,8 @@ Permette di simulare:
 #### Fase 5 — Output
 
 Genera in `<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/`:
-- `STIMA_BR.md`: report completo con scenari, simulazioni, bottleneck, raccomandazioni
-- `STIMA_BR.xlsx`: foglio Excel con tabelle scenari, allocazione team per settimana, what-if
+- `ESTIMATE.md`: report completo con scenari, simulazioni, bottleneck, raccomandazioni
+- `ESTIMATE.xlsx`: foglio Excel con tabelle scenari, allocazione team per settimana, what-if
 
 ### Dipendenze
 

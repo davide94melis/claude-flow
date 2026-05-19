@@ -87,7 +87,7 @@ Quando il profilo è disponibile:
 
 La skill rileva automaticamente la modalita' di funzionamento:
 
-- **Import mode**: non esiste `BUG_REPORT_BR.md` nella cartella del BR, oppure l'utente dice "ci sono dei bug", "segnalazioni test", "defect ricevuti"
+- **Import mode**: non esiste `BUG_REPORT.md` nella cartella del BR, oppure l'utente dice "ci sono dei bug", "segnalazioni test", "defect ricevuti"
 - **Execution mode**: esistono bug assegnati allo sviluppatore con stato diverso da `chiuso`, oppure l'utente dice "lavora il bug", "fix il bug"
 - **Chiusura mode**: l'utente dice "il funzionale ha testato", "bug confermati", "aggiorna i bug"
 
@@ -264,9 +264,9 @@ Per i bug senza match: chiedi esplicitamente a chi assegnare.
 
 Dopo la conferma, scrivi i bug nella source of truth.
 
-### Scrittura BUG_REPORT_BR.md
+### Scrittura BUG_REPORT.md
 
-Crea `BUG_REPORT_BR.md` nella cartella del BR (es. `<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/BUG_REPORT_BR.md`). Usa il formato definito nella sezione "Struttura BUG_REPORT_BR.md".
+Crea `BUG_REPORT.md` nella cartella del BR (es. `<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/BUG_REPORT.md`). Usa il formato definito nella sezione "Struttura BUG_REPORT.md".
 
 Dopo la scrittura, esegui commit + push su deloitte-profiles:
 
@@ -600,7 +600,7 @@ La skill puo' essere invocata piu' volte sullo stesso BR. A ogni invocazione:
 
 ### Condizione di completamento debug
 
-Quando tutti i bug hanno stato `chiuso`, aggiungi la sezione "Debug Completato" al `BUG_REPORT_BR.md`:
+Quando tutti i bug hanno stato `chiuso`, aggiungi la sezione "Debug Completato" al `BUG_REPORT.md`:
 
 ```markdown
 ## Debug Completato
@@ -622,9 +622,9 @@ Se il BR e' in stato `execute` e tutte le task E tutti i bug sono completati, il
 
 ---
 
-## Struttura BUG_REPORT_BR.md
+## Struttura BUG_REPORT.md
 
-Questo e' il formato canonico del file BUG_REPORT_BR.md:
+Questo e' il formato canonico del file BUG_REPORT.md:
 
 ```markdown
 # Bug Report — <nome BR>
@@ -712,4 +712,4 @@ This is one of the skills in the BR (Business Requirement) lifecycle suite. The 
 
 sdlc-debug fits as a PARALLEL stage alongside sdlc-executor. It uses the same patterns: subagent delegation, 3-phase verification, progress tracking.
 
-All BR artifacts (TASKS.md, PLAN.md, PROGRESS.md, BUG_REPORT_BR.md, screenshots) live centrally in `<profiles_repo>/<profilo>/plans/`, not in the code repository. `BUG_REPORT_BR.md` is the source of truth for bugs.
+All BR artifacts (TASKS.md, PLAN.md, PROGRESS.md, BUG_REPORT.md, screenshots) live centrally in `<profiles_repo>/<profilo>/plans/`, not in the code repository. `BUG_REPORT.md` is the source of truth for bugs.

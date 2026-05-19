@@ -223,10 +223,10 @@ Se l'utente sceglie dei tagli, rimuovi le task corrispondenti e re-invoca lo sce
 
 Quando l'utente sceglie "Salva e genera report":
 
-### STIMA_BR.md
+### ESTIMATE.md
 
 Scrivi il file nella cartella del BR:
-`<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/STIMA_BR.md` (o `in-progress/` se il BR è già in lavorazione)
+`<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/ESTIMATE.md` (o `in-progress/` se il BR è già in lavorazione)
 
 Struttura:
 
@@ -292,7 +292,7 @@ Fattore: Xx (da N BR precedenti)
 [tabella BR passati dallo storico]
 ```
 
-### STIMA_BR.xlsx
+### ESTIMATE.xlsx
 
 Genera con Python + openpyxl un file Excel con 4 fogli:
 
@@ -316,7 +316,7 @@ Genera con Python + openpyxl un file Excel con 4 fogli:
 - Tutte le tabelle dei parametri usati
 - Celle editabili (non protette) per ricalcolo manuale esterno
 
-Salva il file nella stessa cartella del STIMA_BR.md.
+Salva il file nella stessa cartella del ESTIMATE.md.
 
 ### Commit
 

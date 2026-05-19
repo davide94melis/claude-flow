@@ -179,7 +179,7 @@ When the user says "sdlc-pipeline", "pipeline br", "le mie task", or similar phr
 
 ## Migrazione dal naming legacy (br-*)
 
-Se hai installato una versione precedente con prefisso `br-*` (skill folders) e file di output `REVIEW_BR.md`/`GAP_REPORT_BR.md`/`PIANO_IMPLEMENTAZIONE_BR.md`/`PROGRESSO_BR.md`/`AVANZAMENTO_BR.xlsx`, segui questi passi per migrare:
+Se hai installato una versione precedente con prefisso `br-*` (skill folders) e file di output con suffisso `_BR` (`REVIEW_BR.md`/`GAP_REPORT_BR.md`/`PIANO_IMPLEMENTAZIONE_BR.md`/`PROGRESSO_BR.md`/`AVANZAMENTO_BR.xlsx`/`STIMA_BR.{md,xlsx}`/`BUG_REPORT_BR.md`), segui questi passi per migrare:
 
 ```bash
 # 1. Sincronizza skill installate (rimuove le vecchie br-*, installa le nuove sdlc-*)
@@ -215,12 +215,13 @@ git push origin main
 | `PIANO_IMPLEMENTAZIONE_BR.md` | `TASKS.md` |
 | `PROGRESSO_BR.md` | `PROGRESS.md` |
 | `AVANZAMENTO_BR.xlsx` | `PROGRESS.xlsx` |
+| `STIMA_BR.md` / `STIMA_BR.xlsx` | `ESTIMATE.md` / `ESTIMATE.xlsx` |
+| `BUG_REPORT_BR.md` | `BUG_REPORT.md` |
 
 **Cosa NON cambia:**
 - Trigger naturali italiani (*"abbiamo un nuovo br"*, *"rivedi il br"*, *"lavora il task"*, ecc.)
 - Concetto di dominio "BR" / "Business Requirement" nei testi descrittivi
 - Cartelle dei profili (`deloitte-profiles/<profilo>/plans/in-progress/<data>_<nome>/`)
-- `BUG_REPORT_BR.md`, `STIMA_BR.{md,xlsx}` (file di stato/output non oggetto del rename in questa iterazione)
 - `.br-local.json` (configurazione per-repo)
 
 Lo script `migrate-sdlc-naming.sh` salta automaticamente la cartella `plans/done/` (i BR chiusi restano fossili con i loro nomi storici).
@@ -253,7 +254,7 @@ plans/
 │   └── 2026-04-28_booking-v2/
 │       ├── ...tutto il contenuto...
 │       ├── PROGRESS.md            <-- creato da sdlc-executor
-│       └── BUG_REPORT_BR.md          <-- creato da sdlc-debug (se ci sono bug)
+│       └── BUG_REPORT.md          <-- creato da sdlc-debug (se ci sono bug)
 └── done/                              <-- sdlc-executor sposta qui al completamento
     └── 2026-04-28_booking-v2/
         └── PROGRESS.xlsx        <-- creato da sdlc-progress-report
