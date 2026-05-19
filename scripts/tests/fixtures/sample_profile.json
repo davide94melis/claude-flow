@@ -1,0 +1,31 @@
+{
+  "project": {
+    "name": "Test Project",
+    "client": "Test Client"
+  },
+  "tech_stack": {
+    "backend": {
+      "language": "Java 21",
+      "framework": "Spring Boot 3.2.0"
+    },
+    "frontend": {
+      "language": "TypeScript 4.9",
+      "framework": "Angular 15"
+    }
+  },
+  "conventions": {
+    "package_structure": "com.test.app.<layer>",
+    "layers": ["controller", "service", "repository"],
+    "test_framework": "JUnit 5 + Mockito",
+    "branch_convention": "feature/<description>",
+    "commit_convention": "conventional commits",
+    "inviolable_principles": {
+      "security": "Tutto il codice deve rispettare gli standard OWASP Top 10. Nessuna eccezione.",
+      "accessibility": "Tutto il codice frontend deve rispettare i requisiti di accessibilita' (WCAG).",
+      "responsiveness": "Tutto il codice frontend deve essere responsive."
+    }
+  },
+  "design_system": {
+    "palette": {"--primary-color": "blue"}
+  }
+}

@@ -59,6 +59,40 @@ git -C "<profiles_repo>" push origin main --quiet
 
 ---
 
+## Caricamento contesto progetto (CONST + PROFILE)
+
+Dopo aver risolto i path (`profiles_repo`, `profilo`) e prima di eseguire qualsiasi altra fase, carica i due file di costituzione del progetto:
+
+```bash
+git -C "<profiles_repo>" pull origin main --quiet
+cat "<profiles_repo>/<profilo>/constitution/CONST.json"
+cat "<profiles_repo>/<profilo>/constitution/PROFILE.json"
+```
+
+**Errori di loading (uniformi per tutte le skill SDLC):**
+
+| Caso | Messaggio all'utente | Azione |
+|---|---|---|
+| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup`" | Stop |
+| `CONST.json` manca, `PROFILE.json` esiste | "Il profilo `<nome>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
+| `PROFILE.json` manca, `CONST.json` esiste | "Il profilo `<nome>` non ha PROFILE.json. Stato inconsistente — il profilo è incompleto. Ripristinare da git history o rifare il setup." | Stop |
+| Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
+| JSON malformed | Mostra errore di parse + path | Stop |
+
+**Semantica d'uso:**
+
+- **CONST** = vincoli inviolabili per ogni output generato. Ogni piano, task, fix, review, bug analysis che produci DEVE rispettare:
+  - `inviolable_principles` (security/a11y/responsiveness/privacy)
+  - `quality_standards` (coverage, error handling, logging, performance)
+  - `code_style` (limiti dimensionali, no magic numbers)
+  - `git_workflow` (branch/commit pattern)
+  - `architectural_patterns` (layering, response envelope, AAA, validazione boundary)
+- **PROFILE** = "lingua" del progetto. Usa i dettagli (tech stack, repositories con sigle, dominio, glossario, design system) per nominare le task con le sigle corrette, proporre snippet con il framework/versione giusti, usare il vocabolario di dominio, e riferire componenti del design system.
+
+Entrambi i file restano disponibili come contesto per tutta la durata della skill.
+
+---
+
 ## Fase 1 — Raccolta Input
 
 Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva. Non anticipare domande e non procedere finche' l'utente non ha risposto.
@@ -349,6 +383,18 @@ Genera dinamicamente una colonna per ogni repository coinvolta, usando le sigle 
 
 [Riepilogo: cosa è coperto, cosa è mancante, cosa è da chiarire.
  Organizzato per funzionalità, con lo stato di ognuna.]
+
+## Violazioni principi CONST rilevate
+
+Elenco dei punti in cui il codebase corrente NON rispetta i principi dichiarati in `CONST.json`. Sono finding informativi (non blocking — il piano va avanti comunque), ma vanno mostrati al team funzionale e di sviluppo perché documentano gap di conformità da chiudere nel medio termine.
+
+Formato di ogni finding:
+- **Principio violato:** `<categoria.regola>` (es. `quality_standards.test_coverage.minimum_percent`)
+- **Dove:** `<repo>/<path>:<linea>` o `<repo>/<modulo>` se diffuso
+- **Evidenza:** snippet di codice o metrica osservata
+- **Impatto sul BR corrente:** `BLOCCA il task X` | `Da fixare in coda al BR` | `Solo segnalazione (gap pregresso)`
+
+Se nessuna violazione è stata rilevata, lascia la sezione vuota con il testo: "Nessuna violazione dei principi CONST rilevata durante l'analisi."
 ```
 
 Ogni riga della matrice e ogni gap aperto deve contenere path esatti ai file rilevanti, in modo che gli agenti Claude Code possano navigare direttamente al codice interessato.
@@ -482,6 +528,14 @@ git -C "<profiles_repo>" add "<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/"
 git -C "<profiles_repo>" commit -m "[sdlc-analyzer] <nome>: gap report e piano di implementazione"
 git -C "<profiles_repo>" push origin main --quiet
 ```
+
+### Perimetro dell'auto-update
+
+**L'auto-update riguarda esclusivamente `PROFILE.json`.**
+
+I principi di `CONST.json` sono policy stabili, gestite manualmente dall'utente. Non vanno mai modificati in automatico dall'analisi del codebase.
+
+Se durante l'analisi rilevi che un principio CONST non è rispettato dal codice esistente (es. test coverage < soglia minima dichiarata, log con PII, funzioni > max_function_lines, endpoint senza validazione), **segnalalo come finding nel `PLAN.md` sotto la sezione "Violazioni principi CONST rilevate"**, NON modificare `CONST.json`.
 
 ### Principi per la creazione delle task
 

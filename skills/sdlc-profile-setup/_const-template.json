@@ -1,0 +1,59 @@
+{
+  "$schema": "../../const-schema.json",
+  "inviolable_principles": {
+    "security": {
+      "rule": "Tutto il codice deve rispettare OWASP Top 10",
+      "scope": "ogni endpoint, input utente, query, gestione dati sensibili",
+      "verification": "verifica obbligatoria prima del merge"
+    },
+    "accessibility": {
+      "rule": "Tutto il codice frontend deve rispettare WCAG 2.1 AA",
+      "requirements": [
+        "navigabile da tastiera",
+        "compatibile screen reader",
+        "contrasto AA",
+        "attributi ARIA corretti"
+      ]
+    },
+    "responsiveness": {
+      "rule": "Tutto il codice frontend deve essere responsive",
+      "breakpoints": ["mobile", "tablet", "desktop"]
+    },
+    "data_privacy": {
+      "rule": "Mai loggare PII; rispettare GDPR per ogni dato personale",
+      "scope": "log applicativi, error tracking, analytics"
+    }
+  },
+  "quality_standards": {
+    "test_coverage": {
+      "minimum_percent": 80,
+      "applies_to": ["unit", "integration"]
+    },
+    "error_handling": "Gestire ogni errore esplicitamente, mai swallow; user-facing friendly, server-side con context",
+    "logging": {
+      "format": "structured",
+      "never_log": ["PII", "credenziali", "token"]
+    },
+    "performance": {
+      "api_latency_p95_ms": 200,
+      "frontend_lcp_ms": 2500
+    }
+  },
+  "code_style": {
+    "max_function_lines": 50,
+    "max_file_lines": 800,
+    "max_nesting_depth": 4,
+    "no_magic_numbers": true,
+    "no_debug_statements_in_prod": true
+  },
+  "git_workflow": {
+    "branch_pattern": "feature/<desc> | fix/<desc> | release/sprint-wave-X.Y",
+    "commit_convention": "conventional commits (feat:, fix:, refactor:, docs:, test:, chore:)"
+  },
+  "architectural_patterns": {
+    "layered_separation": "controller/service/repository (o equivalenti) con dipendenze unidirezionali",
+    "api_response_envelope": "shape consistente: { status, data|null, error|null, meta? }",
+    "test_pattern": "Arrange-Act-Assert; nomi test descrittivi del comportamento atteso",
+    "input_validation": "validare sempre ai boundary del sistema"
+  }
+}

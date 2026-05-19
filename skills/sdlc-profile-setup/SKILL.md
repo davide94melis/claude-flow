@@ -5,6 +5,12 @@ description: Crea un nuovo profilo progetto in deloitte-profiles con auto-detect
 
 # SDLC Profile Setup — Creazione Guidata Profilo Progetto
 
+> **Nota su CONST + PROFILE:** Questa skill è l'**eccezione** al loader standard delle skill SDLC: NON carica CONST + PROFILE all'avvio (li sta creando). Tutte le altre 8 skill (`sdlc-analyzer`, `sdlc-reviewer`, `sdlc-clarify`, `sdlc-executor`, `sdlc-debug`, `sdlc-updater`, `sdlc-estimator`, `sdlc-progress-report`) caricano CONST + PROFILE dopo la "Risoluzione Path".
+>
+> Output di questa skill: **due file** nella folder `constitution/` del progetto:
+> - `CONST.json` — principi/standard di archetipo (template precompilato di default, adattato in base al codebase)
+> - `PROFILE.json` — dettagli specifici del progetto (tech stack, dominio, design system)
+
 Questa skill guida la creazione di un nuovo profilo progetto nel repository `deloitte-profiles/`. Il profilo contiene tech stack, convenzioni, dominio e design system utilizzati da tutte le skill BR. Il flusso e' composto da 10 step sequenziali: una domanda alla volta, con auto-detect del codebase prima delle domande manuali.
 
 ---
@@ -226,69 +232,77 @@ Se l'utente dice "nessuno" o "salta", procedi senza.
 
 ---
 
-## Step 8 — Genera profile.json
+## Step 8 — Genera CONST.json + PROFILE.json
 
-Assembla tutti i dati raccolti in un JSON strutturato. Includi solo le sezioni con dati reali — ometti campi vuoti o sezioni saltate.
+In questo step generi DUE file separati: un `CONST.json` (principi/standard di archetipo, template precompilato) e un `PROFILE.json` (dettagli specifici progetto).
 
-Struttura del JSON:
+### 8.1 — Genera CONST.json dal template precompilato
 
-```json
-{
-  "nome": "<nome-progetto>",
-  "creato": "<YYYY-MM-DD>",
-  "aggiornato": "<YYYY-MM-DD>",
-  "codebase": [
-    {
-      "nome": "<nome>",
-      "sigla": "<SIGLA>",
-      "tipo": "backend|frontend|fullstack",
-      "framework": "<framework e versione>",
-      "linguaggio": "<linguaggio e versione>",
-      "database": "<db se rilevato>",
-      "orm": "<orm se rilevato>",
-      "struttura": "<package structure pattern>",
-      "baseEntity": "<path classe base se rilevata>",
-      "apiPrefix": "<prefix API se rilevato>",
-      "testFramework": "<framework test>",
-      "testNaming": "<pattern naming test>",
-      "designSystem": {
-        "uiLibrary": "<libreria UI>",
-        "css": "<preprocessore CSS>",
-        "colori": { "<nome>": "<valore>" },
-        "font": "<font-family>",
-        "spacing": "<scale se rilevata>"
-      }
-    }
-  ],
-  "dominio": {
-    "glossario": [
-      { "termine": "<termine>", "definizione": "<definizione>" }
-    ],
-    "regoleBusiness": [
-      "<regola 1>",
-      "<regola 2>"
-    ],
-    "statiEntita": {
-      "<entita>": ["<stato1>", "<stato2>", "<stato3>"]
-    }
-  },
-  "references": [
-    "<nome-file-copiato>"
-  ]
-}
+Leggi il template precompilato:
+
+```bash
+cat "<path-al-repo-claude-flow>/skills/sdlc-profile-setup/_const-template.json"
 ```
 
-Presenta il JSON all'utente per conferma finale:
+Adatta il template in base ai codebase rilevati negli Step 3-5:
 
-> Ecco il profilo generato per **<nome>**:
+| Condizione | Modifica al template |
+|---|---|
+| Nessun codebase frontend rilevato | Rimuovi `inviolable_principles.accessibility` e `inviolable_principles.responsiveness` |
+| Nessuna API REST rilevata | Rimuovi `architectural_patterns.api_response_envelope` |
+| Nessun database con dati personali | Mantieni `data_privacy` come default conservativo (l'utente può rimuoverlo dopo) |
+
+Presenta il CONST.json risultante:
+
+> Ecco il **CONST.json** generato (template di default adattato al tuo codebase):
 >
 > ```json
 > [JSON completo]
 > ```
 >
-> Confermo e scrivo il file?
+> Va bene così o vuoi modificare qualche principio prima di scrivere il file? (es. cambiare la soglia di test coverage, aggiungere un principio personalizzato, rimuovere uno dei default)
 
-Procedi solo dopo conferma. Scrivi il file:
+Aspetta la risposta. Se l'utente vuole modifiche, applicale e ripresenta il JSON. Solo dopo OK procedi.
+
+### 8.2 — Genera PROFILE.json dai dati raccolti negli Step 1-7
+
+Assembla i dati raccolti negli Step 1-7 in `PROFILE.json` (struttura come da `profile-schema.json`). Include solo le sezioni con dati reali — ometti campi vuoti o sezioni saltate.
+
+Struttura del JSON:
+
+```json
+{
+  "$schema": "../../profile-schema.json",
+  "project": {
+    "name": "<nome>",
+    "client": "<client>",
+    "description": "<description>"
+  },
+  "tech_stack": { },
+  "conventions": { },
+  "design_system": { },
+  "domain": { },
+  "custom_agents": []
+}
+```
+
+**NOTA IMPORTANTE:** in `conventions` NON inserire più `inviolable_principles` — quei dati ora vivono in `CONST.json`.
+
+Presenta `PROFILE.json` all'utente:
+
+> Ecco il **PROFILE.json** generato per **<nome>**:
+>
+> ```json
+> [JSON completo]
+> ```
+>
+> Confermo e scrivo i due file?
+
+Aspetta la risposta finale.
+
+### 8.3 — Scrivi entrambi i file
+
+Dopo conferma, scrivi i file:
 
 ```bash
 mkdir -p "<profiles_repo>/<nome>/constitution"
@@ -297,8 +311,16 @@ mkdir -p "<profiles_repo>/<nome>/references"
 mkdir -p "<profiles_repo>/<nome>/plans/todo"
 mkdir -p "<profiles_repo>/<nome>/plans/in-progress"
 mkdir -p "<profiles_repo>/<nome>/plans/done"
-# Scrivi constitution/profile.json con il contenuto confermato
+# Scrivi CONST.json con il contenuto confermato in 8.1
+# Scrivi PROFILE.json con il contenuto confermato in 8.2
 ```
+
+Conferma finale:
+
+> Profilo **<nome>** creato:
+> - `<profiles_repo>/<nome>/constitution/CONST.json` (principi)
+> - `<profiles_repo>/<nome>/constitution/PROFILE.json` (dettagli)
+> - Struttura: `constitution/`, `agents/`, `references/`, `plans/todo|in-progress|done/`
 
 ---
 
@@ -309,7 +331,7 @@ Committa e pusha il nuovo profilo.
 ```bash
 cd "<profiles_repo>"
 git add "<nome>/"
-git commit -m "feat: add profile for <nome>"
+git commit -m "feat: add profile for <nome> (CONST + PROFILE)"
 git push origin main
 ```
 
@@ -369,7 +391,7 @@ Dopo aver completato tutti i codebase, conferma:
 
 > Profilo **<nome>** creato e configurato con successo.
 >
-> - Profilo: `<profiles_repo>/<nome>/constitution/profile.json`
+> - Profilo: `<profiles_repo>/<nome>/constitution/CONST.json` + `PROFILE.json`
 > - Struttura: `constitution/`, `agents/`, `references/`, `plans/todo|in-progress|done/`
 > - References: `<profiles_repo>/<nome>/references/` (N file)
 > - `.br-local.json` aggiornato in N codebase

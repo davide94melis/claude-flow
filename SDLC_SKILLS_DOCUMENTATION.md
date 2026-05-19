@@ -10,7 +10,7 @@ Tutti i path qui sotto sono relativi a `<profiles_repo>/<profilo>/`, dove `<prof
 BR / Documentazione
         |
         v
-  [sdlc-profile-setup]  ──>  constitution/profile.json
+  [sdlc-profile-setup]  ──>  constitution/CONST.json + PROFILE.json
         |                  agents/
         |                  references/
         |
@@ -74,7 +74,8 @@ Tutti gli artefatti BR sono centralizzati nella repo `deloitte-profiles`. Ogni p
 deloitte-profiles/                       # repo separata, centralizzata per tutti i progetti
 └── <nome-progetto>/
     ├── constitution/
-    │   └── profile.json
+    │   ├── CONST.json                   # principi e standard di archetipo (stabile)
+    │   └── PROFILE.json                 # dettagli specifici del progetto (auto-aggiornato)
     ├── agents/                          # agenti custom .md per questo progetto
     ├── references/                      # mockup, screenshot, style guide, codice gold-standard
     └── plans/
@@ -103,6 +104,17 @@ repo-progetto/                           # qualsiasi repo del codice del progett
 
 Ogni cartella BR ha formato `<YYYY-MM-DD>_<nome-br>/` e si sposta come unita' tra le tre aree (`todo` → `in-progress` → `done`).
 
+### Constitution Files: CONST + PROFILE
+
+Ogni progetto ha due file nella folder `constitution/`:
+
+- **`CONST.json`** — Principi e standard di archetipo (OWASP, WCAG, test coverage, code style, git workflow, architectural patterns). Policy stabile, gestita manualmente.
+- **`PROFILE.json`** — Dettagli specifici del progetto (tech stack, repositories, dominio, design system, glossario). Auto-aggiornato da `sdlc-analyzer`.
+
+Tutte le 9 skill SDLC caricano entrambi i file all'avvio. CONST funziona come vincolo per ogni output (PLAN, TASKS, REVIEW, fix), PROFILE come "lingua" del progetto.
+
+Per migrare un profilo legacy (formato `profile.json` singolare), eseguire `python claude-flow/scripts/migrate-profile-split.py --apply`.
+
 ## Concorrenza
 
 Tutte le skill BR sincronizzano la repo profili prima di leggere (`git pull`) e committano+pushano subito dopo aver scritto. Questo minimizza la finestra di conflitto e garantisce che tutti gli sviluppatori vedano sempre lo stato aggiornato del progresso.
@@ -126,7 +138,8 @@ Creare un nuovo profilo progetto in `deloitte-profiles` con auto-detect del code
 1. **Auto-detect codebase**: ispeziona la repo del codice in cui viene invocata (linguaggi, framework, struttura cartelle, package manager, file di configurazione) e propone una bozza di profilo.
 2. **Domande guidate**: pone domande mirate su dominio funzionale (es. "booking", "ecommerce", "fintech"), design system in uso, convenzioni di naming, vincoli architetturali.
 3. **Creazione struttura**: in `<profiles_repo>/<nome-progetto>/` crea:
-   - `constitution/profile.json` — costituzione del progetto (dominio, vincoli, design)
+   - `constitution/CONST.json` — principi e standard di archetipo (OWASP, WCAG, test coverage, code style, git workflow, architectural patterns); policy stabile gestita manualmente
+   - `constitution/PROFILE.json` — dettagli specifici del progetto (tech stack, repositories, dominio, design system, glossario); auto-aggiornato da `sdlc-analyzer`
    - `agents/` — cartella per agenti custom MD (vuota inizialmente)
    - `references/` — cartella per mockup/screenshot/gold-standard (vuota inizialmente)
    - `plans/todo/`, `plans/in-progress/`, `plans/done/` — strutture vuote

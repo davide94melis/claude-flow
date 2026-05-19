@@ -47,6 +47,42 @@ git -C "<profiles_repo>" commit -m "<messaggio>"
 git -C "<profiles_repo>" push origin main --quiet
 ```
 
+---
+
+## Caricamento contesto progetto (CONST + PROFILE)
+
+Dopo aver risolto i path (`profiles_repo`, `profilo`) e prima di eseguire qualsiasi altra fase, carica i due file di costituzione del progetto:
+
+```bash
+git -C "<profiles_repo>" pull origin main --quiet
+cat "<profiles_repo>/<profilo>/constitution/CONST.json"
+cat "<profiles_repo>/<profilo>/constitution/PROFILE.json"
+```
+
+**Errori di loading (uniformi per tutte le skill SDLC):**
+
+| Caso | Messaggio all'utente | Azione |
+|---|---|---|
+| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup`" | Stop |
+| `CONST.json` manca, `PROFILE.json` esiste | "Il profilo `<nome>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
+| `PROFILE.json` manca, `CONST.json` esiste | "Il profilo `<nome>` non ha PROFILE.json. Stato inconsistente — il profilo è incompleto. Ripristinare da git history o rifare il setup." | Stop |
+| Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
+| JSON malformed | Mostra errore di parse + path | Stop |
+
+**Semantica d'uso:**
+
+- **CONST** = vincoli inviolabili per ogni output generato. Ogni piano, task, fix, review, bug analysis che produci DEVE rispettare:
+  - `inviolable_principles` (security/a11y/responsiveness/privacy)
+  - `quality_standards` (coverage, error handling, logging, performance)
+  - `code_style` (limiti dimensionali, no magic numbers)
+  - `git_workflow` (branch/commit pattern)
+  - `architectural_patterns` (layering, response envelope, AAA, validazione boundary)
+- **PROFILE** = "lingua" del progetto. Usa i dettagli (tech stack, repositories con sigle, dominio, glossario, design system) per nominare le task con le sigle corrette, proporre snippet con il framework/versione giusti, usare il vocabolario di dominio, e riferire componenti del design system.
+
+Entrambi i file restano disponibili come contesto per tutta la durata della skill.
+
+---
+
 ## Rilevamento Contesto
 
 La skill cerca il TASKS in `<profiles_repo>/<profilo>/plans/`.
