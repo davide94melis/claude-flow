@@ -40,7 +40,7 @@ BR / Documentazione
         v
   [sdlc-executor]   ──>  plans/in-progress/<data>_<nome>/
         |                  |
-        |            + PROGRESSO_BR.md
+        |            + PROGRESS.md
         |
         |   (se BR aggiornato)
         |         |
@@ -51,7 +51,7 @@ BR / Documentazione
         |   (per reportistica)
         |         |
         |         v
-        |   [sdlc-progress-report]  ──>  AVANZAMENTO_BR.xlsx
+        |   [sdlc-progress-report]  ──>  PROGRESS.xlsx
         |
         |   (per bug post-testing)
         |         |
@@ -89,9 +89,9 @@ deloitte-profiles/                       # repo separata, centralizzata per tutt
         ├── in-progress/
         │   └── <data>_<nome-br>/
         │       ├── (tutti i file da todo +)
-        │       ├── PROGRESSO_BR.md
+        │       ├── PROGRESS.md
         │       ├── BUG_REPORT_BR.md
-        │       ├── AVANZAMENTO_BR.xlsx
+        │       ├── PROGRESS.xlsx
         │       └── screenshots/
         └── done/
             └── <data>_<nome-br>/
@@ -402,7 +402,7 @@ Alla conferma, sposta report e piano da `<profiles_repo>/<profilo>/plans/todo/` 
 
 #### Fase 2 — Gestione del File di Progresso
 
-Se il file non esiste, lo crea (`PROGRESSO_BR.md`) in `<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/` con:
+Se il file non esiste, lo crea (`PROGRESS.md`) in `<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/` con:
 - Tabella riepilogativa (task totali, completate, in corso, da iniziare, bloccate, progresso complessivo)
 - Tabella stato task (ID, Attivita, Owner, Progresso %, Stato, Branch, Note) con tutte le task a 0%
 - Log attivita cronologico
@@ -631,7 +631,7 @@ Cerca automaticamente nella struttura `<profiles_repo>/<profilo>/plans/`:
 - **File di Progresso** (opzionale — se non esiste, tutte le task partono da 0%)
 - **Gap Report** (opzionale — usato per arricchire le descrizioni)
 
-Verifica se esiste gia un file `AVANZAMENTO_BR.xlsx`:
+Verifica se esiste gia un file `PROGRESS.xlsx`:
 - **Se esiste**: modalita aggiornamento (solo i dati cambiano, note manuali preservate)
 - **Se non esiste**: modalita creazione da zero
 
@@ -695,7 +695,7 @@ Riga "TOTALE" in fondo con le somme.
 
 #### Fase 4 — Salvataggio
 
-Salva `AVANZAMENTO_BR.xlsx` nella stessa cartella del piano (`<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/`). In modalita aggiornamento preserva eventuali note manuali aggiunte dall'utente. Comunica riepilogo: task totali, completate, in corso, progresso complessivo, eventuali task bloccate.
+Salva `PROGRESS.xlsx` nella stessa cartella del piano (`<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/`). In modalita aggiornamento preserva eventuali note manuali aggiunte dall'utente. Comunica riepilogo: task totali, completate, in corso, progresso complessivo, eventuali task bloccate.
 
 ### Dipendenze
 

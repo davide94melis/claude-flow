@@ -179,7 +179,7 @@ When the user says "sdlc-pipeline", "pipeline br", "le mie task", or similar phr
 
 ## Migrazione dal naming legacy (br-*)
 
-Se hai installato una versione precedente con prefisso `br-*` (skill folders) e file di output `REVIEW_BR.md`/`GAP_REPORT_BR.md`/`PIANO_IMPLEMENTAZIONE_BR.md`, segui questi passi per migrare:
+Se hai installato una versione precedente con prefisso `br-*` (skill folders) e file di output `REVIEW_BR.md`/`GAP_REPORT_BR.md`/`PIANO_IMPLEMENTAZIONE_BR.md`/`PROGRESSO_BR.md`/`AVANZAMENTO_BR.xlsx`, segui questi passi per migrare:
 
 ```bash
 # 1. Sincronizza skill installate (rimuove le vecchie br-*, installa le nuove sdlc-*)
@@ -213,12 +213,14 @@ git push origin main
 | `REVIEW_BR.md` / `REVIEW_BR.docx` | `CLARIFY.md` / `CLARIFY.docx` |
 | `GAP_REPORT_BR.md` | `PLAN.md` |
 | `PIANO_IMPLEMENTAZIONE_BR.md` | `TASKS.md` |
+| `PROGRESSO_BR.md` | `PROGRESS.md` |
+| `AVANZAMENTO_BR.xlsx` | `PROGRESS.xlsx` |
 
 **Cosa NON cambia:**
 - Trigger naturali italiani (*"abbiamo un nuovo br"*, *"rivedi il br"*, *"lavora il task"*, ecc.)
 - Concetto di dominio "BR" / "Business Requirement" nei testi descrittivi
 - Cartelle dei profili (`deloitte-profiles/<profilo>/plans/in-progress/<data>_<nome>/`)
-- `PROGRESSO_BR.md`, `BUG_REPORT_BR.md`, `AVANZAMENTO_BR.xlsx`, `STIMA_BR.{md,xlsx}` (file di stato/output non oggetto del rename)
+- `BUG_REPORT_BR.md`, `STIMA_BR.{md,xlsx}` (file di stato/output non oggetto del rename in questa iterazione)
 - `.br-local.json` (configurazione per-repo)
 
 Lo script `migrate-sdlc-naming.sh` salta automaticamente la cartella `plans/done/` (i BR chiusi restano fossili con i loro nomi storici).
@@ -250,11 +252,11 @@ plans/
 ├── in-progress/                       <-- sdlc-executor sposta qui la cartella all'avvio
 │   └── 2026-04-28_booking-v2/
 │       ├── ...tutto il contenuto...
-│       ├── PROGRESSO_BR.md            <-- creato da sdlc-executor
+│       ├── PROGRESS.md            <-- creato da sdlc-executor
 │       └── BUG_REPORT_BR.md          <-- creato da sdlc-debug (se ci sono bug)
 └── done/                              <-- sdlc-executor sposta qui al completamento
     └── 2026-04-28_booking-v2/
-        └── AVANZAMENTO_BR.xlsx        <-- creato da sdlc-progress-report
+        └── PROGRESS.xlsx        <-- creato da sdlc-progress-report
 ```
 
 Tutte le skill mantengono retrocompatibilita con il vecchio formato flat (es. `GAP_REPORT_BR_2026-04-28.md`).
@@ -288,7 +290,7 @@ BR nuovo ──→ sdlc-reviewer ──→ Review qualità documentazione + DOCX
 
 ## Aggregazione Cross-Branch del Progresso
 
-Quando piu' sviluppatori lavorano in parallelo su feature branch diversi, ognuno aggiorna il file PROGRESSO_BR.md sul proprio branch. Per garantire visibilita' del progresso a tutti senza attendere le merge, le skill di lettura (sdlc-executor, sdlc-pipeline, sdlc-progress-report) eseguono un'**aggregazione cross-branch**:
+Quando piu' sviluppatori lavorano in parallelo su feature branch diversi, ognuno aggiorna il file PROGRESS.md sul proprio branch. Per garantire visibilita' del progresso a tutti senza attendere le merge, le skill di lettura (sdlc-executor, sdlc-pipeline, sdlc-progress-report) eseguono un'**aggregazione cross-branch**:
 
 1. `git fetch origin` per sincronizzare
 2. Lettura del piano per estrarre i nomi branch di ogni task (colonna Branch nel backlog) oppure il nome del BR per la ricerca per pattern (retrocompatibilita')

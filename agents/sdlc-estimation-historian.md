@@ -22,7 +22,7 @@ ls -d "<plans_done_path>"/*/ 2>/dev/null
 
 Per ogni cartella trovata, leggi:
 - `TASKS.md` — per la lista task con complessita'
-- `PROGRESSO_BR.md` — per le date effettive di completamento, gli sviluppatori, le percentuali
+- `PROGRESS.md` — per le date effettive di completamento, gli sviluppatori, le percentuali
 
 Estrai per ogni BR:
 - Numero totale di task per complessita' (Bassa/Media/Alta/Molto Alta)

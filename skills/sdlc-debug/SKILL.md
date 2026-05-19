@@ -712,4 +712,4 @@ This is one of the skills in the BR (Business Requirement) lifecycle suite. The 
 
 sdlc-debug fits as a PARALLEL stage alongside sdlc-executor. It uses the same patterns: subagent delegation, 3-phase verification, progress tracking.
 
-All BR artifacts (TASKS.md, PLAN.md, PROGRESSO_BR.md, BUG_REPORT_BR.md, screenshots) live centrally in `<profiles_repo>/<profilo>/plans/`, not in the code repository. `BUG_REPORT_BR.md` is the source of truth for bugs.
+All BR artifacts (TASKS.md, PLAN.md, PROGRESS.md, BUG_REPORT_BR.md, screenshots) live centrally in `<profiles_repo>/<profilo>/plans/`, not in the code repository. `BUG_REPORT_BR.md` is the source of truth for bugs.

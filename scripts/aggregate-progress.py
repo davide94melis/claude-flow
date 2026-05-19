@@ -1,12 +1,12 @@
-"""Aggregate PROGRESSO_BR.md files across branches using "highest progress wins"."""
+"""Aggregate PROGRESS.md files across branches using "highest progress wins"."""
 import os
 import re
 import sys
 from pathlib import Path
 
 
-def parse_progresso(content: str) -> tuple[str, dict, str]:
-    """Parse a PROGRESSO_BR.md, returning (header_block, tasks_dict, footer_block).
+def parse_progress(content: str) -> tuple[str, dict, str]:
+    """Parse a PROGRESS.md, returning (header_block, tasks_dict, footer_block).
 
     tasks_dict: {task_id: (progress_int, status_priority_int, full_row_text)}
     """
@@ -75,7 +75,7 @@ def parse_progresso(content: str) -> tuple[str, dict, str]:
 
 
 def aggregate(files: list[Path]) -> str:
-    """Aggregate multiple PROGRESSO files using highest progress wins."""
+    """Aggregate multiple PROGRESS files using highest progress wins."""
     base_header = None
     base_footer = None
     base_file_used = None
@@ -84,7 +84,7 @@ def aggregate(files: list[Path]) -> str:
 
     for f in files:
         content = f.read_text(encoding="utf-8")
-        header, tasks, footer = parse_progresso(content)
+        header, tasks, footer = parse_progress(content)
         branch_name = f.stem.replace("feature-", "feature/")
 
         # Use the file with most tasks as the base for header/footer template
@@ -148,7 +148,7 @@ def aggregate(files: list[Path]) -> str:
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Usage: aggregate-progresso.py <input-dir> <output-file>", file=sys.stderr)
+        print("Usage: aggregate-progress.py <input-dir> <output-file>", file=sys.stderr)
         sys.exit(1)
 
     input_dir = Path(sys.argv[1])

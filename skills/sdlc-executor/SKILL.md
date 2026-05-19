@@ -78,7 +78,7 @@ ls -d "<profiles_repo>/<profilo>/plans/todo"/*/ "<profiles_repo>/<profilo>/plans
 
 > Ho trovato queste cartelle BR:
 > - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_booking-v2/` (contiene PLAN.md, TASKS.md)
-> - `<profiles_repo>/<profilo>/plans/in-progress/2026-04-15_monitoraggio/` (contiene PROGRESSO_BR.md)
+> - `<profiles_repo>/<profilo>/plans/in-progress/2026-04-15_monitoraggio/` (contiene PROGRESS.md)
 >
 > Quale vuoi lavorare? Oppure dammi i path manualmente.
 
@@ -87,7 +87,7 @@ ls -d "<profiles_repo>/<profilo>/plans/todo"/*/ "<profiles_repo>/<profilo>/plans
 > Per iniziare mi servono i file generati da sdlc-analyzer:
 > 1. **PLAN** — il file `PLAN.md`
 > 2. **TASKS** — il file `TASKS.md`
-> 3. **File di Progresso** — se esiste gia' un file `PROGRESSO_BR.md`, dammi il path. Se non esiste ancora, lo creo io.
+> 3. **File di Progresso** — se esiste gia' un file `PROGRESS.md`, dammi il path. Se non esiste ancora, lo creo io.
 
 Leggi tutti i file forniti. Estrai dal gap report e dal piano:
 - La lista di tutti i codebase menzionati (con i path originali)
@@ -159,7 +159,7 @@ Procedi solo dopo la conferma.
 
 ### Se il file non esiste — Crealo
 
-Crea il file `PROGRESSO_BR.md` nella stessa cartella del BR (es. `<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/PROGRESSO_BR.md`), con questa struttura:
+Crea il file `PROGRESS.md` nella stessa cartella del BR (es. `<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/PROGRESS.md`), con questa struttura:
 
 ```
 # Progresso Implementazione [Nome BR]
@@ -208,10 +208,10 @@ Aggiorna il file di progresso a ogni cambio di stato significativo:
 
 Aggiorna sempre il campo "Ultimo aggiornamento" e aggiungi una riga al Log Attività.
 
-**Dopo ogni aggiornamento del PROGRESSO_BR.md, esegui commit + push sulla repo profili**, in modo che il progresso sia immediatamente visibile a tutti gli altri sviluppatori:
+**Dopo ogni aggiornamento del PROGRESS.md, esegui commit + push sulla repo profili**, in modo che il progresso sia immediatamente visibile a tutti gli altri sviluppatori:
 
 ```bash
-git -C "<profiles_repo>" add "<profilo>/plans/in-progress/<data>_<nome>/PROGRESSO_BR.md"
+git -C "<profiles_repo>" add "<profilo>/plans/in-progress/<data>_<nome>/PROGRESS.md"
 git -C "<profiles_repo>" commit -m "[sdlc-progress] <task-id> -> <progresso>%"
 git -C "<profiles_repo>" push origin main --quiet
 ```
@@ -245,7 +245,7 @@ Prima di leggere il file di progresso, sincronizza la repo profili:
 git -C "<profiles_repo>" pull origin main --quiet
 ```
 
-Leggi il PROGRESSO_BR.md dalla cartella del BR in `<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/PROGRESSO_BR.md`.
+Leggi il PROGRESS.md dalla cartella del BR in `<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/PROGRESS.md`.
 
 Tutti gli sviluppatori scrivono nello stesso file nella repo centralizzata, quindi il progresso e' sempre aggiornato dopo il pull.
 
@@ -571,7 +571,7 @@ Non eseguire merge o rebase automaticamente — guida lo sviluppatore passo per 
 
 ## Regole Fondamentali
 
-1. **Mai committare autonomamente sulle repo di codice** — suggerisci sempre il commit e aspetta che lo sviluppatore lo faccia. La repo profili e' l'unica eccezione: per gli aggiornamenti del PROGRESSO_BR.md e per gli spostamenti tra `plans/todo`, `plans/in-progress`, `plans/done`, esegui commit + push automatico per garantire visibilita' a tutti gli sviluppatori.
+1. **Mai committare autonomamente sulle repo di codice** — suggerisci sempre il commit e aspetta che lo sviluppatore lo faccia. La repo profili e' l'unica eccezione: per gli aggiornamenti del PROGRESS.md e per gli spostamenti tra `plans/todo`, `plans/in-progress`, `plans/done`, esegui commit + push automatico per garantire visibilita' a tutti gli sviluppatori.
 2. **Mai procedere senza conferma** — tra una task e l'altra, tra un sotto-step e l'altro, chiedi sempre
 3. **Mai ignorare le dipendenze** — se una dipendenza non è soddisfatta, blocca e avvisa
 4. **Aggiorna sempre il progresso** — il file di progresso è la fonte di verità condivisa tra tutti gli agenti

@@ -58,7 +58,7 @@ ls -d "<profiles_repo>/<profilo>/plans/in-progress"/*/ "<profiles_repo>/<profilo
 
 Serve trovare:
 - **TASKS** (`TASKS.md`) — obbligatorio
-- **File di Progresso** (`PROGRESSO_BR.md`) — opzionale, se non esiste le task partono tutte da 0%
+- **File di Progresso** (`PROGRESS.md`) — opzionale, se non esiste le task partono tutte da 0%
 - **PLAN** (`PLAN.md`) — opzionale, usato per arricchire le descrizioni
 
 **Se trovi cartelle BR**, proponile:
@@ -66,7 +66,7 @@ Serve trovare:
 > Ho trovato:
 > - `<profiles_repo>/<profilo>/plans/in-progress/2026-04-28_booking-v2/`
 >   - `TASKS.md`
->   - `PROGRESSO_BR.md`
+>   - `PROGRESS.md`
 >
 > Uso questa cartella per generare l'Excel?
 
@@ -77,7 +77,7 @@ Se non trovi nulla, chiedi i path manualmente.
 Cerca nella stessa cartella del BR se esiste gia' un file Excel:
 
 ```bash
-ls "<profiles_repo>/<profilo>/plans/in-progress"/*/AVANZAMENTO_BR.xlsx "<profiles_repo>/<profilo>/plans/todo"/*/AVANZAMENTO_BR.xlsx "<profiles_repo>/<profilo>/plans/done"/*/AVANZAMENTO_BR.xlsx 2>/dev/null
+ls "<profiles_repo>/<profilo>/plans/in-progress"/*/PROGRESS.xlsx "<profiles_repo>/<profilo>/plans/todo"/*/PROGRESS.xlsx "<profiles_repo>/<profilo>/plans/done"/*/PROGRESS.xlsx 2>/dev/null
 ```
 
 - **Se esiste** → modalità aggiornamento (solo i dati cambiano, struttura preservata)
@@ -85,7 +85,7 @@ ls "<profiles_repo>/<profilo>/plans/in-progress"/*/AVANZAMENTO_BR.xlsx "<profile
 
 Comunica la modalità all'utente:
 
-> [Excel trovato — aggiorno `AVANZAMENTO_BR.xlsx` con i progressi attuali.]
+> [Excel trovato — aggiorno `PROGRESS.xlsx` con i progressi attuali.]
 
 oppure
 
@@ -103,11 +103,11 @@ Sincronizza la repo profili prima di leggere:
 git -C "<profiles_repo>" pull origin main --quiet
 ```
 
-Leggi il PROGRESSO_BR.md dalla cartella del BR in `<profiles_repo>/<profilo>/plans/<stato>/<data>_<nome>/PROGRESSO_BR.md`. Il file e' sempre aggiornato dopo il pull perche' tutti gli sviluppatori scrivono nella repo centralizzata.
+Leggi il PROGRESS.md dalla cartella del BR in `<profiles_repo>/<profilo>/plans/<stato>/<data>_<nome>/PROGRESS.md`. Il file e' sempre aggiornato dopo il pull perche' tutti gli sviluppatori scrivono nella repo centralizzata.
 
 ### Estrazione campi
 
-Dal PROGRESSO_BR.md e dal piano, estrai per ogni task:
+Dal PROGRESS.md e dal piano, estrai per ogni task:
 
 | Campo | Fonte |
 |---|---|
@@ -120,10 +120,10 @@ Dal PROGRESSO_BR.md e dal piano, estrai per ogni task:
 | Wave | Piano — sezione Ordine di esecuzione |
 | Dipendenze | Piano — colonna Dipendenze |
 | Effort stimato | Piano — colonna Effort |
-| Branch | PROGRESSO_BR.md — colonna Branch |
-| Progresso % | PROGRESSO_BR.md — colonna Progresso |
-| Stato | PROGRESSO_BR.md — colonna Stato (Da iniziare / In corso / Completata / Bloccata / Annullata / Sospesa) |
-| Note | PROGRESSO_BR.md — colonna Note |
+| Branch | PROGRESS.md — colonna Branch |
+| Progresso % | PROGRESS.md — colonna Progresso |
+| Stato | PROGRESS.md — colonna Stato (Da iniziare / In corso / Completata / Bloccata / Annullata / Sospesa) |
+| Note | PROGRESS.md — colonna Note |
 
 Se il file di progresso non esiste, imposta progresso a 0% e stato a "Da iniziare" per tutte le task.
 
@@ -235,7 +235,7 @@ Formatta questa sezione come testo leggibile, non come tabella. Usa merge di cel
 ### Nome e posizione file
 
 Salva nella stessa cartella del BR all'interno della repo centralizzata:
-- **Path**: `<profiles_repo>/<profilo>/plans/<stato>/<YYYY-MM-DD>_<nome>/AVANZAMENTO_BR.xlsx`
+- **Path**: `<profiles_repo>/<profilo>/plans/<stato>/<YYYY-MM-DD>_<nome>/PROGRESS.xlsx`
 - **Aggiornamento**: sovrascrivi il file esistente
 
 ### Modalità aggiornamento
@@ -275,7 +275,7 @@ git -C "<profiles_repo>" push origin main --quiet
 
 ### Comunicazione finale
 
-> Excel [creato / aggiornato]: `<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/AVANZAMENTO_BR.xlsx`
+> Excel [creato / aggiornato]: `<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/PROGRESS.xlsx`
 >
 > Riepilogo:
 > - Task totali: N (X completate, Y in corso, Z da iniziare)

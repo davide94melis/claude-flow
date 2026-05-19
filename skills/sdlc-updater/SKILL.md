@@ -68,7 +68,7 @@ ls -d "<profiles_repo>/<profilo>/plans/in-progress"/*/ "<profiles_repo>/<profilo
 > - `<profiles_repo>/<profilo>/plans/in-progress/2026-04-28_booking-v2/`
 >   - `PLAN.md`
 >   - `TASKS.md`
->   - `PROGRESSO_BR.md`
+>   - `PROGRESS.md`
 >   - `CLARIFY.md`
 >
 > Uso questa come base? Oppure dammi i path manualmente.
