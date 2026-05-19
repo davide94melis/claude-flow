@@ -41,6 +41,10 @@ for f in "$CLAUDE_HOME"/agents/br-*.md; do
   echo "  rm -f $f"
   $RUN rm -f "$f"
 done
+if [[ -f "$CLAUDE_HOME/skills/BR_SKILLS_DOCUMENTATION.md" ]]; then
+  echo "  rm -f $CLAUDE_HOME/skills/BR_SKILLS_DOCUMENTATION.md"
+  $RUN rm -f "$CLAUDE_HOME/skills/BR_SKILLS_DOCUMENTATION.md"
+fi
 
 echo ""
 echo "Install new sdlc-* skills:"
@@ -59,6 +63,13 @@ for f in "$REPO_ROOT"/agents/sdlc-*.md; do
   echo "  cp $f -> $CLAUDE_HOME/agents/$name"
   $RUN cp "$f" "$CLAUDE_HOME/agents/"
 done
+
+echo ""
+echo "Install documentation reference:"
+if [[ -f "$REPO_ROOT/SDLC_SKILLS_DOCUMENTATION.md" ]]; then
+  echo "  cp $REPO_ROOT/SDLC_SKILLS_DOCUMENTATION.md -> $CLAUDE_HOME/skills/SDLC_SKILLS_DOCUMENTATION.md"
+  $RUN cp "$REPO_ROOT/SDLC_SKILLS_DOCUMENTATION.md" "$CLAUDE_HOME/skills/"
+fi
 
 echo ""
 if [[ $APPLY -eq 0 ]]; then

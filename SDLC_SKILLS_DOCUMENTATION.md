@@ -1,4 +1,4 @@
-# BR Skills Suite — Documentazione Completa
+# SDLC Skills Suite — Documentazione Completa
 
 Suite di 9 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement: dal setup del profilo progetto alla review della documentazione funzionale, dalla gestione delle risposte del funzionale all'analisi gap, dalla stima del team all'esecuzione delle task, dalla gestione degli aggiornamenti al debug post-rilascio, fino alla reportistica Excel. Tutti gli artefatti BR sono centralizzati nella repo `deloitte-profiles`, una repo separata e condivisa tra tutti gli sviluppatori e tutti i progetti.
 
@@ -10,53 +10,53 @@ Tutti i path qui sotto sono relativi a `<profiles_repo>/<profilo>/`, dove `<prof
 BR / Documentazione
         |
         v
-  [br-profile-setup]  ──>  constitution/profile.json
+  [sdlc-profile-setup]  ──>  constitution/profile.json
         |                  agents/
         |                  references/
         |
         v
-  [br-reviewer]   ──>  plans/todo/<data>_<nome>/
+  [sdlc-reviewer]   ──>  plans/todo/<data>_<nome>/
         |                  |
-        |            REVIEW_BR.md
-        |            REVIEW_BR.docx
+        |            CLARIFY.md
+        |            CLARIFY.docx
         |            requirements/
         |
         v
-  [br-clarify]    ──>  aggiorna REVIEW_BR.md/.docx
+  [sdlc-clarify]    ──>  aggiorna CLARIFY.md/.docx
         |               con risposte del funzionale
         |
         v
-  [br-estimator]  ──>  plans/todo/<data>_<nome>/
+  [sdlc-estimator]  ──>  plans/todo/<data>_<nome>/
         |                  |
         |            STIMA_BR.md
         |            STIMA_BR.xlsx
         |
         v
-  [br-analyzer]   ──>  plans/todo/<data>_<nome>/
+  [sdlc-analyzer]   ──>  plans/todo/<data>_<nome>/
         |                  |
-        |            GAP_REPORT_BR.md
-        |            PIANO_IMPLEMENTAZIONE_BR.md
+        |            PLAN.md
+        |            TASKS.md
         |
         v
-  [br-executor]   ──>  plans/in-progress/<data>_<nome>/
+  [sdlc-executor]   ──>  plans/in-progress/<data>_<nome>/
         |                  |
         |            + PROGRESSO_BR.md
         |
         |   (se BR aggiornato)
         |         |
         |         v
-        |   [br-updater]  ──>  aggiorna report + piano
+        |   [sdlc-updater]  ──>  aggiorna report + piano
         |                      preservando il progresso
         |
         |   (per reportistica)
         |         |
         |         v
-        |   [br-progress-report]  ──>  AVANZAMENTO_BR.xlsx
+        |   [sdlc-progress-report]  ──>  AVANZAMENTO_BR.xlsx
         |
         |   (per bug post-testing)
         |         |
         |         v
-        |   [br-debug]  ──>  BUG_REPORT_BR.md
+        |   [sdlc-debug]  ──>  BUG_REPORT_BR.md
         |                    fix con sottoagenti + verifica
         |
         v
@@ -81,10 +81,10 @@ deloitte-profiles/                       # repo separata, centralizzata per tutt
         ├── todo/
         │   └── <data>_<nome-br>/
         │       ├── requirements/        # documentazione BR convertita in markdown
-        │       ├── REVIEW_BR.md
-        │       ├── REVIEW_BR.docx
-        │       ├── GAP_REPORT_BR.md
-        │       ├── PIANO_IMPLEMENTAZIONE_BR.md
+        │       ├── CLARIFY.md
+        │       ├── CLARIFY.docx
+        │       ├── PLAN.md
+        │       ├── TASKS.md
         │       └── STIMA_BR.md / .xlsx
         ├── in-progress/
         │   └── <data>_<nome-br>/
@@ -113,8 +113,8 @@ Non sono necessari lock, file separati per developer, o aggregazione cross-branc
 
 ## 1. BR Profile Setup
 
-**Skill**: `br-profile-setup`
-**Path**: `~/.claude/skills/br-profile-setup/SKILL.md`
+**Skill**: `sdlc-profile-setup`
+**Path**: `~/.claude/skills/sdlc-profile-setup/SKILL.md`
 **Trigger**: "crea profilo progetto", "setup profilo", "nuovo profilo", "configura il profilo"
 
 ### Scopo
@@ -144,17 +144,17 @@ Creare un nuovo profilo progetto in `deloitte-profiles` con auto-detect del code
 
 ## 2. BR Reviewer
 
-**Skill**: `br-reviewer`
-**Path**: `~/.claude/skills/br-reviewer/SKILL.md`
+**Skill**: `sdlc-reviewer`
+**Path**: `~/.claude/skills/sdlc-reviewer/SKILL.md`
 **Trigger**: "rivedi il br", "review del br", "controlla la documentazione", "verifica il br"
 
 ### Scopo
 
-Validare la qualita, coerenza e completezza della documentazione funzionale di un BR *prima* dell'analisi tecnica (br-analyzer). Produce un report duale:
+Validare la qualita, coerenza e completezza della documentazione funzionale di un BR *prima* dell'analisi tecnica (sdlc-analyzer). Produce un report duale:
 - **Parte 1 — Per il team funzionale**: elenca i problemi trovati (bloccanti e non) con domande precise a cui serve risposta
 - **Parte 2 — Per il team tecnico**: assunzioni di default che il team adottera in assenza di chiarimenti, e disallineamenti tra terminologia/strutture del BR e del codice
 
-Esegue anche un check leggero contro il codice per trovare disallineamenti terminologici e strutturali — non una gap analysis completa (quella la fa br-analyzer), ma problemi di documentazione visibili solo confrontando col codebase.
+Esegue anche un check leggero contro il codice per trovare disallineamenti terminologici e strutturali — non una gap analysis completa (quella la fa sdlc-analyzer), ma problemi di documentazione visibili solo confrontando col codebase.
 
 ### Flusso Operativo
 
@@ -174,7 +174,7 @@ Prima di procedere, ricapitola tutti gli input e chiede conferma.
 
 Stessa logica di conversione delle altre skill (doc-to-markdown per DOCX/DOC, markitdown per PDF/PPTX/XLSX, copia diretta per MD, Read per immagini). I file convertiti vanno nella cartella del BR: `<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/requirements/`.
 
-Questa fase viene eseguita da br-reviewer: br-analyzer non la ripete se trova i file gia convertiti.
+Questa fase viene eseguita da sdlc-reviewer: sdlc-analyzer non la ripete se trova i file gia convertiti.
 
 #### Fase 3 — Analisi della Documentazione
 
@@ -196,45 +196,45 @@ Ogni problema viene classificato per categoria e gravita:
 
 #### Fase 4 — Generazione Output
 
-Genera `REVIEW_BR.md` nella cartella del BR con:
+Genera `CLARIFY.md` nella cartella del BR con:
 - Esito sintetico (qualita complessiva, conteggio problemi, presenza bloccanti)
 - **Parte 1 — Per il team funzionale**: problemi bloccanti e non bloccanti con domande precise
 - **Parte 2 — Per il team tecnico**: tabella assunzioni proposte con rischio e costo di correzione, tabella disallineamenti col codice
-- **Riepilogo per br-analyzer**: sezione tecnica consumata automaticamente da br-analyzer per incorporare le assunzioni nel piano
+- **Riepilogo per sdlc-analyzer**: sezione tecnica consumata automaticamente da sdlc-analyzer per incorporare le assunzioni nel piano
 
-Dopo il MD, genera automaticamente `REVIEW_BR.docx` con pandoc. Il DOCX contiene placeholder "*(inserire qui la risposta)*" sotto ogni domanda, pronti per la compilazione da parte del funzionale.
+Dopo il MD, genera automaticamente `CLARIFY.docx` con pandoc. Il DOCX contiene placeholder "*(inserire qui la risposta)*" sotto ogni domanda, pronti per la compilazione da parte del funzionale.
 
-Se ci sono bloccanti, consiglia di attendere chiarimenti dal funzionale prima di procedere con br-analyzer, ma la decisione e dell'utente. Suggerisce di usare `br-clarify` quando arrivano le risposte.
+Se ci sono bloccanti, consiglia di attendere chiarimenti dal funzionale prima di procedere con sdlc-analyzer, ma la decisione e dell'utente. Suggerisce di usare `sdlc-clarify` quando arrivano le risposte.
 
 ### Dipendenze
 
 - `doc-to-markdown` skill (`~/.claude/skills/doc-to-markdown/`)
 - `markitdown` (via pip o uvx)
-- `pandoc` — per generazione REVIEW_BR.docx
+- `pandoc` — per generazione CLARIFY.docx
 
 ---
 
 ## 3. BR Clarify
 
-**Skill**: `br-clarify`
-**Path**: `~/.claude/skills/br-clarify/SKILL.md`
+**Skill**: `sdlc-clarify`
+**Path**: `~/.claude/skills/sdlc-clarify/SKILL.md`
 **Trigger**: "chiarimenti ricevuti", "risposte ricevute", "il funzionale ha risposto", "ho le risposte"
 
 ### Scopo
 
-Gestire le risposte del team funzionale alle domande sollevate da br-reviewer nel REVIEW_BR.md. Aggiorna il report con le risposte, ri-valuta i bloccanti e le assunzioni, e rigenera il DOCX. Supporta risposte parziali e round multipli.
+Gestire le risposte del team funzionale alle domande sollevate da sdlc-reviewer nel CLARIFY.md. Aggiorna il report con le risposte, ri-valuta i bloccanti e le assunzioni, e rigenera il DOCX. Supporta risposte parziali e round multipli.
 
 ### Flusso Operativo
 
-#### Fase 1 — Auto-detect REVIEW_BR.md
+#### Fase 1 — Auto-detect CLARIFY.md
 
-Esegue `git pull` sulla repo profili, poi cerca automaticamente `<profiles_repo>/<profilo>/plans/todo/*/REVIEW_BR.md` e `<profiles_repo>/<profilo>/plans/in-progress/*/REVIEW_BR.md`. Se ne trova uno lo propone, se piu di uno chiede quale usare, se nessuno informa che serve prima br-reviewer. Analizza lo stato: quante domande hanno gia risposta e quante sono ancora aperte.
+Esegue `git pull` sulla repo profili, poi cerca automaticamente `<profiles_repo>/<profilo>/plans/todo/*/CLARIFY.md` e `<profiles_repo>/<profilo>/plans/in-progress/*/CLARIFY.md`. Se ne trova uno lo propone, se piu di uno chiede quale usare, se nessuno informa che serve prima sdlc-reviewer. Analizza lo stato: quante domande hanno gia risposta e quante sono ancora aperte.
 
 #### Fase 2 — Modalita Input
 
 Supporta due modalita:
 
-1. **DOCX compilato**: il funzionale ha compilato il REVIEW_BR.docx inserendo le risposte sotto i placeholder. La skill converte il DOCX con pandoc, confronta con l'originale per rilevare le risposte, e le presenta all'utente per conferma.
+1. **DOCX compilato**: il funzionale ha compilato il CLARIFY.docx inserendo le risposte sotto i placeholder. La skill converte il DOCX con pandoc, confronta con l'originale per rilevare le risposte, e le presenta all'utente per conferma.
 
 2. **Conversazione**: la skill presenta ogni domanda aperta una alla volta (prima i bloccanti, poi i non bloccanti). L'utente riporta la risposta o dice "salta" per le domande ancora senza risposta.
 
@@ -251,16 +251,16 @@ Prima di modificare i file, presenta il riepilogo completo della rivalutazione e
 
 #### Fase 4 — Aggiornamento Output
 
-Aggiorna REVIEW_BR.md:
+Aggiorna CLARIFY.md:
 - Aggiunge "Risposta del funzionale" e "Data risposta" a ogni problema risposto
 - Aggiorna la tabella assunzioni con colonne "Stato" e "Risposta funzionale"
-- Sostituisce la sezione "Riepilogo per br-analyzer" con formato arricchito: bloccanti risolti con sintesi risposta, bloccanti ancora aperti, stato di ogni assunzione (confermata/rigettata/in attesa), marcatore "Ultimo aggiornamento: \<data\> (br-clarify)"
+- Sostituisce la sezione "Riepilogo per sdlc-analyzer" con formato arricchito: bloccanti risolti con sintesi risposta, bloccanti ancora aperti, stato di ogni assunzione (confermata/rigettata/in attesa), marcatore "Ultimo aggiornamento: \<data\> (sdlc-clarify)"
 
-Rigenera REVIEW_BR.docx con pandoc. Committa+pusha subito dopo la scrittura.
+Rigenera CLARIFY.docx con pandoc. Committa+pusha subito dopo la scrittura.
 
 #### Round Multipli
 
-La skill puo essere eseguita piu volte sullo stesso REVIEW_BR.md. A ogni esecuzione:
+La skill puo essere eseguita piu volte sullo stesso CLARIFY.md. A ogni esecuzione:
 - Rileva le domande gia risposte e presenta solo quelle ancora aperte
 - Non sovrascrive mai risposte precedenti
 - Se tutte le domande hanno risposta, informa che il review e completo
@@ -276,19 +276,19 @@ La skill puo essere eseguita piu volte sullo stesso REVIEW_BR.md. A ogni esecuzi
 ### Dipendenze
 
 - `pandoc` — per conversione DOCX↔MD e rigenerazione DOCX
-- `br-reviewer` — deve essere stato eseguito prima
+- `sdlc-reviewer` — deve essere stato eseguito prima
 
 ---
 
 ## 4. BR Analyzer
 
-**Skill**: `br-analyzer`
-**Path**: `~/.claude/skills/br-analyzer/SKILL.md`
+**Skill**: `sdlc-analyzer`
+**Path**: `~/.claude/skills/sdlc-analyzer/SKILL.md`
 **Trigger**: "abbiamo un nuovo br"
 
 ### Scopo
 
-Analizzare un nuovo Business Requirement confrontandolo con i codebase esistenti del progetto, identificare tutti i gap tra documentazione e codice, e produrre un piano di implementazione con task indipendenti assegnabili a sviluppatori muniti di Claude Code. Se br-reviewer e stato eseguito prima, ne legge le assunzioni e salta la conversione dei documenti.
+Analizzare un nuovo Business Requirement confrontandolo con i codebase esistenti del progetto, identificare tutti i gap tra documentazione e codice, e produrre un piano di implementazione con task indipendenti assegnabili a sviluppatori muniti di Claude Code. Se sdlc-reviewer e stato eseguito prima, ne legge le assunzioni e salta la conversione dei documenti.
 
 ### Flusso Operativo
 
@@ -337,14 +337,14 @@ Per ogni gap documenta: cosa richiede il BR (con riferimento a sezione/pagina), 
 
 Crea la struttura `<profiles_repo>/<profilo>/plans/todo/`, `<profiles_repo>/<profilo>/plans/in-progress/`, `<profiles_repo>/<profilo>/plans/done/` (se non esiste) e genera due file in `<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/`:
 
-**GAP_REPORT_BR.md** contiene:
+**PLAN.md** contiene:
 - Metadati: data verifica, branch verificati, perimetro documentale, codebase verificati
 - Esito sintetico: 2-3 frasi sullo stato complessivo
 - Matrice di verifica: una riga per ogni requisito con stato FE/BE, evidenze con path esatti, descrizione del gap
 - Gap aperti reali: sezione dettagliata per ogni gap con cosa richiede il BR, cosa esiste, cosa manca, impatto sui moduli
 - Conclusione finale: riepilogo per funzionalita
 
-**PIANO_IMPLEMENTAZIONE_BR.md** contiene:
+**TASKS.md** contiene:
 - Assunzioni e team disponibile
 - Obiettivo (massimizzare parallelismo)
 - Strategia di esecuzione (fondazioni, stream paralleli, integrazione)
@@ -361,7 +361,7 @@ Crea la struttura `<profiles_repo>/<profilo>/plans/todo/`, `<profiles_repo>/<pro
 
 ### Principi per la Creazione delle Task
 
-- **Organizzazione in stream**: le task sono raggruppate in stream funzionali coesi. Le task nello stesso stream condividono il contesto di codice e possono dipendere direttamente. Per le dipendenze cross-stream, br-analyzer inserisce automaticamente **merge task** (`T-MERGE-NNN`) tra la task sorgente e quella dipendente. Le fondazioni condivise vanno in `stream-fondazioni`.
+- **Organizzazione in stream**: le task sono raggruppate in stream funzionali coesi. Le task nello stesso stream condividono il contesto di codice e possono dipendere direttamente. Per le dipendenze cross-stream, sdlc-analyzer inserisce automaticamente **merge task** (`T-MERGE-NNN`) tra la task sorgente e quella dipendente. Le fondazioni condivise vanno in `stream-fondazioni`.
 - **Indipendenza massima**: ogni task deve poter essere sviluppata in parallelo. Le dipendenze condivise vanno nella wave precedente. Minimizzare le dipendenze cross-stream.
 - **Assegnazione per competenza e seniority**: task BE a sviluppatori BE, FE a FE. Task complesse ai senior/mid, task con scope chiuso ai junior con review assegnata. I senior non vanno caricati di implementazione continua.
 - **Granularita giusta**: ogni task completabile in 1-5 giorni. Troppo grande: spezzala. Troppo piccola (< 2 ore): accorpala.
@@ -377,13 +377,13 @@ Crea la struttura `<profiles_repo>/<profilo>/plans/todo/`, `<profiles_repo>/<pro
 
 ## 5. BR Executor
 
-**Skill**: `br-executor`
-**Path**: `~/.claude/skills/br-executor/SKILL.md`
+**Skill**: `sdlc-executor`
+**Path**: `~/.claude/skills/sdlc-executor/SKILL.md`
 **Trigger**: "lavora il task", "inizia a lavorare", "esegui il piano"
 
 ### Scopo
 
-Permettere a ogni sviluppatore, assistito da un agente Claude Code, di eseguire le task assegnate dal piano generato da br-analyzer. L'agente principale coordina il lavoro, delega l'implementazione a sottoagenti Claude, verifica i risultati e tiene aggiornato un file di progresso condiviso nella repo profili centralizzata.
+Permettere a ogni sviluppatore, assistito da un agente Claude Code, di eseguire le task assegnate dal piano generato da sdlc-analyzer. L'agente principale coordina il lavoro, delega l'implementazione a sottoagenti Claude, verifica i risultati e tiene aggiornato un file di progresso condiviso nella repo profili centralizzata.
 
 ### Flusso Operativo
 
@@ -415,7 +415,7 @@ Aggiorna il progresso a ogni cambio di stato significativo: task che passa a "In
 
 **Selezione task**: presenta le task assegnate allo sviluppatore in ordine di priorita (P0 > P1 > P2) e wave, chiede conferma prima di iniziare.
 
-**Controllo dipendenze**: la regola e semplice — una dipendenza e soddisfatta quando il suo stato e **"Completata"**. Non serve nessun controllo sugli stream: le dipendenze cross-stream sono gestite tramite merge task esplicite (`T-MERGE-*`) inserite nel piano da br-analyzer. Le merge task (T-MERGE-*) sono task speciali: quando l'executor le incontra, guida lo sviluppatore nel merge del branch e nella verifica della build, senza lanciare sottoagenti per implementazione di codice.
+**Controllo dipendenze**: la regola e semplice — una dipendenza e soddisfatta quando il suo stato e **"Completata"**. Non serve nessun controllo sugli stream: le dipendenze cross-stream sono gestite tramite merge task esplicite (`T-MERGE-*`) inserite nel piano da sdlc-analyzer. Le merge task (T-MERGE-*) sono task speciali: quando l'executor le incontra, guida lo sviluppatore nel merge del branch e nella verifica della build, senza lanciare sottoagenti per implementazione di codice.
 
 Se le dipendenze non sono soddisfatte, blocca e propone alternative: passare a un'altra task senza dipendenze bloccanti, oppure attendere.
 
@@ -480,8 +480,8 @@ Al completamento, aggiorna il progresso a 100% con stato "Completata" e propone 
 
 ## 6. BR Updater
 
-**Skill**: `br-updater`
-**Path**: `~/.claude/skills/br-updater/SKILL.md`
+**Skill**: `sdlc-updater`
+**Path**: `~/.claude/skills/sdlc-updater/SKILL.md`
 **Trigger**: "il br e stato aggiornato", "aggiorna il piano", "nuova versione del br"
 
 ### Scopo
@@ -503,7 +503,7 @@ Cerca automaticamente i file esistenti in `<profiles_repo>/<profilo>/plans/` e p
 
 #### Fase 2 — Analisi Delta Documentazione
 
-1. **Conversione**: converte i nuovi documenti in MD (stessa procedura di br-analyzer) in `<profiles_repo>/<profilo>/plans/<area>/<data>_<nome>/requirements/`
+1. **Conversione**: converte i nuovi documenti in MD (stessa procedura di sdlc-analyzer) in `<profiles_repo>/<profilo>/plans/<area>/<data>_<nome>/requirements/`
 2. **Identificazione delta**: confronta la documentazione aggiornata con quella referenziata nel report e identifica:
    - **Requisiti nuovi**: presenti nella nuova documentazione ma assenti dal report
    - **Requisiti modificati**: presenti in entrambi ma con differenze
@@ -552,8 +552,8 @@ Presenta riepilogo completo: file aggiornati, task aggiunte/modificate/annullate
 
 ## 7. BR Debug
 
-**Skill**: `br-debug`
-**Path**: `~/.claude/skills/br-debug/SKILL.md`
+**Skill**: `sdlc-debug`
+**Path**: `~/.claude/skills/sdlc-debug/SKILL.md`
 **Trigger**: "ci sono dei bug", "bug dal funzionale", "segnalazioni test", "lavora il bug", "fix il bug", "debug br"
 
 ### Scopo
@@ -583,7 +583,7 @@ Per ogni bug:
 
 1. **Riproduzione**: legge la descrizione, esplora il codice impattato, identifica la root cause
 2. **Implementazione**: lancia un sottoagente con prompt autosufficiente per implementare il fix
-3. **Verifica in 3 fasi** (stessa di br-executor):
+3. **Verifica in 3 fasi** (stessa di sdlc-executor):
    - **Fase A -- Tecnica**: test verdi, build pulita, regressione esistente non rotta
    - **Fase B -- Coerenza**: il fix risolve effettivamente il bug descritto
    - **Fase C -- Riesame**: il fix non introduce nuovi problemi, e' nel posto giusto, e' minimo
@@ -612,8 +612,8 @@ La skill puo' essere re-eseguita con un nuovo Excel/import Jira per importare bu
 
 ## 8. BR Progress Report
 
-**Skill**: `br-progress-report`
-**Path**: `~/.claude/skills/br-progress-report/SKILL.md`
+**Skill**: `sdlc-progress-report`
+**Path**: `~/.claude/skills/sdlc-progress-report/SKILL.md`
 **Trigger**: "genera il report excel", "aggiorna l'excel", "stato avanzamento", "esporta il progresso"
 
 ### Scopo
@@ -705,8 +705,8 @@ Salva `AVANZAMENTO_BR.xlsx` nella stessa cartella del piano (`<profiles_repo>/<p
 
 ## 9. BR Estimator
 
-**Skill**: `br-estimator`
-**Path**: `~/.claude/skills/br-estimator/SKILL.md`
+**Skill**: `sdlc-estimator`
+**Path**: `~/.claude/skills/sdlc-estimator/SKILL.md`
 **Trigger**: "stima il br", "quanti sviluppatori servono", "simulazione team", "stima effort", "stima team"
 
 ### Scopo
@@ -717,8 +717,8 @@ Stimare il team necessario per completare un BR entro una deadline, con simulazi
 
 Due modalita supportate:
 
-1. **Rough (pre-analisi)**: stima derivata dalla documentazione BR convertita in markdown, prima che br-analyzer sia stato eseguito. Utile per fornire indicazioni iniziali sul team in fase di pre-vendita o pianificazione.
-2. **Dettagliata (post-analisi)**: stima derivata dal `PIANO_IMPLEMENTAZIONE_BR.md` e dal `GAP_REPORT_BR.md`. Molto piu' precisa, usa la granularita' delle task e le wave del piano.
+1. **Rough (pre-analisi)**: stima derivata dalla documentazione BR convertita in markdown, prima che sdlc-analyzer sia stato eseguito. Utile per fornire indicazioni iniziali sul team in fase di pre-vendita o pianificazione.
+2. **Dettagliata (post-analisi)**: stima derivata dal `TASKS.md` e dal `PLAN.md`. Molto piu' precisa, usa la granularita' delle task e le wave del piano.
 
 ### Flusso Operativo
 
@@ -726,10 +726,10 @@ Prima di ogni operazione legge `.br-local.json`, esegue `git pull` sulla repo pr
 
 #### Fase 1 — Identificazione Modalita
 
-Cerca in `<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/` la presenza di `PIANO_IMPLEMENTAZIONE_BR.md`:
+Cerca in `<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/` la presenza di `TASKS.md`:
 - Se presente → modalita dettagliata
 - Se assente ma `requirements/` presente → modalita rough
-- Se entrambi assenti → richiede di eseguire prima br-reviewer (per requirements) o br-analyzer (per piano)
+- Se entrambi assenti → richiede di eseguire prima sdlc-reviewer (per requirements) o sdlc-analyzer (per piano)
 
 #### Fase 2 — Raccolta Input
 
@@ -788,7 +788,7 @@ Da iniziare → In corso → Completata
 
 ### Dipendenze cross-stream
 
-Le dipendenze cross-stream sono gestite tramite **merge task esplicite** (`T-MERGE-NNN`) inserite nel piano da br-analyzer. Non esiste una logica di sblocco basata sugli stream nell'executor: tutte le dipendenze si sbloccano semplicemente quando lo stato e "Completata".
+Le dipendenze cross-stream sono gestite tramite **merge task esplicite** (`T-MERGE-NNN`) inserite nel piano da sdlc-analyzer. Non esiste una logica di sblocco basata sugli stream nell'executor: tutte le dipendenze si sbloccano semplicemente quando lo stato e "Completata".
 
 ---
 
@@ -796,23 +796,23 @@ Le dipendenze cross-stream sono gestite tramite **merge task esplicite** (`T-MER
 
 | Dipendenza | Usata da | Installazione |
 |---|---|---|
-| `doc-to-markdown` skill | br-reviewer, br-analyzer, br-updater | gia installata in `~/.claude/skills/doc-to-markdown/` |
-| `markitdown` | br-reviewer, br-analyzer, br-updater | `pip install 'markitdown[all]'` oppure via `uvx` |
-| `pandoc` | br-reviewer, br-clarify | disponibile su PATH |
-| `openpyxl` | br-progress-report, br-debug, br-estimator | `pip install openpyxl` |
+| `doc-to-markdown` skill | sdlc-reviewer, sdlc-analyzer, sdlc-updater | gia installata in `~/.claude/skills/doc-to-markdown/` |
+| `markitdown` | sdlc-reviewer, sdlc-analyzer, sdlc-updater | `pip install 'markitdown[all]'` oppure via `uvx` |
+| `pandoc` | sdlc-reviewer, sdlc-clarify | disponibile su PATH |
+| `openpyxl` | sdlc-progress-report, sdlc-debug, sdlc-estimator | `pip install openpyxl` |
 | `git` | tutte (sync repo profili) | disponibile su PATH |
-| `jira` skill / MCP | br-debug (opzionale) | configurato globalmente |
+| `jira` skill / MCP | sdlc-debug (opzionale) | configurato globalmente |
 
 ## Trigger Registrati (CLAUDE.md)
 
 | Frase | Skill |
 |---|---|
-| "crea profilo progetto" / "setup profilo" / "nuovo profilo" / "configura il profilo" | br-profile-setup |
-| "rivedi il br" / "review del br" / "controlla la documentazione" / "verifica il br" | br-reviewer |
-| "chiarimenti ricevuti" / "risposte ricevute" / "il funzionale ha risposto" / "ho le risposte" | br-clarify |
-| "abbiamo un nuovo br" | br-analyzer |
-| "lavora il task" / "inizia a lavorare" / "esegui il piano" | br-executor |
-| "il br e stato aggiornato" / "aggiorna il piano" / "nuova versione del br" | br-updater |
-| "ci sono dei bug" / "bug dal funzionale" / "lavora il bug" / "debug br" | br-debug |
-| "genera il report excel" / "aggiorna l'excel" / "stato avanzamento" / "esporta il progresso" | br-progress-report |
-| "stima il br" / "quanti sviluppatori servono" / "simulazione team" / "stima effort" | br-estimator |
+| "crea profilo progetto" / "setup profilo" / "nuovo profilo" / "configura il profilo" | sdlc-profile-setup |
+| "rivedi il br" / "review del br" / "controlla la documentazione" / "verifica il br" | sdlc-reviewer |
+| "chiarimenti ricevuti" / "risposte ricevute" / "il funzionale ha risposto" / "ho le risposte" | sdlc-clarify |
+| "abbiamo un nuovo br" | sdlc-analyzer |
+| "lavora il task" / "inizia a lavorare" / "esegui il piano" | sdlc-executor |
+| "il br e stato aggiornato" / "aggiorna il piano" / "nuova versione del br" | sdlc-updater |
+| "ci sono dei bug" / "bug dal funzionale" / "lavora il bug" / "debug br" | sdlc-debug |
+| "genera il report excel" / "aggiorna l'excel" / "stato avanzamento" / "esporta il progresso" | sdlc-progress-report |
+| "stima il br" / "quanti sviluppatori servono" / "simulazione team" / "stima effort" | sdlc-estimator |

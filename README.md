@@ -232,7 +232,7 @@ Lo script `migrate-sdlc-naming.sh` salta automaticamente la cartella `plans/done
 
 ## Documentazione completa
 
-Per la documentazione dettagliata di ogni skill (fasi operative, regole, formati di output, gestione situazioni speciali), consulta **[BR_SKILLS_DOCUMENTATION.md](BR_SKILLS_DOCUMENTATION.md)**.
+Per la documentazione dettagliata di ogni skill (fasi operative, regole, formati di output, gestione situazioni speciali), consulta **[SDLC_SKILLS_DOCUMENTATION.md](SDLC_SKILLS_DOCUMENTATION.md)**.
 
 ## Struttura Cartelle
 
