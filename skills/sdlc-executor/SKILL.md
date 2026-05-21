@@ -11,11 +11,11 @@ L'agente principale coordina il lavoro, delega l'implementazione a sottoagenti, 
 
 ---
 
-## Risoluzione Path — deloitte-profiles
+## Risoluzione Path (modalita' duale: standalone | legacy)
 
-Tutte le operazioni su file BR avvengono nella repo `deloitte-profiles`, non nella repo del codice. Il codice del progetto continua a essere scritto nelle repo del progetto.
+Tutte le operazioni su file plan avvengono nella **project_repo** (modalita' standalone, una repo per progetto) o nella repo `deloitte-profiles` (modalita' legacy), **non** nella repo del codice applicativo. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
-### Lettura `.br-local.json`
+### Lettura `.br-local.json` e detection modalita'
 
 All'avvio, leggi `.br-local.json` dalla root della repo corrente:
 
@@ -23,61 +23,75 @@ All'avvio, leggi `.br-local.json` dalla root della repo corrente:
 cat .br-local.json 2>/dev/null
 ```
 
-Estrai `profiles_repo`, `profilo`, `developer`.
+La presenza del campo `project_repo` o `profiles_repo` discrimina la modalita':
 
-Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
+```bash
+if grep -q '"project_repo"' .br-local.json 2>/dev/null; then
+  MODE="standalone"
+  PROJECT_REPO=$(grep -oP '"project_repo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROJECT_NAME=$(grep -oP '"project_name"\s*:\s*"\K[^"]+' .br-local.json)
+  BASE_PATH="$PROJECT_REPO/plans"
+  CONST_PATH="$PROJECT_REPO/constitution"
+  DATASET_PATH="$PROJECT_REPO/dataset"        # solo standalone (popolato da Solaria-side)
+  GIT_REPO_PATH="$PROJECT_REPO"
+elif grep -q '"profiles_repo"' .br-local.json 2>/dev/null; then
+  MODE="legacy"
+  PROFILES_REPO=$(grep -oP '"profiles_repo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROFILO=$(grep -oP '"profilo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROJECT_NAME="$PROFILO"
+  BASE_PATH="$PROFILES_REPO/$PROFILO/plans"
+  CONST_PATH="$PROFILES_REPO/$PROFILO/constitution"
+  DATASET_PATH=""                              # non esiste in legacy
+  GIT_REPO_PATH="$PROFILES_REPO"
+fi
+```
+
+| Modalita' | `BASE_PATH` | `CONST_PATH` | Stati supportati |
+|---|---|---|---|
+| Standalone | `$PROJECT_REPO/plans` | `$PROJECT_REPO/constitution` | `draft`, `todo`, `in-progress`, `done` |
+| Legacy | `$PROFILES_REPO/$PROFILO/plans` | `$PROFILES_REPO/$PROFILO/constitution` | `todo`, `in-progress`, `done` |
+
+> **Nota**: `plans/draft/` esiste solo in modalita' standalone — area dove Solaria authora l'AFU prima dell'handoff (Fase 1c). Le skill SDLC ignorano `draft/` (e' Solaria-side) tranne `sdlc-reviewer` e `sdlc-clarify` quando esplicitamente invocate su un draft.
 
 ### Se `.br-local.json` non esiste
 
-Sei uno sviluppatore — per collegarti al profilo esistente serve:
+Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Per collegarti al profilo esistente, ho bisogno di:
-> 1. **Path del clone di deloitte-profiles** (es. `C:/Users/dev/Documents/deloitte-profiles`)
-> 2. **Nome del profilo** (es. `banca-agente`)
-> 3. **Il tuo nome** (come appare nel piano di implementazione)
-
-Crea `.br-local.json` con:
-```json
-{
-  "profilo": "<profilo>",
-  "profiles_repo": "<path>",
-  "developer": "<nome>"
-}
-```
+> `.br-local.json` non trovato. Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
 
 ### Sincronizzazione prima della lettura
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
+git -C "$GIT_REPO_PATH" pull origin main --quiet
 ```
 
 ### Commit e push dopo la scrittura
 
 ```bash
-git -C "<profiles_repo>" add .
-git -C "<profiles_repo>" commit -m "<messaggio>"
-git -C "<profiles_repo>" push origin main --quiet
+git -C "$GIT_REPO_PATH" add .
+git -C "$GIT_REPO_PATH" commit -m "<messaggio>"
+git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 
 ---
 
 ## Caricamento contesto progetto (CONST + PROFILE)
 
-Dopo aver risolto i path (`profiles_repo`, `profilo`) e prima di eseguire qualsiasi altra fase, carica i due file di costituzione del progetto:
+Dopo aver risolto i path con l'helper di detection sopra, prima di eseguire qualsiasi altra fase carica i due file di costituzione del progetto:
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
-cat "<profiles_repo>/<profilo>/constitution/CONST.json"
-cat "<profiles_repo>/<profilo>/constitution/PROFILE.json"
+git -C "$GIT_REPO_PATH" pull origin main --quiet
+cat "$CONST_PATH/CONST.json"
+cat "$CONST_PATH/PROFILE.json"
 ```
 
 **Errori di loading (uniformi per tutte le skill SDLC):**
 
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
-| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup`" | Stop |
-| `CONST.json` manca, `PROFILE.json` esiste | "Il profilo `<nome>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
-| `PROFILE.json` manca, `CONST.json` esiste | "Il profilo `<nome>` non ha PROFILE.json. Stato inconsistente — il profilo è incompleto. Ripristinare da git history o rifare il setup." | Stop |
+| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
+| `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
+| `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
 | Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
 | JSON malformed | Mostra errore di parse + path | Stop |
 
@@ -104,15 +118,15 @@ Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 Prima di chiedere, sincronizza la repo profili e verifica se esiste la struttura `plans/` nel profilo. Cerca cartelle BR nelle tre aree:
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
-ls -d "<profiles_repo>/<profilo>/plans/todo"/*/ "<profiles_repo>/<profilo>/plans/in-progress"/*/ "<profiles_repo>/<profilo>/plans/done"/*/ 2>/dev/null
+git -C "$GIT_REPO_PATH" pull origin main --quiet
+ls -d "$BASE_PATH/todo"/*/ "$BASE_PATH/in-progress"/*/ "$BASE_PATH/done"/*/ 2>/dev/null
 ```
 
 **Se trovi cartelle BR**, elencale e proponi:
 
 > Ho trovato queste cartelle BR:
-> - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_booking-v2/` (contiene PLAN.md, TASKS.md)
-> - `<profiles_repo>/<profilo>/plans/in-progress/2026-04-15_monitoraggio/` (contiene PROGRESS.md)
+> - `$BASE_PATH/todo/2026-04-28_booking-v2/` (contiene PLAN.md, TASKS.md)
+> - `$BASE_PATH/in-progress/2026-04-15_monitoraggio/` (contiene PROGRESS.md)
 >
 > Quale vuoi lavorare? Oppure dammi i path manualmente.
 
@@ -130,16 +144,16 @@ Leggi tutti i file forniti. Estrai dal gap report e dal piano:
 
 ### Spostamento in `plans/in-progress/`
 
-Quando lo sviluppatore conferma e la lavorazione sta per iniziare, sposta l'intera cartella del BR da `<profiles_repo>/<profilo>/plans/todo/` a `<profiles_repo>/<profilo>/plans/in-progress/` (se non e' gia' li'):
+Quando lo sviluppatore conferma e la lavorazione sta per iniziare, sposta l'intera cartella del BR da `$BASE_PATH/todo/` a `$BASE_PATH/in-progress/` (se non e' gia' li'):
 
 ```bash
-git -C "<profiles_repo>" mv "<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/" "<profilo>/plans/in-progress/"
-git -C "<profiles_repo>" add .
-git -C "<profiles_repo>" commit -m "[sdlc-executor] <nome>: avvio lavorazione, spostato in in-progress"
-git -C "<profiles_repo>" push origin main --quiet
+git -C "$GIT_REPO_PATH" mv "<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/" "<profilo>/plans/in-progress/"
+git -C "$GIT_REPO_PATH" add .
+git -C "$GIT_REPO_PATH" commit -m "[sdlc-executor] <nome>: avvio lavorazione, spostato in in-progress"
+git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 
-Il file di progresso viene creato (o cercato) dentro la cartella del BR in `<profiles_repo>/<profilo>/plans/in-progress/`.
+Il file di progresso viene creato (o cercato) dentro la cartella del BR in `$BASE_PATH/in-progress/`.
 
 ### Domanda 2 — Path dei codebase locali
 
@@ -193,7 +207,7 @@ Procedi solo dopo la conferma.
 
 ### Se il file non esiste — Crealo
 
-Crea il file `PROGRESS.md` nella stessa cartella del BR (es. `<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/PROGRESS.md`), con questa struttura:
+Crea il file `PROGRESS.md` nella stessa cartella del BR (es. `$BASE_PATH/in-progress/<YYYY-MM-DD>_<nome>/PROGRESS.md`), con questa struttura:
 
 ```
 # Progresso Implementazione [Nome BR]
@@ -245,9 +259,9 @@ Aggiorna sempre il campo "Ultimo aggiornamento" e aggiungi una riga al Log Attiv
 **Dopo ogni aggiornamento del PROGRESS.md, esegui commit + push sulla repo profili**, in modo che il progresso sia immediatamente visibile a tutti gli altri sviluppatori:
 
 ```bash
-git -C "<profiles_repo>" add "<profilo>/plans/in-progress/<data>_<nome>/PROGRESS.md"
-git -C "<profiles_repo>" commit -m "[sdlc-progress] <task-id> -> <progresso>%"
-git -C "<profiles_repo>" push origin main --quiet
+git -C "$GIT_REPO_PATH" add "<profilo>/plans/in-progress/<data>_<nome>/PROGRESS.md"
+git -C "$GIT_REPO_PATH" commit -m "[sdlc-progress] <task-id> -> <progresso>%"
+git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 
 ---
@@ -276,10 +290,10 @@ Aspetta la conferma dello sviluppatore prima di iniziare qualsiasi lavoro.
 Prima di leggere il file di progresso, sincronizza la repo profili:
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
+git -C "$GIT_REPO_PATH" pull origin main --quiet
 ```
 
-Leggi il PROGRESS.md dalla cartella del BR in `<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/PROGRESS.md`.
+Leggi il PROGRESS.md dalla cartella del BR in `$BASE_PATH/in-progress/<data>_<nome>/PROGRESS.md`.
 
 Tutti gli sviluppatori scrivono nello stesso file nella repo centralizzata, quindi il progresso e' sempre aggiornato dopo il pull.
 
@@ -553,15 +567,15 @@ Dopo aver aggiornato il progresso, proponi la prossima task disponibile:
 Dopo aver completato una task, verifica nel file di progresso se **tutte** le task (non solo quelle dello sviluppatore corrente, ma tutte quelle nel piano) sono in stato "Completata". Se si':
 
 ```bash
-git -C "<profiles_repo>" mv "<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/" "<profilo>/plans/done/"
-git -C "<profiles_repo>" add .
-git -C "<profiles_repo>" commit -m "[sdlc-executor] <nome>: tutte le task completate, spostato in done"
-git -C "<profiles_repo>" push origin main --quiet
+git -C "$GIT_REPO_PATH" mv "<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/" "<profilo>/plans/done/"
+git -C "$GIT_REPO_PATH" add .
+git -C "$GIT_REPO_PATH" commit -m "[sdlc-executor] <nome>: tutte le task completate, spostato in done"
+git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 
 Comunica:
 
-> Tutte le task del piano sono completate. Cartella del BR spostata in `<profiles_repo>/<profilo>/plans/done/`.
+> Tutte le task del piano sono completate. Cartella del BR spostata in `$BASE_PATH/done/`.
 
 ---
 

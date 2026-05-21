@@ -13,59 +13,87 @@ Due modalita':
 
 ---
 
-## Risoluzione Path — deloitte-profiles
+## Risoluzione Path (modalita' duale: standalone | legacy)
 
-Tutte le operazioni su file BR avvengono nella repo `deloitte-profiles`, non nella repo del codice.
+Tutte le operazioni su file plan avvengono nella **project_repo** (modalita' standalone, una repo per progetto) o nella repo `deloitte-profiles` (modalita' legacy), **non** nella repo del codice applicativo. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
-### Lettura `.br-local.json`
+### Lettura `.br-local.json` e detection modalita'
+
+All'avvio, leggi `.br-local.json` dalla root della repo corrente:
 
 ```bash
 cat .br-local.json 2>/dev/null
 ```
 
-Estrai `profiles_repo`, `profilo`, `developer`.
+La presenza del campo `project_repo` o `profiles_repo` discrimina la modalita':
 
-Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
+```bash
+if grep -q '"project_repo"' .br-local.json 2>/dev/null; then
+  MODE="standalone"
+  PROJECT_REPO=$(grep -oP '"project_repo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROJECT_NAME=$(grep -oP '"project_name"\s*:\s*"\K[^"]+' .br-local.json)
+  BASE_PATH="$PROJECT_REPO/plans"
+  CONST_PATH="$PROJECT_REPO/constitution"
+  DATASET_PATH="$PROJECT_REPO/dataset"        # solo standalone (popolato da Solaria-side)
+  GIT_REPO_PATH="$PROJECT_REPO"
+elif grep -q '"profiles_repo"' .br-local.json 2>/dev/null; then
+  MODE="legacy"
+  PROFILES_REPO=$(grep -oP '"profiles_repo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROFILO=$(grep -oP '"profilo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROJECT_NAME="$PROFILO"
+  BASE_PATH="$PROFILES_REPO/$PROFILO/plans"
+  CONST_PATH="$PROFILES_REPO/$PROFILO/constitution"
+  DATASET_PATH=""                              # non esiste in legacy
+  GIT_REPO_PATH="$PROFILES_REPO"
+fi
+```
+
+| Modalita' | `BASE_PATH` | `CONST_PATH` | Stati supportati |
+|---|---|---|---|
+| Standalone | `$PROJECT_REPO/plans` | `$PROJECT_REPO/constitution` | `draft`, `todo`, `in-progress`, `done` |
+| Legacy | `$PROFILES_REPO/$PROFILO/plans` | `$PROFILES_REPO/$PROFILO/constitution` | `todo`, `in-progress`, `done` |
+
+> **Nota**: `plans/draft/` esiste solo in modalita' standalone — area dove Solaria authora l'AFU prima dell'handoff (Fase 1c). Le skill SDLC ignorano `draft/` (e' Solaria-side) tranne `sdlc-reviewer` e `sdlc-clarify` quando esplicitamente invocate su un draft.
 
 ### Se `.br-local.json` non esiste
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `sdlc-profile-setup`.
+> `.br-local.json` non trovato. Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
 
 ### Sincronizzazione prima della lettura
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
+git -C "$GIT_REPO_PATH" pull origin main --quiet
 ```
 
 ### Commit e push dopo la scrittura
 
 ```bash
-git -C "<profiles_repo>" add .
-git -C "<profiles_repo>" commit -m "<messaggio>"
-git -C "<profiles_repo>" push origin main --quiet
+git -C "$GIT_REPO_PATH" add .
+git -C "$GIT_REPO_PATH" commit -m "<messaggio>"
+git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 
 ---
 
 ## Caricamento contesto progetto (CONST + PROFILE)
 
-Dopo aver risolto i path (`profiles_repo`, `profilo`) e prima di eseguire qualsiasi altra fase, carica i due file di costituzione del progetto:
+Dopo aver risolto i path con l'helper di detection sopra, prima di eseguire qualsiasi altra fase carica i due file di costituzione del progetto:
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
-cat "<profiles_repo>/<profilo>/constitution/CONST.json"
-cat "<profiles_repo>/<profilo>/constitution/PROFILE.json"
+git -C "$GIT_REPO_PATH" pull origin main --quiet
+cat "$CONST_PATH/CONST.json"
+cat "$CONST_PATH/PROFILE.json"
 ```
 
 **Errori di loading (uniformi per tutte le skill SDLC):**
 
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
-| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup`" | Stop |
-| `CONST.json` manca, `PROFILE.json` esiste | "Il profilo `<nome>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
-| `PROFILE.json` manca, `CONST.json` esiste | "Il profilo `<nome>` non ha PROFILE.json. Stato inconsistente — il profilo è incompleto. Ripristinare da git history o rifare il setup." | Stop |
+| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
+| `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
+| `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
 | Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
 | JSON malformed | Mostra errore di parse + path | Stop |
 
@@ -85,7 +113,7 @@ Entrambi i file restano disponibili come contesto per tutta la durata della skil
 
 ## Rilevamento Contesto
 
-La skill cerca il TASKS in `<profiles_repo>/<profilo>/plans/`.
+La skill cerca il TASKS in `$BASE_PATH/`.
 
 ## Rilevamento Modalita'
 
@@ -112,8 +140,8 @@ Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 Cerca i BR attivi:
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
-ls -d "<profiles_repo>/<profilo>/plans/todo"/*/ "<profiles_repo>/<profilo>/plans/in-progress"/*/ 2>/dev/null
+git -C "$GIT_REPO_PATH" pull origin main --quiet
+ls -d "$BASE_PATH/todo"/*/ "$BASE_PATH/in-progress"/*/ 2>/dev/null
 ```
 
 Se ne trovi uno, proponilo. Se piu' di uno, chiedi quale. Se nessuno, avvisa che serve almeno la documentazione BR.
@@ -161,7 +189,7 @@ Se l'utente sceglie personalizza, mostra i default in tabella e permetti di camb
 
 1. Lancia in **parallelo**:
    - **Analista BR** (`sdlc-estimation-analyst`): leggi le sue istruzioni da `~/.claude/agents/sdlc-estimation-analyst.md`. Passagli la documentazione BR e il profilo progetto (se disponibile da `.br-local.json` → `profiles_repo`/`profilo`).
-   - **Storico** (`sdlc-estimation-historian`): leggi le sue istruzioni da `~/.claude/agents/sdlc-estimation-historian.md`. Passagli il path a `<profiles_repo>/<profilo>/plans/done/` e i parametri di default.
+   - **Storico** (`sdlc-estimation-historian`): leggi le sue istruzioni da `~/.claude/agents/sdlc-estimation-historian.md`. Passagli il path a `$BASE_PATH/done/` e i parametri di default.
 
 2. Ricevi i risultati:
    - Dall'analista: tabella funzionalita' con task stimate, complessita', rischio, area
@@ -262,7 +290,7 @@ Quando l'utente sceglie "Salva e genera report":
 ### ESTIMATE.md
 
 Scrivi il file nella cartella del BR:
-`<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/ESTIMATE.md` (o `in-progress/` se il BR è già in lavorazione)
+`$BASE_PATH/todo/<data>_<nome>/ESTIMATE.md` (o `in-progress/` se il BR è già in lavorazione)
 
 Struttura:
 
@@ -359,9 +387,9 @@ Salva il file nella stessa cartella del ESTIMATE.md.
 Dopo aver scritto entrambi i file:
 
 ```bash
-git -C "<profiles_repo>" add "<profilo>/plans/"
-git -C "<profiles_repo>" commit -m "[sdlc-estimator] <nome-br>: stima team (<modalita'>)"
-git -C "<profiles_repo>" push origin main --quiet
+git -C "$GIT_REPO_PATH" add "<profilo>/plans/"
+git -C "$GIT_REPO_PATH" commit -m "[sdlc-estimator] <nome-br>: stima team (<modalita'>)"
+git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 
 ---
