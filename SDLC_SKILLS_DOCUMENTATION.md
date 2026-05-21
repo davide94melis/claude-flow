@@ -1,10 +1,49 @@
 # SDLC Skills Suite — Documentazione Completa
 
-Suite di 9 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement: dal setup del profilo progetto alla review della documentazione funzionale, dalla gestione delle risposte del funzionale all'analisi gap, dalla stima del team all'esecuzione delle task, dalla gestione degli aggiornamenti al debug post-rilascio, fino alla reportistica Excel. Tutti gli artefatti BR sono centralizzati nella repo `deloitte-profiles`, una repo separata e condivisa tra tutti gli sviluppatori e tutti i progetti.
+Suite di 9 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement: dal setup del profilo progetto alla review della documentazione funzionale, dalla gestione delle risposte del funzionale all'analisi gap, dalla stima del team all'esecuzione delle task, dalla gestione degli aggiornamenti al debug post-rilascio, fino alla reportistica Excel.
+
+## Modalita' Operative
+
+Le 9 skill SDLC operano in **due modalita' mutuamente esclusive** discriminate dall'auto-detect del file `.br-local.json` (nella repo applicativa del developer):
+
+| Modalita' | Trigger `.br-local.json` | Storage profilo + plan | Stati plan |
+|---|---|---|---|
+| **Legacy** | `{"profiles_repo": "...", "profilo": "..."}` | `<profiles_repo>/<profilo>/` (centralizzata in `deloitte-profiles`) | `todo/`, `in-progress/`, `done/` |
+| **Standalone** | `{"project_repo": "...", "project_name": "..."}` | `<project_repo>/` (una repo Git dedicata al progetto) | `draft/`, `todo/`, `in-progress/`, `done/` |
+
+- **Modalita' legacy**: i path sono relativi a `<profiles_repo>/<profilo>/`. Storica, retrocompatibile, in uso per progetti gia' avviati (es. `banca-agente`).
+- **Modalita' standalone**: i path sono relativi a `<project_repo>/`. Pensata per integrazione con **Solaria** (agente esterno gestito dal team funzionale a monte): introduce la cartella `dataset/` (Solaria-side) e l'area `plans/draft/` (Solaria authora l'AFU prima dell'handoff via GitHub Git Trees API). Vedi `docs/Fasi-New-way-of-working.md` (2 fasi composite) e `docs/SOLARIA_SDLC_INTEGRATION.md` (contratti d'interscambio).
+
+Ogni skill rileva la modalita' in apertura e si comporta di conseguenza. Le sezioni di questa documentazione descrivono i path con il placeholder `<base_path>` quando la differenza tra modalita' e' rilevante.
+
+### Schema `afu-manifest.json` v2 (solo standalone)
+
+Contratto fra Solaria e le skill SDLC Claude Code. Schema canonical in `claude-flow/templates/afu-manifest.schema.json`. Estende lo schema base con 4 campi opzionali prodotti dal FunctionalReviewer / skill review/clarify / playbook generator Solaria-side in Fase 1c:
+
+- `coverage` — `{overall_percent, by_section{...}}` percentuali di copertura AFU
+- `gate_outcome` — `"GO" | "NO-GO"` esito quality gate; solo i plan con GO sono handoff'able
+- `review_clarify_status` — `"open" | "closed"` stato analisi dettaglio post-GO
+- `tests` — `{playbook_md, playbook_xlsx}` riferimenti al playbook di test funzionale
+
+### Cartella `dataset/` (solo standalone, Solaria-side)
+
+`<project_repo>/dataset/` — popolata in Fase 1b da Solaria con branding, asset corporate, glossario, attori, perimetro. **Read-only per Claude Code**: le skill SDLC possono leggerla ma non scrivere. Sincronizzata in continuo via GitHub API.
+
+### Excel bug v2 con colonna `origine` (solo standalone)
+
+`BUG_EXCEL_TEMPLATE.xlsx` v2 in `claude-flow/templates/` aggiunge colonna `origine` (enum `tecnico|funzionale`) per distinguere bug rilevati dai test tecnici automatici team tech (Fase 2c ondata a) vs bug rilevati dal team funzionale eseguendo il playbook (Fase 2c ondata b). `sdlc-debug` legge la colonna, emette `BUG_REPORT.md` con due sezioni separate, espone counter `bug_tecnici_aperti` / `bug_funzionali_aperti` consumati da `sdlc-executor` per il check di chiusura automatica. Default retrocompat per template v1: `origine=tecnico`.
+
+### Opzionalita' di `sdlc-reviewer` + `sdlc-clarify` in Fase 2a standalone
+
+Nel flusso standalone Solaria esegue gia' un self-review macro in Fase 1c (FunctionalReviewer GO/NO-GO + skill review/clarify post-GO). La review tech post-handoff lato Claude Code (`sdlc-reviewer` + `sdlc-clarify`) e' quindi **OPZIONALE** in Fase 2a — il TL decide se invocarla solo per package complessi o dubbi architetturali. In legacy resta obbligatoria.
+
+### Playbook test funzionale
+
+Generato Solaria-side in Fase 1c come output AFU, in **doppio formato** `tests/playbook.md` + `tests/playbook.xlsx`. Eseguito **manualmente in autonomia dal team funzionale** in Fase 2c ondata (b), senza Solaria. I bug emersi confluiscono nello stesso Excel (con `origine=funzionale`) processato da `sdlc-debug`. `sdlc-executor` segnala la presenza del playbook all'avvio di task UI/frontend come log informativo (no enforcement).
 
 ## Architettura del Flusso
 
-Tutti i path qui sotto sono relativi a `<profiles_repo>/<profilo>/`, dove `<profiles_repo>` e' la repo `deloitte-profiles` clonata in locale e `<profilo>` e' il nome del progetto.
+Tutti i path qui sotto sono relativi a `<base_path>`, dove `<base_path>` si risolve in `<profiles_repo>/<profilo>/` (legacy) o `<project_repo>/` (standalone). Vedi la sezione "Modalita' Operative" sopra per la discriminazione.
 
 ```
 BR / Documentazione

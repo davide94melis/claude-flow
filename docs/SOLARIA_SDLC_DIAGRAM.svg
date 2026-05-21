@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1900 980" font-family="Segoe UI, Arial, sans-serif">
+<defs>
+  <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+    <polygon points="0,0 8,4 0,8" fill="#555"/>
+  </marker>
+</defs>
+<text x="40" y="40" font-size="26" font-weight="700">Solaria ⇄ SDLC Skills</text>
+<text x="40" y="68" font-size="14">Nuovo flusso a <tspan font-weight="700">2 fasi composite</tspan> (Fase 1 Pre-Coding: 1a/1b/1c — Fase 2 Coding &amp; Test: 2a/2b/2c). Una repo Git per progetto, Solaria opera server-side via GitHub API.</text>
+<rect x="195" y="100" width="850" height="30" fill="#2a8ac9" opacity="0.15"/>
+<text x="620" y="120" text-anchor="middle" font-weight="700" font-size="14" fill="#2a8ac9">FASE 1 — PRE-CODING</text>
+<rect x="1035" y="100" width="850" height="30" fill="#58a55c" opacity="0.15"/>
+<text x="1460" y="120" text-anchor="middle" font-weight="700" font-size="14" fill="#58a55c">FASE 2 — CODING &amp; TEST</text>
+<polygon points="205,140 445,140 475,162 445,185 205,185 235,162" fill="#2a8ac9"/>
+<text x="340" y="158" text-anchor="middle" fill="white" font-weight="700" font-size="14">1a — Setup tecnico</text>
+<foreignObject x="215" y="162" width="250" height="23">
+  <div xmlns="http://www.w3.org/1999/xhtml" style="color:white; font-size:9.5px; text-align:center; line-height:1.2; padding-top:3px;">GitHub repo + plans/ + CONST + PROFILE</div>
+</foreignObject>
+<polygon points="485,140 725,140 755,162 725,185 485,185 515,162" fill="#2a8ac9"/>
+<text x="620" y="158" text-anchor="middle" fill="white" font-weight="700" font-size="14">1b — Setup dataset</text>
+<foreignObject x="495" y="162" width="250" height="23">
+  <div xmlns="http://www.w3.org/1999/xhtml" style="color:white; font-size:9.5px; text-align:center; line-height:1.2; padding-top:3px;">dataset/ Solaria (branding, glossario, ...)</div>
+</foreignObject>
+<polygon points="765,140 1005,140 1035,162 1005,185 765,185 795,162" fill="#2a8ac9"/>
+<text x="900" y="158" text-anchor="middle" fill="white" font-weight="700" font-size="14">1c — Authoring AFU</text>
+<foreignObject x="775" y="162" width="250" height="23">
+  <div xmlns="http://www.w3.org/1999/xhtml" style="color:white; font-size:9.5px; text-align:center; line-height:1.2; padding-top:3px;">FunctionalWeaver → Reviewer (GO/NO-GO) → review/clarify → Mockup → Playbook → handoff</div>
+</foreignObject>
+<polygon points="1045,140 1285,140 1315,162 1285,185 1045,185 1075,162" fill="#58a55c"/>
+<text x="1180" y="158" text-anchor="middle" fill="white" font-weight="700" font-size="14">2a — Implementazione</text>
+<foreignObject x="1055" y="162" width="250" height="23">
+  <div xmlns="http://www.w3.org/1999/xhtml" style="color:white; font-size:9.5px; text-align:center; line-height:1.2; padding-top:3px;">(reviewer/clarify opz) → analyzer → executor → progress-report</div>
+</foreignObject>
+<polygon points="1325,140 1565,140 1595,162 1565,185 1325,185 1355,162" fill="#58a55c"/>
+<text x="1460" y="158" text-anchor="middle" fill="white" font-weight="700" font-size="14">2b — Update mid-flight</text>
+<foreignObject x="1335" y="162" width="250" height="23">
+  <div xmlns="http://www.w3.org/1999/xhtml" style="color:white; font-size:9.5px; text-align:center; line-height:1.2; padding-top:3px;">(opzionale) Solaria F1c v2.0 → sdlc-updater</div>
+</foreignObject>
+<polygon points="1605,140 1845,140 1875,162 1845,185 1605,185 1635,162" fill="#58a55c"/>
+<text x="1740" y="158" text-anchor="middle" fill="white" font-weight="700" font-size="14">2c — Test e chiusura</text>
+<foreignObject x="1615" y="162" width="250" height="23">
+  <div xmlns="http://www.w3.org/1999/xhtml" style="color:white; font-size:9.5px; text-align:center; line-height:1.2; padding-top:3px;">(a) tech tests → (b) func playbook → debug → done/</div>
+</foreignObject>
+<rect x="0" y="195" width="1900" height="150" fill="#e0ecf5"/>
+<rect x="20" y="230" width="150" height="70" fill="#2a8ac9" rx="4"/>
+<text x="95" y="255" text-anchor="middle" fill="white" font-weight="700" font-size="13">TEAM</text>
+<text x="95" y="273" text-anchor="middle" fill="white" font-weight="700" font-size="13">FUNZIONALE</text>
+<rect x="0" y="355" width="1900" height="200" fill="#cfe1ee"/>
+<rect x="20" y="410" width="150" height="70" fill="#1f6fa3" rx="4"/>
+<text x="95" y="435" text-anchor="middle" fill="white" font-weight="700" font-size="13">SOLARIA</text>
+<rect x="0" y="565" width="1900" height="180" fill="#e0ecf5"/>
+<rect x="20" y="610" width="150" height="70" fill="#2a8ac9" rx="4"/>
+<text x="95" y="635" text-anchor="middle" fill="white" font-weight="700" font-size="13">TEAM</text>
+<text x="95" y="653" text-anchor="middle" fill="white" font-weight="700" font-size="13">TECH</text>
+<line x1="180" y1="350" x2="1900" y2="350" stroke="#888" stroke-dasharray="3,3"/>
+<line x1="180" y1="560" x2="1900" y2="560" stroke="#888" stroke-dasharray="3,3"/>
+<rect x="205" y="210" width="270" height="130" fill="#f5f5f5" stroke="#bbb" stroke-width="1" stroke-dasharray="4,3" rx="8"/>
+<foreignObject x="215" y="260" width="250" height="30"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:11px; color:#888; line-height:1.3; text-align:center; font-style:italic;">(non attivo)</div></foreignObject>
+<rect x="205" y="365" width="270" height="180" fill="#f5f5f5" stroke="#bbb" stroke-width="1" stroke-dasharray="4,3" rx="8"/>
+<foreignObject x="215" y="440" width="250" height="30"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:11px; color:#888; line-height:1.3; text-align:center; font-style:italic;">(<i>non attivo</i>)</div></foreignObject>
+<rect x="205" y="575" width="270" height="150" fill="white" stroke="#2a8ac9" stroke-width="1.5" rx="8"/>
+<foreignObject x="215" y="583" width="250" height="138"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;"><b>sdlc-profile-setup</b> (standalone)<br/>• • Crea: <code>constitution/, references/, dataset/{scheletro}, plans/{draft,todo,in-progress,done}/</code><br/>• • Copia <code>afu-manifest.schema.json</code> v2</div></foreignObject>
+<rect x="485" y="210" width="270" height="130" fill="white" stroke="#2a8ac9" stroke-width="1.5" rx="8"/>
+<foreignObject x="495" y="218" width="250" height="118"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;">• • Fornisce a Solaria branding, asset corporate, glossario, attori, perimetro<br/>• • Solaria classifica e indicizza nel <b>dataset/</b></div></foreignObject>
+<rect x="485" y="365" width="270" height="180" fill="white" stroke="#1f6fa3" stroke-width="1.5" rx="8"/>
+<foreignObject x="495" y="373" width="250" height="168"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;"><b>Crea dataset di progetto</b><br/>• • Upload + classificazione asset funzionali/branding<br/>• • Sincronizzazione continua via GitHub Contents API su <code>dataset/</code></div></foreignObject>
+<rect x="485" y="575" width="270" height="150" fill="#f5f5f5" stroke="#bbb" stroke-width="1" stroke-dasharray="4,3" rx="8"/>
+<foreignObject x="495" y="635" width="250" height="30"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:11px; color:#888; line-height:1.3; text-align:center; font-style:italic;">(<i>non attivo</i>)</div></foreignObject>
+<rect x="765" y="210" width="270" height="130" fill="white" stroke="#2a8ac9" stroke-width="1.5" rx="8"/>
+<foreignObject x="775" y="218" width="250" height="118"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;">• • Porta materiale offline (note, mail, mockup grezzi)<br/>• • Rivede AFU prodotta dal FunctionalWeaver<br/>• • Risponde a rilievi review/clarify post-GO<br/>• • Porta AFU+mockup allo stakeholder per validazione (offline)</div></foreignObject>
+<rect x="765" y="365" width="270" height="180" fill="white" stroke="#1f6fa3" stroke-width="1.5" rx="8"/>
+<foreignObject x="775" y="373" width="250" height="168"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;"><b>Multi-agent authoring</b><br/>• • <b>FunctionalWeaver</b>: genera AFU dal dataset (no Q&amp;A)<br/>• • <b>FunctionalReviewer</b>: gate <b style='background:#ffc107;padding:0 4px;'>GO/NO-GO</b> + coverage %<br/>• • Skill <b>review/clarify</b> forkate (post-GO): corner case, bad flow<br/>• • <b>Mockup Designer Agent</b>: mockups di esempio<br/>• • <b>Playbook Generator</b>: tests/playbook.{md,xlsx}<br/>• • <b>Handoff</b>: rename atomico draft→todo via <b>Git Trees API</b></div></foreignObject>
+<rect x="765" y="575" width="270" height="150" fill="#f5f5f5" stroke="#bbb" stroke-width="1" stroke-dasharray="4,3" rx="8"/>
+<foreignObject x="775" y="635" width="250" height="30"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:11px; color:#888; line-height:1.3; text-align:center; font-style:italic;">(<i>non attivo</i> — Solaria autora; team tech consuma solo dopo handoff in F2a)</div></foreignObject>
+<rect x="1045" y="210" width="270" height="130" fill="white" stroke="#2a8ac9" stroke-width="1.5" rx="8"/>
+<foreignObject x="1055" y="218" width="250" height="118"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;">(<i>solo Q&amp;A se review tech opzionale attivata in F2a</i>)</div></foreignObject>
+<rect x="1045" y="365" width="270" height="180" fill="white" stroke="#1f6fa3" stroke-width="1.5" rx="8"/>
+<foreignObject x="1055" y="373" width="250" height="168"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;">(<i>opz: compila CLARIFY.md se review tech attivata</i>)<br/>• • Detection commit [sdlc-reviewer]/[sdlc-clarify] via polling on-demand Commits API o webhook<br/>• • Risposte funzionale → Contents API (commit [solaria-clarify])</div></foreignObject>
+<rect x="1045" y="575" width="270" height="150" fill="white" stroke="#2a8ac9" stroke-width="1.5" rx="8"/>
+<foreignObject x="1055" y="583" width="250" height="138"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;"><b>sdlc-reviewer + sdlc-clarify</b> (opzionali, TL decide)<br/><b>sdlc-analyzer</b>: PLAN.md + TASKS.md (header processed_afu_version)<br/><b>sdlc-executor</b>: implementa task + sposta in <code>in-progress/</code><br/><b>sdlc-progress-report</b>: PROGRESS.xlsx</div></foreignObject>
+<rect x="1325" y="210" width="270" height="130" fill="white" stroke="#2a8ac9" stroke-width="1.5" rx="8"/>
+<foreignObject x="1335" y="218" width="250" height="118"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;">• • Raccoglie nuovi requisiti stakeholder<br/>• • Arricchisce dataset del plan → rilancia F1c per AFU v2.0</div></foreignObject>
+<rect x="1325" y="365" width="270" height="180" fill="white" stroke="#1f6fa3" stroke-width="1.5" rx="8"/>
+<foreignObject x="1335" y="373" width="250" height="168"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;"><b>Rigenera AFU v2.0</b><br/>• • Riusa FunctionalWeaver/Reviewer/Mockup/review-clarify/Playbook<br/>• • afu-manifest: bump versione major + changelog</div></foreignObject>
+<rect x="1325" y="575" width="270" height="150" fill="white" stroke="#2a8ac9" stroke-width="1.5" rx="8"/>
+<foreignObject x="1335" y="583" width="250" height="138"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;"><b>sdlc-updater</b>: detecta delta via manifest.versione vs processed_afu_version<br/>• • Usa manifest.changelog come fonte primaria<br/>• • Aggiorna PLAN.md + TASKS.md preservando PROGRESS</div></foreignObject>
+<rect x="1605" y="210" width="270" height="130" fill="white" stroke="#2a8ac9" stroke-width="1.5" rx="8"/>
+<foreignObject x="1615" y="218" width="250" height="118"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;">• • Esegue manualmente il <b>playbook test</b> (md/xlsx) generato da Solaria in F1c<br/>• • Annota fallimenti → Excel bug (<b>origine=funzionale</b>)</div></foreignObject>
+<rect x="1605" y="365" width="270" height="180" fill="white" stroke="#1f6fa3" stroke-width="1.5" rx="8"/>
+<foreignObject x="1615" y="373" width="250" height="168"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;">(<i>passivo</i>)<br/>• • Detection chiusura plan via polling/webhook<br/>• • Notifica funzionale</div></foreignObject>
+<rect x="1605" y="575" width="270" height="150" fill="white" stroke="#2a8ac9" stroke-width="1.5" rx="8"/>
+<foreignObject x="1615" y="583" width="250" height="138"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;"><b>(a) Test tecnici automatici</b> (unit/integration/perf/security)<br/>•   → bug → <b>sdlc-debug</b> (origine=tecnico)<br/><b>Gate</b>: test tecnici <b style='background:#ffc107;padding:0 4px;'>verdi</b> prima ondata (b)<br/><b>sdlc-debug</b>: fix funzionali (origine=funzionale)<br/><b>sdlc-executor</b>: chiusura automatica → <code>done/</code> se tutte task=Completata + bug_tec/func_aperti=0</div></foreignObject>
+<rect x="20" y="740" width="1860" height="200" fill="#fafafa" stroke="#888" stroke-width="1.5" rx="4"/>
+<rect x="40" y="785" width="130" height="60" fill="#9e9e9e" rx="4"/>
+<text x="105" y="812" text-anchor="middle" fill="white" font-weight="700" font-size="12">ARTEFATTI</text>
+<text x="105" y="830" text-anchor="middle" fill="white" font-weight="700" font-size="11">project_repo/</text>
+<rect x="205" y="770" width="270" height="150" fill="white" stroke="#888" stroke-width="1.5" rx="8"/>
+<foreignObject x="215" y="778" width="250" height="138"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;"><code>constitution/{CONST,PROFILE}.json</code><br/><code>afu-manifest.schema.json</code> v2<br/>• Struttura <code>plans/{draft,todo,in-progress,done}/</code></div></foreignObject>
+<rect x="485" y="770" width="270" height="150" fill="white" stroke="#888" stroke-width="1.5" rx="8"/>
+<foreignObject x="495" y="778" width="250" height="138"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;"><code>dataset/{branding,corporate,glossario.md,attori.md,perimetro.md}</code><br/>• Commit: <code>[solaria-dataset-*]</code></div></foreignObject>
+<rect x="765" y="770" width="270" height="150" fill="white" stroke="#888" stroke-width="1.5" rx="8"/>
+<foreignObject x="775" y="778" width="250" height="138"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;"><code>plans/draft/&lt;plan&gt;/{requirements/{AFU.*, mockups/}, afu-manifest.json (coverage, gate=GO), REVIEW.md, tests/playbook.{md,xlsx}}</code><br/>• Handoff (Git Trees API): <code>[solaria-handoff]</code></div></foreignObject>
+<rect x="1045" y="770" width="270" height="150" fill="white" stroke="#888" stroke-width="1.5" rx="8"/>
+<foreignObject x="1055" y="778" width="250" height="138"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;"><code>plans/todo/&lt;plan&gt;/{(opz) CLARIFY.md, PLAN.md, TASKS.md}</code><br/><code>plans/in-progress/&lt;plan&gt;/{PROGRESS.md, PROGRESS.xlsx}</code></div></foreignObject>
+<rect x="1325" y="770" width="270" height="150" fill="white" stroke="#888" stroke-width="1.5" rx="8"/>
+<foreignObject x="1335" y="778" width="250" height="138"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;"><code>plans/in-progress/&lt;plan&gt;/{requirements/, afu-manifest.json v2, tests/playbook.* rigenerato}</code><br/>• Commit: <code>[solaria-update]</code></div></foreignObject>
+<rect x="1605" y="770" width="270" height="150" fill="white" stroke="#888" stroke-width="1.5" rx="8"/>
+<foreignObject x="1615" y="778" width="250" height="138"><div xmlns="http://www.w3.org/1999/xhtml" style="font-size:10.5px; color:#1a1a1a; line-height:1.4;"><code>plans/in-progress/&lt;plan&gt;/{bug-import-*.xlsx (colonna origine), BUG_REPORT.md (sez. tecnici + funzionali)}</code><br/><code>plans/done/&lt;plan&gt;/</code> (move automatico)</div></foreignObject>
+<text x="40" y="955" font-size="11" fill="#555"><tspan font-weight="700">Legenda:</tspan> <tspan font-weight="700" fill="#2a8ac9">■</tspan> Fase 1 (Pre-Coding) — <tspan font-weight="700" fill="#58a55c">■</tspan> Fase 2 (Coding &amp; Test) — <tspan style="background:#ffc107;padding:0 4px;">■</tspan> Quality gate (GO/NO-GO in F1c, test tecnici verdi in F2c) — Box tratteggiati = sub-fase non attiva per quella lane</text>
+</svg>
