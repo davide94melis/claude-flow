@@ -11,25 +11,58 @@ description: Crea un nuovo profilo progetto in deloitte-profiles con auto-detect
 > - `CONST.json` — principi/standard di archetipo (template precompilato di default, adattato in base al codebase)
 > - `PROFILE.json` — dettagli specifici del progetto (tech stack, dominio, design system)
 
-Questa skill guida la creazione di un nuovo profilo progetto nel repository `deloitte-profiles/`. Il profilo contiene tech stack, convenzioni, dominio e design system utilizzati da tutte le skill BR. Il flusso e' composto da 10 step sequenziali: una domanda alla volta, con auto-detect del codebase prima delle domande manuali.
+Questa skill guida la creazione di un nuovo profilo progetto in **modalita' duale**: **standalone** (una repo Git per progetto, raccomandato per nuovi progetti, con cartella `dataset/` Solaria-side) oppure **legacy** (centralizzata in `deloitte-profiles/`). Il profilo contiene tech stack, convenzioni, dominio e design system utilizzati da tutte le skill SDLC. Il flusso e' composto da step sequenziali: una domanda alla volta, con auto-detect del codebase prima delle domande manuali.
 
 ---
 
 ## Step 1 — Nome progetto
 
-Chiedi il nome del progetto. Diventa il nome della cartella nel repo dei profili.
+Chiedi il nome del progetto. Diventa il nome della cartella nel profilo (in legacy) o del progetto (in standalone).
 
-> Come vuoi chiamare questo progetto? Il nome verra' usato come cartella nel repo dei profili.
+> Come vuoi chiamare questo progetto? Il nome verra' usato come slug del progetto (kebab-case).
 >
-> Esempio: "pnrr", "ecomotive", "isp-banking"
+> Esempio: "pnrr", "ecomotive", "isp-banking", "banca-agente"
 
 Salva il nome fornito. Usa kebab-case se l'utente fornisce un nome con spazi.
 
 ---
 
-## Step 2 — Profiles repo
+## Step 1.5 — Scelta modalita' (standalone | legacy)
 
-Chiedi il path locale del clone di `deloitte-profiles`.
+Chiedi la modalita' di setup:
+
+> Vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti) o **modalita' legacy**?
+>
+> - **Standalone**: una repo Git dedicata al progetto (es. `banca-agente`), con cartella `dataset/` popolata da Solaria-side (branding, glossario, attori, perimetro), `constitution/`, `references/`, `plans/{draft,todo,in-progress,done}/`. La repo va creata su GitHub e clonata in locale prima di lanciare questa skill (NON la creo io: assume `git rev-parse` valido sul path).
+> - **Legacy**: il profilo viene aggiunto come cartella in `deloitte-profiles/<nome>/`, con `constitution/`, `references/`, `agents/`, `plans/{todo,in-progress,done}/` (senza `dataset/` ne' `draft/`). Modalita' storica, per progetti gia' avviati o che convivono in `deloitte-profiles`.
+>
+> Scegli (default raccomandato per nuovi progetti: standalone):
+
+Salva la scelta come `MODE` (`standalone` o `legacy`). Tutto il flusso a seguire si biforca su questa scelta.
+
+---
+
+## Step 2 — Path repo
+
+In base a `MODE`:
+
+**Se `MODE=standalone`**:
+
+> Qual e' il path locale del tuo clone della repo del progetto `<nome>`?
+>
+> Esempio: `C:/Users/davmelis/Documents/MyGitHub/<nome>`
+>
+> NB: la repo deve esistere su GitHub e essere gia' clonata (e inizializzata) — io NON eseguo `git init`, popolo solo i contents.
+
+Dopo la risposta:
+
+```bash
+git -C "<path>" rev-parse --is-inside-work-tree 2>/dev/null && echo "OK: git repo" || echo "ERRORE: non e' un repo git"
+```
+
+Salva il path come `PROJECT_REPO`. Se il repo non e' valido, segnala e chiedi di riprovare.
+
+**Se `MODE=legacy`**:
 
 > Qual e' il path locale del tuo clone di `deloitte-profiles`?
 >
@@ -42,7 +75,7 @@ git -C "<path>" rev-parse --is-inside-work-tree 2>/dev/null && echo "OK: git rep
 ls "<path>/profile-schema.json" 2>/dev/null && echo "OK: schema trovato" || echo "WARNING: profile-schema.json non trovato"
 ```
 
-Se il repo non e' valido, segnala e chiedi di riprovare. Se lo schema non c'e', avvisa ma procedi (verra' creato se necessario).
+Salva il path come `PROFILES_REPO`. Se il repo non e' valido, segnala e chiedi di riprovare. Se lo schema non c'e', avvisa ma procedi (verra' creato se necessario).
 
 ---
 
@@ -300,9 +333,63 @@ Presenta `PROFILE.json` all'utente:
 
 Aspetta la risposta finale.
 
-### 8.3 — Scrivi entrambi i file
+### 8.3 — Scrivi entrambi i file e crea la struttura
 
-Dopo conferma, scrivi i file:
+Dopo conferma, scrivi i file e crea la struttura cartelle. La struttura cambia in base a `MODE`:
+
+**Se `MODE=standalone`** (project_repo dedicata):
+
+```bash
+PROJECT_REPO_ROOT="<path-da-Step-2>"
+
+mkdir -p "$PROJECT_REPO_ROOT/constitution"
+mkdir -p "$PROJECT_REPO_ROOT/references"
+mkdir -p "$PROJECT_REPO_ROOT/agents"
+mkdir -p "$PROJECT_REPO_ROOT/dataset/branding"            # NUOVA — popolata da Solaria in F1b
+mkdir -p "$PROJECT_REPO_ROOT/dataset/corporate"           # NUOVA — popolata da Solaria in F1b
+mkdir -p "$PROJECT_REPO_ROOT/plans/draft"                 # NUOVA — area Solaria F1c
+mkdir -p "$PROJECT_REPO_ROOT/plans/todo"
+mkdir -p "$PROJECT_REPO_ROOT/plans/in-progress"
+mkdir -p "$PROJECT_REPO_ROOT/plans/done"
+
+# Scrivi CONST.json (8.1) e PROFILE.json (8.2) in $PROJECT_REPO_ROOT/constitution/
+# Copia afu-manifest.schema.json v2 dal template canonico alla root del project_repo
+cp "<path-claude-flow>/templates/afu-manifest.schema.json" "$PROJECT_REPO_ROOT/afu-manifest.schema.json"
+
+# Scrivi template iniziali in dataset/ (vuoti con header, popolati da Solaria F1b)
+cat > "$PROJECT_REPO_ROOT/dataset/README.md" <<'EOF'
+# Dataset Solaria
+
+Cartella popolata e mantenuta da Solaria-side (vedi Fase 1b di Fasi-New-way-of-working.md).
+NON modificare da Claude Code — e' read-only per il team tech.
+Solaria committa via GitHub API (commit message [solaria-dataset-*]).
+
+## Struttura
+
+- branding/      — logo, palette, font, brand book
+- corporate/     — template documenti, presentazioni corporate
+- glossario.md   — termini di dominio
+- attori.md      — ruoli, personas, sistemi esterni
+- perimetro.md   — scope progetto, esclusioni
+EOF
+cat > "$PROJECT_REPO_ROOT/dataset/glossario.md" <<'EOF'
+# Glossario di dominio
+
+<!-- Popolato da Solaria in F1b a partire dal materiale fornito dal funzionale. -->
+EOF
+cat > "$PROJECT_REPO_ROOT/dataset/attori.md" <<'EOF'
+# Attori
+
+<!-- Popolato da Solaria in F1b. Lista di ruoli, personas, sistemi esterni. -->
+EOF
+cat > "$PROJECT_REPO_ROOT/dataset/perimetro.md" <<'EOF'
+# Perimetro funzionale
+
+<!-- Popolato da Solaria in F1b. Scope del progetto + esclusioni esplicite. -->
+EOF
+```
+
+**Se `MODE=legacy`** (centralizzata in deloitte-profiles):
 
 ```bash
 mkdir -p "<profiles_repo>/<nome>/constitution"
@@ -311,22 +398,37 @@ mkdir -p "<profiles_repo>/<nome>/references"
 mkdir -p "<profiles_repo>/<nome>/plans/todo"
 mkdir -p "<profiles_repo>/<nome>/plans/in-progress"
 mkdir -p "<profiles_repo>/<nome>/plans/done"
+# NO dataset/ ne' plans/draft/ in legacy
+# NO afu-manifest.schema.json (legacy non usa Solaria handoff manifest-based)
 # Scrivi CONST.json con il contenuto confermato in 8.1
 # Scrivi PROFILE.json con il contenuto confermato in 8.2
 ```
 
-Conferma finale:
+Conferma finale (testo adattato a `MODE`):
 
-> Profilo **<nome>** creato:
-> - `<profiles_repo>/<nome>/constitution/CONST.json` (principi)
-> - `<profiles_repo>/<nome>/constitution/PROFILE.json` (dettagli)
-> - Struttura: `constitution/`, `agents/`, `references/`, `plans/todo|in-progress|done/`
+> Profilo **<nome>** creato in modalita' **<MODE>**:
+> - `<PROJECT_REPO o profiles_repo/nome>/constitution/CONST.json` (principi)
+> - `<PROJECT_REPO o profiles_repo/nome>/constitution/PROFILE.json` (dettagli)
+> - Struttura: `constitution/`, `references/`, `agents/`, `plans/{[draft (standalone)],todo,in-progress,done}/`
+> - [Solo standalone] `dataset/{branding,corporate,glossario.md,attori.md,perimetro.md}` — popolato da Solaria in F1b
+> - [Solo standalone] `afu-manifest.schema.json` v2 copiato dal template
 
 ---
 
 ## Step 9 — Commit e push
 
-Committa e pusha il nuovo profilo.
+Committa e pusha il nuovo profilo. Il target dipende da `MODE`:
+
+**Se `MODE=standalone`** (project_repo dedicata):
+
+```bash
+cd "$PROJECT_REPO_ROOT"
+git add constitution/ references/ agents/ dataset/ plans/ afu-manifest.schema.json
+git commit -m "feat: initialize project setup (standalone mode) — CONST + PROFILE + dataset scaffolding"
+git push origin main
+```
+
+**Se `MODE=legacy`** (deloitte-profiles):
 
 ```bash
 cd "<profiles_repo>"
@@ -358,7 +460,25 @@ git push -u origin "profile/<nome>"
 
 ## Step 10 — Aggiorna .br-local.json
 
-Per ogni codebase fornito nello Step 3, proponi di aggiungere i campi `profilo` e `profiles_repo` a `.br-local.json`.
+Per ogni codebase fornito nello Step 3, proponi di aggiungere i campi a `.br-local.json`. Lo schema cambia in base a `MODE`:
+
+**Se `MODE=standalone`**:
+
+> Per ogni codebase, aggiorno `.br-local.json` con il riferimento al project_repo.
+>
+> ### BE — Back-end (`C:/progetti/myapp-backend`)
+> File: `C:/progetti/myapp-backend/.br-local.json`
+>
+> ```json
+> {
+>   "project_repo": "<PROJECT_REPO_ROOT>",
+>   "project_name": "<nome>"
+> }
+> ```
+>
+> Procedo?
+
+**Se `MODE=legacy`**:
 
 > Per ogni codebase, aggiorno `.br-local.json` con il riferimento al profilo.
 >
@@ -374,15 +494,16 @@ Per ogni codebase fornito nello Step 3, proponi di aggiungere i campi `profilo` 
 >
 > Procedo?
 
-**Se `.br-local.json` esiste gia'**: leggi il contenuto, preserva tutti i campi esistenti (developer, paths, customPaths, ecc.) e aggiungi solo `profilo` e `profiles_repo`.
+**Se `.br-local.json` esiste gia'**: leggi il contenuto, preserva tutti i campi esistenti (developer, paths, customPaths, ecc.) e aggiungi/aggiorna solo i campi della modalita' scelta. **Non mischiare i due set** (`project_repo` e `profiles_repo` sono mutualmente esclusivi): se l'utente sta migrando un codebase da legacy a standalone, rimuovi `profiles_repo`+`profilo` e aggiungi `project_repo`+`project_name`, comunicandolo esplicitamente.
 
-**Se `.br-local.json` non esiste**: crea il file con i campi base:
+**Se `.br-local.json` non esiste**: crea il file con i campi base della modalita' scelta:
 
 ```json
-{
-  "profilo": "<nome>",
-  "profiles_repo": "<path-profiles-repo>"
-}
+// standalone
+{ "project_repo": "<PROJECT_REPO_ROOT>", "project_name": "<nome>" }
+
+// legacy
+{ "profilo": "<nome>", "profiles_repo": "<path-profiles-repo>" }
 ```
 
 Procedi solo dopo conferma dell'utente. Aggiorna/crea il file per ogni codebase.

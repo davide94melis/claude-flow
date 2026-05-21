@@ -193,12 +193,26 @@ Leggi il file Excel con Python + openpyxl. Leggi la prima riga (header) e tenta 
 | `screenshot` | screen, screenshot, allegati, immagini |
 | `riferimento` | rif, rif. pratica, reference, ticket |
 | `tipo` | tipo, tipo segnalazione, type, category |
+| `origine` | origine, origin, source bug, fonte | **NUOVA (v2 Bug Excel template)** |
 | `stato_originale` | stato, status |
 | `data` | data, date, data segnalazione |
 | `note_dev` | note team sviluppo, note dev, dev notes |
 | `note_funzionale` | note team funzionale, note funzionali |
 
 Se una colonna non viene mappata automaticamente, presentala all'utente e chiedi se e' rilevante. Le colonne non mappate vengono ignorate.
+
+**Colonna `origine` (v2 template, da Fase 2c due ondate)**:
+
+| Valore Excel | Significato | Default se assente |
+|---|---|---|
+| `tecnico` | Bug rilevato dai test tecnici automatici (unit/integration/perf/security) lanciati dal team tech in Fase 2c ondata (a). | (vedi default sotto) |
+| `funzionale` | Bug rilevato dal team funzionale in autonomia eseguendo il playbook test (md/xlsx) in Fase 2c ondata (b). | (vedi default sotto) |
+
+**Default retrocompat**: se la colonna `origine` e' **assente** nell'Excel (template v1 pre-Solaria), assumi `origine=tecnico` per tutti i bug. Comunica all'utente:
+
+> Il file Excel non ha la colonna `origine` (formato v1). Tratto tutti i bug come `tecnico`. Per il nuovo template v2 (con colonna origine = tecnico|funzionale) vedi `claude-flow/templates/BUG_EXCEL_TEMPLATE.xlsx`.
+
+**Validazione**: se una riga ha `origine` con valore non in `{tecnico, funzionale}`, mostra errore e chiedi correzione (non default silenzioso — i valori invalidi sono probabilmente typo, meglio segnalarli).
 
 Script per la lettura:
 
@@ -680,15 +694,31 @@ Ultimo aggiornamento: <data e ora>
 
 ## Lista Bug
 
+**In modalita' standalone (v2 template con colonna `origine`)**: emetti **due sezioni separate** per facilitare conteggio e gating chiusura. In modalita' legacy (no colonna origine): sezione unica come oggi.
+
+### Bug tecnici (origine=tecnico)
+
 | ID | Tipo | Sev. | Fase | Sezione | Titolo | Owner | Stato | Task | Branch |
 |---|---|---|---|---|---|---|---|---|---|
 | BUG-001 | bug | maggiore | Dashboard | Tabella Pratiche | ... | Marco | assegnato | T-012 | — |
+
+### Bug funzionali (origine=funzionale)
+
+| ID | Tipo | Sev. | Fase | Sezione | Titolo | Owner | Stato | Task | Branch |
+|---|---|---|---|---|---|---|---|---|---|
+| BUG-042 | bug | minore | Booking | Conferma | ... | Anna | assegnato | T-018 | — |
+
+**Counter per chiusura plan** (consumati da `sdlc-executor` check automatico):
+- `bug_tecnici_aperti`: <N>
+- `bug_funzionali_aperti`: <M>
+- Condizione chiusura standalone: entrambi = 0
+- Condizione chiusura legacy: somma totale `bug_aperti` = 0 (counter unico, retrocompat)
 
 ## Dettaglio Bug
 
 ### BUG-001 — <titolo>
 
-- **Tipo**: <tipo> | **Severita'**: <severita>
+- **Tipo**: <tipo> | **Severita'**: <severita> | **Origine**: <origine>
 - **Fase**: <fase> > <sezione>
 - **Utente**: <utente>
 - **Task collegata**: <task_collegata>

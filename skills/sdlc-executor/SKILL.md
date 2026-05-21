@@ -564,18 +564,52 @@ Dopo aver aggiornato il progresso, proponi la prossima task disponibile:
 
 ### Completamento di tutte le task — Spostamento in `plans/done/`
 
-Dopo aver completato una task, verifica nel file di progresso se **tutte** le task (non solo quelle dello sviluppatore corrente, ma tutte quelle nel piano) sono in stato "Completata". Se si':
+Dopo aver completato una task, verifica nel file di progresso se **tutte** le task sono in stato "Completata" **E** se tutti i bug sono chiusi.
+
+**Condizioni di chiusura plan** (Fase 2c, due ondate test in standalone):
+
+| Modalita' | Condizioni (tutte vere) |
+|---|---|
+| Standalone (v2 template con `origine`) | (a) tutte le task = `Completata` ∧ (b) `bug_tecnici_aperti = 0` ∧ (c) `bug_funzionali_aperti = 0` |
+| Legacy (no colonna origine) | (a) tutte le task = `Completata` ∧ (b) `bug_aperti = 0` (counter unico, retrocompat) |
+
+Lettura counter bug da `BUG_REPORT.md` (popolato da `sdlc-debug` — vedi sezione "Lista Bug" nello SKILL.md di sdlc-debug):
 
 ```bash
-git -C "$GIT_REPO_PATH" mv "<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/" "<profilo>/plans/done/"
+BUG_REPORT="$BASE_PATH/in-progress/<plan>/BUG_REPORT.md"
+if [ -f "$BUG_REPORT" ]; then
+  # Standalone v2
+  TEC_OPEN=$(grep -oP '^- `bug_tecnici_aperti`:\s*\K\d+' "$BUG_REPORT" || echo 0)
+  FUNC_OPEN=$(grep -oP '^- `bug_funzionali_aperti`:\s*\K\d+' "$BUG_REPORT" || echo 0)
+  # Legacy fallback
+  TOTAL_OPEN=$(grep -oP '^- `bug_aperti`:\s*\K\d+' "$BUG_REPORT" || echo 0)
+fi
+```
+
+Se tutte le condizioni sono soddisfatte:
+
+```bash
+git -C "$GIT_REPO_PATH" mv "$BASE_PATH/in-progress/<YYYY-MM-DD>_<nome>/" "$BASE_PATH/done/"
 git -C "$GIT_REPO_PATH" add .
-git -C "$GIT_REPO_PATH" commit -m "[sdlc-executor] <nome>: tutte le task completate, spostato in done"
+git -C "$GIT_REPO_PATH" commit -m "[sdlc-executor] <nome>: tutte le task completate + tutti i bug chiusi, spostato in done"
 git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 
 Comunica:
 
-> Tutte le task del piano sono completate. Cartella del BR spostata in `$BASE_PATH/done/`.
+> Tutte le task del piano sono completate **e** tutti i bug (tecnici + funzionali) sono chiusi. Cartella del BR spostata in `$BASE_PATH/done/`.
+
+**Flag `--no-auto-close`**: se TL/PM vuole mantenere il plan aperto (soak in produzione, audit, ulteriori cicli di testing), supporta l'override esplicito che disabilita lo spostamento automatico in `done/`. In quel caso comunica:
+
+> Le condizioni di chiusura sono soddisfatte ma `--no-auto-close` e' attivo. Il plan resta in `in-progress/`. Spostalo manualmente in `done/` quando vuoi.
+
+### Log informativo playbook test (modalita' standalone)
+
+All'avvio di una task UI/frontend (rilevata dal `repository` o dallo `stream` della task — es. sigla `FE`, `MOBILE`, `WEB`), se esiste `$BASE_PATH/<stato>/<plan>/tests/playbook.md` o `playbook.xlsx`, logga un avviso informativo (no enforcement, solo segnale al developer):
+
+> Playbook test funzionale disponibile in `tests/playbook.md` + `tests/playbook.xlsx` (generato da Solaria in F1c). Sara' eseguito **manualmente** dal team funzionale in F2c ondata (b), dopo che i test tecnici team tech avranno passato il quality gate (a). Tieni d'occhio gli scenari di accettazione li' definiti mentre implementi i flussi UI.
+
+Non bloccare l'esecuzione su questo log — e' solo orientativo.
 
 ---
 
