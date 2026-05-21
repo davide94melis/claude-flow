@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/davide94melis/claude-flow/schemas/afu-manifest.schema.json",
+  "title": "AFU Manifest v2",
+  "description": "Schema del manifest che Solaria allega ad ogni AFU package consegnato al team tecnico. Versione semver in 'versione', delta narrativo in 'changelog', collegamento al predecessore in 'parent_version'. v2 (2026-05) aggiunge i campi opzionali 'coverage', 'gate_outcome', 'review_clarify_status', 'tests' prodotti da FunctionalReviewer / skill review/clarify / playbook generator Solaria-side nella Fase 1c.",
+  "type": "object",
+  "required": [
+    "nome",
+    "versione",
+    "autore",
+    "data",
+    "files",
+    "stakeholder",
+    "deadline",
+    "priorita"
+  ],
+  "properties": {
+    "nome": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Slug kebab-case del plan/BR. Es. 'login-sso', 'dashboard-monitoring'. Stesso valore usato nel nome cartella plan."
+    },
+    "versione": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$",
+      "description": "Versione semver dell'AFU. Es. '1.0', '2.0', '2.1'. Incrementata da Solaria ad ogni revisione (minor per round stakeholder in F1c, major per update mid-flight in F2b). Fonte di verita' per sdlc-updater nel detection delta."
+    },
+    "parent_version": {
+      "type": ["string", "null"],
+      "pattern": "^\\d+\\.\\d+$",
+      "description": "Versione precedente da cui questa deriva. Null per la v1.0 (prima release). Usato da sdlc-updater per ricostruire la catena di evoluzione."
+    },
+    "changelog": {
+      "type": "string",
+      "description": "Descrizione testuale narrativa di cosa e' cambiato rispetto a parent_version. Vuoto/'Initial version' per v1.0. Es. 'Aggiunto requisito OTP via SMS (BR §3.4). Cambiata regola scadenza password da 90 a 60 giorni.'"
+    },
+    "autore": {
+      "type": "string",
+      "description": "Nome (e opzionalmente email) dell'analista funzionale che ha prodotto la revisione."
+    },
+    "data": {
+      "type": "string",
+      "format": "date",
+      "description": "Data di emissione della revisione, formato YYYY-MM-DD."
+    },
+    "files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "description": "Lista relativa dei file consegnati nella cartella requirements/. Path relativi a requirements/. Es. ['AFU.docx', 'mockups/login.png', 'mockups/forgot-password.png']."
+    },
+    "stakeholder": {
+      "type": "string",
+      "description": "Nome dello stakeholder business che ha validato l'AFU. Es. 'Banca XYZ — Direzione Digital'."
+    },
+    "deadline": {
+      "type": "string",
+      "format": "date",
+      "description": "Deadline target per il completamento sviluppo, formato YYYY-MM-DD. Usato da sdlc-estimator per simulazioni team."
+    },
+    "priorita": {
+      "enum": ["alta", "media", "bassa"],
+      "description": "Priorita' relativa rispetto agli altri plan aperti del progetto."
+    },
+
+    "coverage": {
+      "type": "object",
+      "description": "Metriche di copertura prodotte dal FunctionalReviewer Solaria-side in Fase 1c. Indica quanto delle sezioni canoniche AFU sono state coperte dal dataset disponibile.",
+      "required": ["overall_percent"],
+      "properties": {
+        "overall_percent": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Percentuale complessiva di copertura AFU (0-100). Soglia per il gate GO/NO-GO definita Solaria-side."
+        },
+        "by_section": {
+          "type": "object",
+          "description": "Percentuale per sezione canonica AFU. Chiavi consigliate: funzionalita, attori, casi_uso, flussi, regole_business, vincoli_tecnici, criteri_accettazione.",
+          "patternProperties": {
+            "^[a-z_]+$": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "gate_outcome": {
+      "enum": ["GO", "NO-GO"],
+      "description": "Esito del quality gate FunctionalReviewer in Fase 1c. Solo i plan con 'GO' possono essere consegnati al team tecnico (handoff draft -> todo). 'NO-GO' implica iterazione di arricchimento dataset + rigenerazione AFU."
+    },
+    "review_clarify_status": {
+      "enum": ["open", "closed"],
+      "description": "Stato dell'analisi di dettaglio post-GO eseguita dalle skill review/clarify Solaria-side (corner case, bad flow, ambiguita' residue). 'closed' = 0 bloccanti aperti, pronto per handoff. 'open' = ancora in loop di chiarimento col funzionale."
+    },
+    "tests": {
+      "type": "object",
+      "description": "Riferimenti al playbook di test funzionale generato da Solaria in Fase 1c (e rigenerato in Fase 2b se delta v2). Eseguito manualmente in autonomia dal team funzionale in Fase 2c ondata (b).",
+      "properties": {
+        "playbook_md": {
+          "type": "string",
+          "description": "Path relativo (alla root del plan) del playbook in formato Markdown. Es. 'tests/playbook.md'."
+        },
+        "playbook_xlsx": {
+          "type": "string",
+          "description": "Path relativo (alla root del plan) del playbook in formato Excel, importabile in Jira/TestRail/foglio. Es. 'tests/playbook.xlsx'."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
