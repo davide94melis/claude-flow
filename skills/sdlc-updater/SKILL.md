@@ -11,11 +11,11 @@ Il principio guida: **mai sovrascrivere il progresso**. Le task completate resta
 
 ---
 
-## Risoluzione Path — deloitte-profiles
+## Risoluzione Path (modalita' duale: standalone | legacy)
 
-Tutte le operazioni su file BR avvengono nella repo `deloitte-profiles`, non nella repo del codice.
+Tutte le operazioni su file plan avvengono nella **project_repo** (modalita' standalone, una repo per progetto) o nella repo `deloitte-profiles` (modalita' legacy), **non** nella repo del codice applicativo. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
-### Lettura `.br-local.json`
+### Lettura `.br-local.json` e detection modalita'
 
 All'avvio, leggi `.br-local.json` dalla root della repo corrente:
 
@@ -23,49 +23,75 @@ All'avvio, leggi `.br-local.json` dalla root della repo corrente:
 cat .br-local.json 2>/dev/null
 ```
 
-Estrai `profiles_repo`, `profilo`, `developer`.
+La presenza del campo `project_repo` o `profiles_repo` discrimina la modalita':
 
-Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
+```bash
+if grep -q '"project_repo"' .br-local.json 2>/dev/null; then
+  MODE="standalone"
+  PROJECT_REPO=$(grep -oP '"project_repo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROJECT_NAME=$(grep -oP '"project_name"\s*:\s*"\K[^"]+' .br-local.json)
+  BASE_PATH="$PROJECT_REPO/plans"
+  CONST_PATH="$PROJECT_REPO/constitution"
+  DATASET_PATH="$PROJECT_REPO/dataset"        # solo standalone (popolato da Solaria-side)
+  GIT_REPO_PATH="$PROJECT_REPO"
+elif grep -q '"profiles_repo"' .br-local.json 2>/dev/null; then
+  MODE="legacy"
+  PROFILES_REPO=$(grep -oP '"profiles_repo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROFILO=$(grep -oP '"profilo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROJECT_NAME="$PROFILO"
+  BASE_PATH="$PROFILES_REPO/$PROFILO/plans"
+  CONST_PATH="$PROFILES_REPO/$PROFILO/constitution"
+  DATASET_PATH=""                              # non esiste in legacy
+  GIT_REPO_PATH="$PROFILES_REPO"
+fi
+```
+
+| Modalita' | `BASE_PATH` | `CONST_PATH` | Stati supportati |
+|---|---|---|---|
+| Standalone | `$PROJECT_REPO/plans` | `$PROJECT_REPO/constitution` | `draft`, `todo`, `in-progress`, `done` |
+| Legacy | `$PROFILES_REPO/$PROFILO/plans` | `$PROFILES_REPO/$PROFILO/constitution` | `todo`, `in-progress`, `done` |
+
+> **Nota**: `plans/draft/` esiste solo in modalita' standalone — area dove Solaria authora l'AFU prima dell'handoff (Fase 1c). Le skill SDLC ignorano `draft/` (e' Solaria-side) tranne `sdlc-reviewer` e `sdlc-clarify` quando esplicitamente invocate su un draft.
 
 ### Se `.br-local.json` non esiste
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `sdlc-profile-setup`.
+> `.br-local.json` non trovato. Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
 
 ### Sincronizzazione prima della lettura
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
+git -C "$GIT_REPO_PATH" pull origin main --quiet
 ```
 
 ### Commit e push dopo la scrittura
 
 ```bash
-git -C "<profiles_repo>" add .
-git -C "<profiles_repo>" commit -m "<messaggio>"
-git -C "<profiles_repo>" push origin main --quiet
+git -C "$GIT_REPO_PATH" add .
+git -C "$GIT_REPO_PATH" commit -m "<messaggio>"
+git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 
 ---
 
 ## Caricamento contesto progetto (CONST + PROFILE)
 
-Dopo aver risolto i path (`profiles_repo`, `profilo`) e prima di eseguire qualsiasi altra fase, carica i due file di costituzione del progetto:
+Dopo aver risolto i path con l'helper di detection sopra, prima di eseguire qualsiasi altra fase carica i due file di costituzione del progetto:
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
-cat "<profiles_repo>/<profilo>/constitution/CONST.json"
-cat "<profiles_repo>/<profilo>/constitution/PROFILE.json"
+git -C "$GIT_REPO_PATH" pull origin main --quiet
+cat "$CONST_PATH/CONST.json"
+cat "$CONST_PATH/PROFILE.json"
 ```
 
 **Errori di loading (uniformi per tutte le skill SDLC):**
 
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
-| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup`" | Stop |
-| `CONST.json` manca, `PROFILE.json` esiste | "Il profilo `<nome>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
-| `PROFILE.json` manca, `CONST.json` esiste | "Il profilo `<nome>` non ha PROFILE.json. Stato inconsistente — il profilo è incompleto. Ripristinare da git history o rifare il setup." | Stop |
+| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
+| `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
+| `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
 | Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
 | JSON malformed | Mostra errore di parse + path | Stop |
 
@@ -87,19 +113,47 @@ Entrambi i file restano disponibili come contesto per tutta la durata della skil
 
 Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 
+### Domanda 0 — Detection delta AFU via manifest (SOLO in standalone)
+
+In modalita' standalone, prima di chiedere documentazione nuova al funzionale, prova ad auto-rilevare se Solaria ha gia' committato un AFU v2 in `plans/in-progress/`:
+
+```bash
+git -C "$GIT_REPO_PATH" pull origin main --quiet
+ls "$BASE_PATH/in-progress"/*/afu-manifest.json 2>/dev/null
+```
+
+Per ogni manifest trovato, leggi `versione` e confrontalo con l'header `Processed AFU version` del PLAN.md corrispondente:
+
+```bash
+# Pseudocodice
+manifest_version = $(jq -r '.versione' "<plan>/afu-manifest.json")
+plan_processed = $(grep -oP '^Processed AFU version:\s*`?\K[^`\n]+' "<plan>/PLAN.md")
+```
+
+**Casi**:
+
+| Caso | Azione |
+|---|---|
+| `manifest.versione > plan.processed_afu_version` | Solaria ha consegnato v2 (Fase 2b mid-flight). Mostra `manifest.changelog` all'utente come **fonte primaria** del delta. Procedi con la pipeline (Fase 2-3) usando il changelog testuale per guidare l'analisi, anziche' chiedere quali documenti sono cambiati. |
+| `manifest.versione == plan.processed_afu_version` | Niente da aggiornare via Solaria. Chiedi: "Manifest version invariata. Stai aggiornando manualmente?" e procedi con la pipeline standard (Domanda 2). |
+| `manifest.gate_outcome != "GO"` | Warning: "Solaria sta ancora iterando AFU v<n> (gate=<x>). Procedi solo se intenzionale o stai facendo un dry-run sulle modifiche in corso." |
+| `manifest.tests.playbook_md` (o `_xlsx`) cambiato vs versione precedente | Segnala "Il playbook test e' stato rigenerato per v2 — comunica al team funzionale di usare la nuova versione in Fase 2c ondata (b)." |
+
+In **modalita' legacy**, salta questa domanda e procedi con la Domanda 1 standard.
+
 ### Domanda 1 — File esistenti
 
 Cerca automaticamente cartelle BR nella struttura `plans/`:
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
-ls -d "<profiles_repo>/<profilo>/plans/in-progress"/*/ "<profiles_repo>/<profilo>/plans/todo"/*/ 2>/dev/null
+git -C "$GIT_REPO_PATH" pull origin main --quiet
+ls -d "$BASE_PATH/in-progress"/*/ "$BASE_PATH/todo"/*/ 2>/dev/null
 ```
 
 **Se trovi cartelle BR**, elencale con il loro contenuto:
 
 > Ho trovato questa cartella BR:
-> - `<profiles_repo>/<profilo>/plans/in-progress/2026-04-28_booking-v2/`
+> - `$BASE_PATH/in-progress/2026-04-28_booking-v2/`
 >   - `PLAN.md`
 >   - `TASKS.md`
 >   - `PROGRESS.md`
@@ -163,7 +217,7 @@ Converti i nuovi documenti in MD (stessa procedura di `sdlc-analyzer`):
 - MD → copia diretta
 - Immagini → Read diretto
 
-Salva nella cartella `requirements/` dentro la cartella del BR (es. `<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/requirements/`), sovrascrivendo i file precedenti dove applicabile.
+Salva nella cartella `requirements/` dentro la cartella del BR (es. `$BASE_PATH/in-progress/<YYYY-MM-DD>_<nome>/requirements/`), sovrascrivendo i file precedenti dove applicabile.
 
 ### 2.2 — Identificazione delta
 
@@ -225,19 +279,24 @@ Aspetta conferma.
 
 Aggiorna il file PLAN esistente (non crearne uno nuovo):
 
-1. **Aggiorna l'header** — data aggiornamento, lista documenti aggiornata
+1. **Aggiorna l'header** — data aggiornamento, lista documenti aggiornata. **In modalita' standalone**: aggiorna anche `Processed AFU version: <nuova manifest.versione>` (es. `1.0` → `2.0`). Se il manifest aggiorna anche `tests.playbook_md/xlsx`, riallinea le righe `Test playbook:` nell'header.
 2. **Aggiungi una sezione "Storico aggiornamenti"** in fondo al report:
 
 ```
 ## Storico Aggiornamenti
 
-### Aggiornamento <data>
+### Aggiornamento <data> — AFU v<versione precedente> -> v<nuova versione>
 - Documenti aggiornati: [lista]
 - Requisiti nuovi: N
 - Requisiti modificati: N
 - Requisiti rimossi: N
-- Motivazione: [breve descrizione del perché il BR è cambiato, se noto]
+- Motivazione: [breve descrizione]
+- [SOLO standalone] Changelog manifest (Solaria, fonte primaria del delta):
+  > <testo da manifest.changelog>
+- [SOLO standalone] Playbook test rigenerato: [si/no]
 ```
+
+In **modalita' standalone**, il `changelog` del manifest e' la fonte primaria del delta (Solaria l'ha redatto durante l'authoring v2 in Fase 2b). La detection automatica file-by-file resta utile come sanity check ma il narrativo del changelog ha priorita' nelle voci dello storico.
 
 3. **Aggiorna la matrice di verifica**:
    - Aggiungi righe per i requisiti nuovi
@@ -298,9 +357,9 @@ Se il file di progresso esiste, aggiornalo:
 Dopo aver aggiornato report, piano e progresso, committa e pusha le modifiche nella repo `deloitte-profiles`:
 
 ```bash
-git -C "<profiles_repo>" add "<profilo>/plans/"
-git -C "<profiles_repo>" commit -m "[sdlc-updater] <nome>: aggiornato piano da nuova documentazione"
-git -C "<profiles_repo>" push origin main --quiet
+git -C "$GIT_REPO_PATH" add "<profilo>/plans/"
+git -C "$GIT_REPO_PATH" commit -m "[sdlc-updater] <nome>: aggiornato piano da nuova documentazione"
+git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 
 ---

@@ -13,6 +13,12 @@ sdlc-reviewer → sdlc-clarify → sdlc-analyzer → sdlc-executor → sdlc-upda
                                                       ↘ sdlc-progress-report
 ```
 
+> **Posizionamento nel flusso (modalita' standalone)**
+>
+> In modalita' standalone (vedi `Fasi-New-way-of-working.md` — 2 fasi composite con Solaria a monte), `sdlc-reviewer` e' una **review tecnica post-handoff OPZIONALE in Fase 2a**: il TL la lancia solo se il package consegnato da Solaria in `plans/todo/<plan>/` e' particolarmente articolato, il dominio e' complesso o emergono dubbi architetturali. Solaria ha gia' eseguito self-review macro in Fase 1c (FunctionalReviewer + skill review/clarify post-GO), quindi se il package e' chiaro e completo lo step e' skippabile e si passa direttamente a `sdlc-analyzer`.
+>
+> In modalita' legacy, `sdlc-reviewer` rimane parte del flusso standard pre-analisi.
+
 Il processo si compone di 4 fasi:
 1. **Raccolta input** (domande conversazionali, una alla volta)
 2. **Conversione documentazione** (tutti i documenti vengono convertiti in MD)
@@ -21,11 +27,11 @@ Il processo si compone di 4 fasi:
 
 ---
 
-## Risoluzione Path — deloitte-profiles
+## Risoluzione Path (modalita' duale: standalone | legacy)
 
-Tutte le operazioni su file BR (piani, report, progressi) avvengono nella repo `deloitte-profiles`, non nella repo del codice.
+Tutte le operazioni su file plan avvengono nella **project_repo** (modalita' standalone, una repo per progetto) o nella repo `deloitte-profiles` (modalita' legacy), **non** nella repo del codice applicativo. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
-### Lettura `.br-local.json`
+### Lettura `.br-local.json` e detection modalita'
 
 All'avvio, leggi `.br-local.json` dalla root della repo corrente:
 
@@ -33,58 +39,75 @@ All'avvio, leggi `.br-local.json` dalla root della repo corrente:
 cat .br-local.json 2>/dev/null
 ```
 
-Estrai i campi:
-- `profiles_repo` — path assoluto al clone locale di `deloitte-profiles`
-- `profilo` — nome della cartella progetto in `deloitte-profiles`
-- `developer` — nome dello sviluppatore (opzionale per skill TL/PM)
+La presenza del campo `project_repo` o `profiles_repo` discrimina la modalita':
 
-Il **base path** per tutti gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
+```bash
+if grep -q '"project_repo"' .br-local.json 2>/dev/null; then
+  MODE="standalone"
+  PROJECT_REPO=$(grep -oP '"project_repo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROJECT_NAME=$(grep -oP '"project_name"\s*:\s*"\K[^"]+' .br-local.json)
+  BASE_PATH="$PROJECT_REPO/plans"
+  CONST_PATH="$PROJECT_REPO/constitution"
+  DATASET_PATH="$PROJECT_REPO/dataset"        # solo standalone (popolato da Solaria-side)
+  GIT_REPO_PATH="$PROJECT_REPO"
+elif grep -q '"profiles_repo"' .br-local.json 2>/dev/null; then
+  MODE="legacy"
+  PROFILES_REPO=$(grep -oP '"profiles_repo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROFILO=$(grep -oP '"profilo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROJECT_NAME="$PROFILO"
+  BASE_PATH="$PROFILES_REPO/$PROFILO/plans"
+  CONST_PATH="$PROFILES_REPO/$PROFILO/constitution"
+  DATASET_PATH=""                              # non esiste in legacy
+  GIT_REPO_PATH="$PROFILES_REPO"
+fi
+```
+
+| Modalita' | `BASE_PATH` | `CONST_PATH` | Stati supportati |
+|---|---|---|---|
+| Standalone | `$PROJECT_REPO/plans` | `$PROJECT_REPO/constitution` | `draft`, `todo`, `in-progress`, `done` |
+| Legacy | `$PROFILES_REPO/$PROFILO/plans` | `$PROFILES_REPO/$PROFILO/constitution` | `todo`, `in-progress`, `done` |
+
+> **Nota**: `plans/draft/` esiste solo in modalita' standalone — area dove Solaria authora l'AFU prima dell'handoff (Fase 1c). Le skill SDLC ignorano `draft/` (e' Solaria-side) tranne `sdlc-reviewer` e `sdlc-clarify` quando esplicitamente invocate su un draft.
 
 ### Se `.br-local.json` non esiste
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `sdlc-profile-setup` per creare il profilo del progetto e configurare il collegamento.
+> `.br-local.json` non trovato. Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
 
 ### Sincronizzazione prima della lettura
 
-Prima di leggere qualsiasi file dalla repo profili:
-
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
+git -C "$GIT_REPO_PATH" pull origin main --quiet
 ```
 
 ### Commit e push dopo la scrittura
 
-Dopo ogni scrittura di artefatti nella repo profili:
-
 ```bash
-git -C "<profiles_repo>" add .
-git -C "<profiles_repo>" commit -m "<messaggio>"
-git -C "<profiles_repo>" push origin main --quiet
+git -C "$GIT_REPO_PATH" add .
+git -C "$GIT_REPO_PATH" commit -m "<messaggio>"
+git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
-
-Se il push fallisce, avvisa l'utente e proponi: (1) riprovare, (2) creare un branch, (3) lasciare il commit locale.
 
 ---
 
 ## Caricamento contesto progetto (CONST + PROFILE)
 
-Dopo aver risolto i path (`profiles_repo`, `profilo`) e prima di eseguire qualsiasi altra fase, carica i due file di costituzione del progetto:
+Dopo aver risolto i path con l'helper di detection sopra, prima di eseguire qualsiasi altra fase carica i due file di costituzione del progetto:
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
-cat "<profiles_repo>/<profilo>/constitution/CONST.json"
-cat "<profiles_repo>/<profilo>/constitution/PROFILE.json"
+git -C "$GIT_REPO_PATH" pull origin main --quiet
+cat "$CONST_PATH/CONST.json"
+cat "$CONST_PATH/PROFILE.json"
 ```
 
 **Errori di loading (uniformi per tutte le skill SDLC):**
 
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
-| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup`" | Stop |
-| `CONST.json` manca, `PROFILE.json` esiste | "Il profilo `<nome>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
-| `PROFILE.json` manca, `CONST.json` esiste | "Il profilo `<nome>` non ha PROFILE.json. Stato inconsistente — il profilo è incompleto. Ripristinare da git history o rifare il setup." | Stop |
+| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
+| `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
+| `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
 | Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
 | JSON malformed | Mostra errore di parse + path | Stop |
 
@@ -106,13 +129,62 @@ Entrambi i file restano disponibili come contesto per tutta la durata della skil
 
 Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva. Non anticipare domande e non procedere finche' l'utente non ha risposto.
 
+### Domanda 0 — Auto-detect plan Solaria (SOLO in modalita' standalone)
+
+In modalita' standalone, prima di chiedere nome e documentazione, prova ad auto-rilevare il plan che Solaria ha gia' consegnato in `plans/todo/`:
+
+```bash
+git -C "$GIT_REPO_PATH" pull origin main --quiet
+ls -d "$BASE_PATH/todo"/*/ 2>/dev/null
+```
+
+Per ogni cartella trovata, verifica la presenza del manifest:
+
+```bash
+ls "$BASE_PATH/todo"/*/afu-manifest.json 2>/dev/null
+```
+
+Per ogni `afu-manifest.json`, validalo contro lo schema e leggi i campi chiave:
+
+```bash
+# Validazione schema (richiede ajv-cli OPPURE python jsonschema; vedi sezione Dipendenze)
+ajv validate \
+  -s "$GIT_REPO_PATH/afu-manifest.schema.json" \
+  -d "<manifest_path>" \
+  -c ajv-formats 2>/dev/null
+```
+
+Estrai dal manifest: `nome`, `versione`, `gate_outcome`, `coverage.overall_percent`, `review_clarify_status`, `files[]`, `tests.playbook_md`.
+
+**Validazione handoff-ability**:
+- Se `gate_outcome != "GO"` → mostra warning e chiedi conferma:
+  > Il plan `<nome>` v<versione> e' in stato `<gate>` (coverage=<percent>%). Solaria non ha ancora completato il quality gate di Fase 1c. Procedi comunque o aspetti?
+- Se `review_clarify_status == "open"` → mostra warning analogo (bloccanti review/clarify ancora aperti Solaria-side).
+- Se manifest manca o malformato → mostra errore "AFU package non conforme allo schema v2, manca/invalido afu-manifest.json. Solaria deve regenerare prima dell'handoff."
+
+Se trovi UN plan valido (gate=GO, review_clarify_status=closed), proponilo automaticamente all'utente con i metadati:
+
+> Ho trovato il plan `<nome>` v<versione> consegnato da Solaria in `$BASE_PATH/todo/<dir>/`:
+> - Coverage: <percent>%, gate: GO, review/clarify: closed
+> - Files: [lista da manifest.files]
+> - Test playbook: [playbook_md] + [playbook_xlsx] (per F2c ondata b)
+> - Stakeholder: <stakeholder>, deadline: <deadline>, priorita: <priorita>
+>
+> Confermi che vuoi rivedere questo plan?
+
+Se l'utente conferma: usa `manifest.nome` per la Domanda 1 (skip) e `manifest.files[]` per la Domanda 2 (skip). Salta direttamente alla Domanda 3 (codebase). Se l'utente vuole rivedere un plan diverso o sei in modalita' legacy, prosegui con la Domanda 1 standard.
+
+Se trovi piu' di un plan in `todo/`, listali tutti e chiedi quale rivedere.
+
 ### Domanda 1 — Nome del BR
 
 > Come vuoi chiamare questo BR? Il nome verra' usato per creare la cartella di lavoro.
 >
 > Esempio: "booking-v2", "monitoraggio-dashboard", "auth-refactor"
 
-Salva il nome. Verra' usato per creare la cartella `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/`.
+Salva il nome. Verra' usato per creare la cartella `$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/`.
+
+> **Nota standalone**: se la Domanda 0 ha trovato e validato un manifest Solaria, questa domanda viene **skippata** — si usa `manifest.nome` come slug e la cartella esiste gia' (Solaria l'ha creata e popolata).
 
 ### Domanda 2 — Documentazione
 
@@ -122,6 +194,8 @@ Salva il nome. Verra' usato per creare la cartella `<profiles_repo>/<profilo>/pl
 > - **Qualsiasi altro file rilevante** (specifiche tecniche, template, mapping, matrici)
 >
 > Accetto MD, PDF, DOCX, XLSX, PPTX e immagini.
+
+> **Nota standalone**: se la Domanda 0 ha trovato e validato un manifest Solaria, questa domanda viene **skippata** — i file sono auto-popolati da `manifest.files[]` e si trovano gia' in `$BASE_PATH/todo/<plan>/requirements/` (inclusi i `requirements/mockups/`). Il playbook test in `$BASE_PATH/todo/<plan>/tests/` non e' input della review (verra' usato in F2c).
 
 ### Domanda 3 — Codebase
 
@@ -141,7 +215,7 @@ Salva i nomi, le sigle e i path. Questi stessi dati verranno riutilizzati da sdl
 Dopo aver raccolto tutti gli input, ricapitola e chiedi conferma:
 
 > Riepilogo:
-> - Nome BR: [nome] → cartella `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/`
+> - Nome BR: [nome] → cartella `$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/`
 > - Documentazione: [lista con path]
 > - Repository coinvolte:
 >   [per ognuna: Nome (SIGLA) → path]
@@ -154,11 +228,13 @@ Procedi solo dopo la conferma.
 
 ## Fase 2 — Conversione Documentazione in Markdown
 
-Crea la struttura cartelle:
+> **Nota standalone**: se la Domanda 0 ha auto-rilevato un plan Solaria, la cartella `$BASE_PATH/todo/<plan>/requirements/` esiste gia' con i file consegnati da Solaria. La conversione di AFU.docx in MD per l'analisi resta necessaria (la skill analizza testo, non binari), ma **non spostare/duplicare i file binari originali** — restano in `requirements/` come ricevuti. Lavora producendo solo gli `.md` derivati nella stessa cartella.
+
+Crea la struttura cartelle (in standalone esiste gia'):
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
-mkdir -p "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements"
+git -C "$GIT_REPO_PATH" pull origin main --quiet
+mkdir -p "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements"
 ```
 
 Per ogni file di documentazione fornito, converti in MD e salva nella cartella `requirements/`:
@@ -167,15 +243,15 @@ Per ogni file di documentazione fornito, converti in MD e salva nella cartella `
 ```bash
 python3 ~/.claude/skills/doc-to-markdown/convert_word_to_markdown.py "<path-file>"
 ```
-Sposta il file `.md` risultante e l'eventuale cartella `_images/` in `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements/`.
+Sposta il file `.md` risultante e l'eventuale cartella `_images/` in `$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements/`.
 
 **File `.pdf` / `.pptx` / `.xlsx`** — Usa `markitdown` (la stessa dipendenza di doc-to-markdown):
 ```bash
 # Se markitdown e' disponibile globalmente
-markitdown "<path-file>" > "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements/<nome-file>.md"
+markitdown "<path-file>" > "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements/<nome-file>.md"
 
 # Altrimenti via uvx
-uvx markitdown "<path-file>" > "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements/<nome-file>.md"
+uvx markitdown "<path-file>" > "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements/<nome-file>.md"
 ```
 
 **File `.md`** — Copia direttamente in `requirements/`.
@@ -256,7 +332,7 @@ Per ogni problema documenta:
 
 ### Generazione del CLARIFY.md
 
-Genera il file `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/CLARIFY.md` con questa struttura:
+Genera il file `$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/CLARIFY.md` con questa struttura:
 
 ```
 # Review Documentazione BR [nome/versione]
@@ -351,24 +427,26 @@ Assunzioni confermate: [lista A-XXX delle assunzioni validate dall'utente]
 Bloccanti aperti: [lista dei bloccanti non ancora risolti, se si procede comunque]
 ```
 
-### Generazione CLARIFY.docx
+### Generazione CLARIFY.docx (SOLO in modalita' legacy)
 
-Dopo aver generato CLARIFY.md, converti in DOCX per facilitare la compilazione da parte del team funzionale:
+In **modalita' legacy** (deloitte-profiles), dopo aver generato CLARIFY.md converti in DOCX per facilitare la compilazione da parte del team funzionale:
 
 ```bash
-pandoc -f markdown -t docx "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/CLARIFY.md" -o "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/CLARIFY.docx"
+pandoc -f markdown -t docx "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/CLARIFY.md" -o "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/CLARIFY.docx"
 ```
 
 Entrambi i file (MD e DOCX) vengono salvati nella cartella del BR. Il DOCX contiene i placeholder "*(inserire qui la risposta)*" sotto ogni domanda, pronti per la compilazione.
 
+In **modalita' standalone** (project_repo): **NON generare il DOCX**. Solaria scrive le risposte direttamente nel `CLARIFY.md` committato via GitHub Contents API (commit message `[solaria-clarify]`). Il file `.md` con placeholder e' sufficiente.
+
 ### Commit e push degli artefatti
 
-Dopo la generazione di CLARIFY.md e CLARIFY.docx, fai commit e push nella repo profili:
+Dopo la generazione di CLARIFY.md (+ CLARIFY.docx in legacy), fai commit e push nella repo:
 
 ```bash
-git -C "<profiles_repo>" add "<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/"
-git -C "<profiles_repo>" commit -m "[sdlc-reviewer] <nome>: review documentazione completata"
-git -C "<profiles_repo>" push origin main --quiet
+git -C "$GIT_REPO_PATH" add "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/"
+git -C "$GIT_REPO_PATH" commit -m "[sdlc-reviewer] <nome>: review documentazione completata"
+git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 
 Se il push fallisce, avvisa l'utente e proponi: (1) riprovare, (2) creare un branch, (3) lasciare il commit locale.
@@ -377,15 +455,18 @@ Se il push fallisce, avvisa l'utente e proponi: (1) riprovare, (2) creare un bra
 
 Dopo aver generato report e DOCX, presentali all'utente per revisione. L'utente puo' chiedere modifiche al report. Quando l'utente conferma:
 
+> **Nota standalone**: i messaggi seguenti si adattano alla modalita' rilevata. In **legacy** la skill ha generato sia `CLARIFY.md` che `CLARIFY.docx` (invia il DOCX al funzionale per la compilazione). In **standalone** la skill ha generato solo `CLARIFY.md` — Solaria scrivera' le risposte direttamente nel MD via GitHub Contents API (no DOCX, no compilazione manuale).
+
 **Se non ci sono bloccanti:**
 
 > Review completata. Nessun bloccante trovato.
 >
-> I report sono salvati in `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/`:
+> I report sono salvati in `$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/`:
 > - `CLARIFY.md` — versione markdown
-> - `CLARIFY.docx` — versione Word, pronta per la compilazione
+> - [Solo legacy] `CLARIFY.docx` — versione Word, pronta per la compilazione
 >
-> Puoi inviare il **DOCX** al team funzionale: contiene i placeholder per le risposte sotto ogni domanda.
+> [Legacy] Puoi inviare il **DOCX** al team funzionale: contiene i placeholder per le risposte sotto ogni domanda.
+> [Standalone] Notifica Solaria che `CLARIFY.md` e' pronto — compilera' le risposte direttamente nel MD committato.
 >
 > Quando ricevi le risposte, usa `sdlc-clarify` per integrarle nel review.
 > Quando vuoi, puoi procedere con `sdlc-analyzer` per l'analisi tecnica — le assunzioni verranno incorporate automaticamente.
@@ -394,11 +475,12 @@ Dopo aver generato report e DOCX, presentali all'utente per revisione. L'utente 
 
 > Review completata. Ci sono **N problemi bloccanti** ancora aperti.
 >
-> I report sono salvati in `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/`:
+> I report sono salvati in `$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/`:
 > - `CLARIFY.md` — versione markdown
-> - `CLARIFY.docx` — versione Word, pronta per la compilazione
+> - [Solo legacy] `CLARIFY.docx` — versione Word, pronta per la compilazione
 >
-> Puoi inviare il **DOCX** al team funzionale: contiene i placeholder per le risposte sotto ogni domanda.
+> [Legacy] Puoi inviare il **DOCX** al team funzionale.
+> [Standalone] Notifica Solaria che `CLARIFY.md` e' pronto — compilera' le risposte direttamente nel MD committato.
 >
 > **Ti consiglio di attendere chiarimenti dal funzionale prima di procedere con l'analisi tecnica** — il rischio e' di pianificare lavoro su basi fragili che dovra' essere rifatto.
 >
@@ -412,4 +494,5 @@ Dopo aver generato report e DOCX, presentali all'utente per revisione. L'utente 
 
 - **`doc-to-markdown`** skill (`~/.claude/skills/doc-to-markdown/`) — per conversione DOCX/DOC in input
 - **`markitdown`** — per conversione PDF, PPTX, XLSX (installato come dipendenza di doc-to-markdown, oppure via `pip install 'markitdown[all]'` o `uvx`)
-- **`pandoc`** — per generazione CLARIFY.docx. Deve essere disponibile su PATH.
+- **`pandoc`** — **opzionale (solo modalita' legacy)** per generazione CLARIFY.docx. In modalita' standalone non serve (Solaria scrive direttamente nel MD).
+- **`ajv-cli` + `ajv-formats`** (oppure `python jsonschema`) — **opzionale (solo modalita' standalone)** per validare `afu-manifest.json` v2 nella Domanda 0. Installazione: `npm i -g ajv-cli ajv-formats`.

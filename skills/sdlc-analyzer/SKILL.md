@@ -21,11 +21,11 @@ Il processo si compone di 4 fasi:
 
 ---
 
-## Risoluzione Path — deloitte-profiles
+## Risoluzione Path (modalita' duale: standalone | legacy)
 
-Tutte le operazioni su file BR avvengono nella repo `deloitte-profiles`, non nella repo del codice. Il codice sorgente continua a essere letto dalla repo del progetto corrente.
+Tutte le operazioni su file plan avvengono nella **project_repo** (modalita' standalone, una repo per progetto) o nella repo `deloitte-profiles` (modalita' legacy), **non** nella repo del codice applicativo. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
-### Lettura `.br-local.json`
+### Lettura `.br-local.json` e detection modalita'
 
 All'avvio, leggi `.br-local.json` dalla root della repo corrente:
 
@@ -33,49 +33,75 @@ All'avvio, leggi `.br-local.json` dalla root della repo corrente:
 cat .br-local.json 2>/dev/null
 ```
 
-Estrai `profiles_repo`, `profilo`, `developer`.
+La presenza del campo `project_repo` o `profiles_repo` discrimina la modalita':
 
-Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
+```bash
+if grep -q '"project_repo"' .br-local.json 2>/dev/null; then
+  MODE="standalone"
+  PROJECT_REPO=$(grep -oP '"project_repo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROJECT_NAME=$(grep -oP '"project_name"\s*:\s*"\K[^"]+' .br-local.json)
+  BASE_PATH="$PROJECT_REPO/plans"
+  CONST_PATH="$PROJECT_REPO/constitution"
+  DATASET_PATH="$PROJECT_REPO/dataset"        # solo standalone (popolato da Solaria-side)
+  GIT_REPO_PATH="$PROJECT_REPO"
+elif grep -q '"profiles_repo"' .br-local.json 2>/dev/null; then
+  MODE="legacy"
+  PROFILES_REPO=$(grep -oP '"profiles_repo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROFILO=$(grep -oP '"profilo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROJECT_NAME="$PROFILO"
+  BASE_PATH="$PROFILES_REPO/$PROFILO/plans"
+  CONST_PATH="$PROFILES_REPO/$PROFILO/constitution"
+  DATASET_PATH=""                              # non esiste in legacy
+  GIT_REPO_PATH="$PROFILES_REPO"
+fi
+```
+
+| Modalita' | `BASE_PATH` | `CONST_PATH` | Stati supportati |
+|---|---|---|---|
+| Standalone | `$PROJECT_REPO/plans` | `$PROJECT_REPO/constitution` | `draft`, `todo`, `in-progress`, `done` |
+| Legacy | `$PROFILES_REPO/$PROFILO/plans` | `$PROFILES_REPO/$PROFILO/constitution` | `todo`, `in-progress`, `done` |
+
+> **Nota**: `plans/draft/` esiste solo in modalita' standalone — area dove Solaria authora l'AFU prima dell'handoff (Fase 1c). Le skill SDLC ignorano `draft/` (e' Solaria-side) tranne `sdlc-reviewer` e `sdlc-clarify` quando esplicitamente invocate su un draft.
 
 ### Se `.br-local.json` non esiste
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `sdlc-profile-setup`.
+> `.br-local.json` non trovato. Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
 
 ### Sincronizzazione prima della lettura
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
+git -C "$GIT_REPO_PATH" pull origin main --quiet
 ```
 
 ### Commit e push dopo la scrittura
 
 ```bash
-git -C "<profiles_repo>" add .
-git -C "<profiles_repo>" commit -m "<messaggio>"
-git -C "<profiles_repo>" push origin main --quiet
+git -C "$GIT_REPO_PATH" add .
+git -C "$GIT_REPO_PATH" commit -m "<messaggio>"
+git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 
 ---
 
 ## Caricamento contesto progetto (CONST + PROFILE)
 
-Dopo aver risolto i path (`profiles_repo`, `profilo`) e prima di eseguire qualsiasi altra fase, carica i due file di costituzione del progetto:
+Dopo aver risolto i path con l'helper di detection sopra, prima di eseguire qualsiasi altra fase carica i due file di costituzione del progetto:
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
-cat "<profiles_repo>/<profilo>/constitution/CONST.json"
-cat "<profiles_repo>/<profilo>/constitution/PROFILE.json"
+git -C "$GIT_REPO_PATH" pull origin main --quiet
+cat "$CONST_PATH/CONST.json"
+cat "$CONST_PATH/PROFILE.json"
 ```
 
 **Errori di loading (uniformi per tutte le skill SDLC):**
 
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
-| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup`" | Stop |
-| `CONST.json` manca, `PROFILE.json` esiste | "Il profilo `<nome>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
-| `PROFILE.json` manca, `CONST.json` esiste | "Il profilo `<nome>` non ha PROFILE.json. Stato inconsistente — il profilo è incompleto. Ripristinare da git history o rifare il setup." | Stop |
+| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
+| `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
+| `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
 | Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
 | JSON malformed | Mostra errore di parse + path | Stop |
 
@@ -99,17 +125,33 @@ Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 
 ### Domanda 0 — Cartella BR esistente
 
-Prima di chiedere qualsiasi cosa, verifica se esiste una cartella BR in `<profiles_repo>/<profilo>/plans/todo/` con un `CLARIFY.md` (segno che `sdlc-reviewer` e' stato eseguito):
+Prima di chiedere qualsiasi cosa, verifica cosa Solaria (standalone) o `sdlc-reviewer` (legacy) hanno gia' depositato in `plans/todo/`:
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
-ls "<profiles_repo>/<profilo>/plans/todo"/*/CLARIFY.md 2>/dev/null
+git -C "$GIT_REPO_PATH" pull origin main --quiet
+ls -d "$BASE_PATH/todo"/*/ 2>/dev/null
 ```
 
-**Se trovi una cartella con CLARIFY.md**, proponila:
+In **modalita' standalone**, controlla anche eventuali plan ancora in `plans/draft/` (Solaria non ha ancora fatto handoff). Se trovi un `afu-manifest.json` in `draft/` ma non in `todo/`:
+
+```bash
+ls "$BASE_PATH/draft"/*/afu-manifest.json 2>/dev/null
+```
+
+> Ho trovato un plan ancora in `plans/draft/<dir>/`. Solaria non ha eseguito l'handoff (probabilmente gate=NO-GO o review/clarify Solaria-side ancora aperto). Attendi che Solaria completi la Fase 1c e promuova a `todo/`, oppure forza l'analisi sul draft (sconsigliato).
+
+Per i plan in `$BASE_PATH/todo/<dir>/`, leggi `afu-manifest.json` (se presente, modalita' standalone) ed estrai `nome`, `versione`, `coverage.overall_percent`, `gate_outcome`, `tests.playbook_md`. Cerca poi `CLARIFY.md`:
+
+```bash
+ls "$BASE_PATH/todo"/*/CLARIFY.md 2>/dev/null
+```
+
+> **Nota standalone**: `CLARIFY.md` puo' essere assente se il TL ha skippato la review tech post-handoff opzionale (F2a). In tal caso `sdlc-analyzer` lavora direttamente dal `afu-manifest.json` e da `requirements/`.
+
+**Se trovi una cartella con CLARIFY.md** (legacy o standalone con review tech opzionale attivata), proponila:
 
 > Ho trovato una cartella BR con review gia' completata:
-> - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_booking-v2/CLARIFY.md`
+> - `$BASE_PATH/todo/2026-04-28_booking-v2/CLARIFY.md`
 > - Documentazione convertita in `requirements/`
 >
 > Uso questa come base? Le assunzioni dalla review verranno incorporate nel piano.
@@ -191,7 +233,7 @@ Procedi solo dopo la conferma.
 
 ## Fase 2 — Conversione Documentazione in Markdown
 
-**Se `sdlc-reviewer` e' stato eseguito** e la cartella `requirements/` esiste gia' nella cartella del BR (`<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/requirements/`), **salta completamente questa fase** e vai alla Fase 3. La conversione e' gia' stata fatta da sdlc-reviewer.
+**Se `sdlc-reviewer` e' stato eseguito** e la cartella `requirements/` esiste gia' nella cartella del BR (`$BASE_PATH/todo/<data>_<nome>/requirements/`), **salta completamente questa fase** e vai alla Fase 3. La conversione e' gia' stata fatta da sdlc-reviewer.
 
 **Se `sdlc-reviewer` non e' stato eseguito**, converti tutti i documenti non-MD in formato Markdown. Questo riduce significativamente il contesto necessario e rende i documenti piu' leggibili per l'analisi.
 
@@ -200,7 +242,7 @@ Procedi solo dopo la conferma.
 Crea la cartella del BR e la sottocartella per i documenti convertiti:
 
 ```bash
-mkdir -p "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements"
+mkdir -p "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements"
 ```
 
 Per ogni file di documentazione fornito:
@@ -209,18 +251,18 @@ Per ogni file di documentazione fornito:
 ```bash
 python3 ~/.claude/skills/doc-to-markdown/convert_word_to_markdown.py "<path-file>"
 ```
-Sposta il file `.md` risultante e l'eventuale cartella `_images/` in `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements/`.
+Sposta il file `.md` risultante e l'eventuale cartella `_images/` in `$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements/`.
 
 **File `.pdf` / `.pptx` / `.xlsx`** — Usa `markitdown` (la stessa dipendenza di doc-to-markdown):
 ```bash
 # Se markitdown è disponibile globalmente
-markitdown "<path-file>" > "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements/<nome-file>.md"
+markitdown "<path-file>" > "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements/<nome-file>.md"
 
 # Altrimenti via uvx
-uvx markitdown "<path-file>" > "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements/<nome-file>.md"
+uvx markitdown "<path-file>" > "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements/<nome-file>.md"
 ```
 
-**File `.md`** — Copia direttamente in `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements/`.
+**File `.md`** — Copia direttamente in `$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements/`.
 
 **Immagini (mockup `.png`, `.jpg`, ecc.)** — Non convertire. Leggile con Read (supporto multimodale) durante la fase di analisi e descrivi nel dettaglio cosa vedi.
 
@@ -238,6 +280,20 @@ Comunica all'utente lo stato della conversione:
 > Procedo con l'analisi gap.
 
 Da questo punto in poi, l'analisi lavora sui file MD convertiti in `requirements/`, non sui file originali.
+
+---
+
+### Scansione mockups/ (modalita' standalone)
+
+Se il plan e' in modalita' standalone, scansiona la cartella `requirements/mockups/` e usa i file come input visuale per la gap analysis UI/frontend:
+
+```bash
+ls "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements/mockups"/* 2>/dev/null
+```
+
+Per ogni mockup (PNG/JPG/SVG generato dal Mockup Designer Agent Solaria), usa `Read` (supporto multimodale) e descrivi cosa rappresenta. Mappa ogni componente UI rilevato a una task della matrice di verifica (colonna FE o equivalente). Se un mockup mostra elementi che il codice FE non implementa ancora, e' un gap "Mancante" automatico per le task frontend.
+
+I mockup vivono in `requirements/mockups/` perche' Solaria li include in `manifest.files[]` con prefisso `mockups/`. Sono asset di prima classe per il planning UI, non riferimenti opzionali.
 
 ---
 
@@ -297,16 +353,16 @@ Il livello di dettaglio deve essere sufficiente perché un agente Claude Code, l
 Se la cartella del BR non esiste ancora (sdlc-reviewer non eseguito), creala:
 
 ```bash
-mkdir -p "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/requirements"
+mkdir -p "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements"
 ```
 
 (in-progress e done sono già create da sdlc-profile-setup)
 
-Genera entrambi i file nella cartella del BR in `<profiles_repo>/<profilo>/plans/todo/`. Questo e' lo stato iniziale: la cartella intera si sposta in `in-progress/` quando uno sviluppatore avvia la lavorazione con `sdlc-executor`, e in `done/` al completamento di tutte le task.
+Genera entrambi i file nella cartella del BR in `$BASE_PATH/todo/`. Questo e' lo stato iniziale: la cartella intera si sposta in `in-progress/` quando uno sviluppatore avvia la lavorazione con `sdlc-executor`, e in `done/` al completamento di tutte le task.
 
 ### 4.1 — PLAN
 
-**Path file**: `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/PLAN.md`
+**Path file**: `$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/PLAN.md`
 
 Struttura:
 
@@ -314,6 +370,10 @@ Struttura:
 # Report Verifica BR [nome/versione]
 
 Data verifica: `<data>`
+Modalita': `standalone` | `legacy`
+Processed AFU version: `<manifest.versione>`            # SOLO standalone — letto da requirements/afu-manifest.json
+AFU manifest: `requirements/afu-manifest.json`          # SOLO standalone
+Test playbook: `tests/playbook.md` + `tests/playbook.xlsx`   # SOLO standalone se manifest.tests presente
 
 Branch verificato:
 [per ogni repo coinvolta:]
@@ -401,7 +461,7 @@ Ogni riga della matrice e ogni gap aperto deve contenere path esatti ai file ril
 
 ### 4.2 — TASKS
 
-**Path file**: `<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/TASKS.md`
+**Path file**: `$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/TASKS.md`
 
 Struttura:
 
@@ -524,9 +584,9 @@ Regole:
 Dopo aver generato `PLAN.md` e `TASKS.md`, esegui commit e push verso `deloitte-profiles`:
 
 ```bash
-git -C "<profiles_repo>" add "<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/"
-git -C "<profiles_repo>" commit -m "[sdlc-analyzer] <nome>: gap report e piano di implementazione"
-git -C "<profiles_repo>" push origin main --quiet
+git -C "$GIT_REPO_PATH" add "<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/"
+git -C "$GIT_REPO_PATH" commit -m "[sdlc-analyzer] <nome>: gap report e piano di implementazione"
+git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 
 ### Perimetro dell'auto-update

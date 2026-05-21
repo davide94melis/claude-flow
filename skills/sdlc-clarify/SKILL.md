@@ -5,13 +5,21 @@ description: Gestisce le risposte del team funzionale alle domande sollevate in 
 
 # SDLC Clarify — Risposte del Funzionale e Aggiornamento Review
 
-Questa skill si posiziona tra `sdlc-reviewer` e `sdlc-analyzer` nel flusso BR. Riceve le risposte del team funzionale alle domande sollevate nel CLARIFY.md, aggiorna il report, ri-valuta bloccanti e assunzioni, e rigenera il DOCX.
+Questa skill si posiziona tra `sdlc-reviewer` e `sdlc-analyzer` nel flusso BR. Riceve le risposte del team funzionale alle domande sollevate nel CLARIFY.md, aggiorna il report, ri-valuta bloccanti e assunzioni.
 
 Il flusso BR completo:
 ```
 sdlc-reviewer → sdlc-clarify → sdlc-analyzer → sdlc-executor → sdlc-updater
                                                       ↘ sdlc-progress-report
 ```
+
+> **Posizionamento nel flusso (modalita' standalone)**
+>
+> Come `sdlc-reviewer`, anche `sdlc-clarify` e' **opzionale in Fase 2a standalone**: viene invocata solo se il TL ha lanciato `sdlc-reviewer` post-handoff e si e' generato un `CLARIFY.md`. Quando il package consegnato da Solaria e' chiaro (gate=GO, coverage alta, review/clarify Solaria-side chiuso), entrambe le skill possono essere skippate.
+>
+> In modalita' standalone le risposte non arrivano via DOCX compilato a mano dal funzionale ma via **MD modificato direttamente da Solaria** e committato con messaggio `[solaria-clarify] <plan>: round <N> risposte funzionale`. La skill rileva questa modalita' tramite `git log` sul `CLARIFY.md` (vedi nuova Modalita' C in Fase 2/3).
+>
+> In modalita' legacy il flusso DOCX-compilato resta valido.
 
 Questa skill puo' essere eseguita **piu' volte** sullo stesso CLARIFY.md: ogni esecuzione aggiunge le nuove risposte senza sovrascrivere quelle gia' registrate. Questo supporta lo scenario tipico in cui il funzionale risponde a domande diverse in momenti diversi.
 
@@ -25,11 +33,11 @@ Il processo si compone di 6 fasi:
 
 ---
 
-## Risoluzione Path — deloitte-profiles
+## Risoluzione Path (modalita' duale: standalone | legacy)
 
-Tutte le operazioni su file BR avvengono nella repo `deloitte-profiles`, non nella repo del codice.
+Tutte le operazioni su file plan avvengono nella **project_repo** (modalita' standalone, una repo per progetto) o nella repo `deloitte-profiles` (modalita' legacy), **non** nella repo del codice applicativo. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
-### Lettura `.br-local.json`
+### Lettura `.br-local.json` e detection modalita'
 
 All'avvio, leggi `.br-local.json` dalla root della repo corrente:
 
@@ -37,49 +45,75 @@ All'avvio, leggi `.br-local.json` dalla root della repo corrente:
 cat .br-local.json 2>/dev/null
 ```
 
-Estrai `profiles_repo`, `profilo`, `developer`.
+La presenza del campo `project_repo` o `profiles_repo` discrimina la modalita':
 
-Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
+```bash
+if grep -q '"project_repo"' .br-local.json 2>/dev/null; then
+  MODE="standalone"
+  PROJECT_REPO=$(grep -oP '"project_repo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROJECT_NAME=$(grep -oP '"project_name"\s*:\s*"\K[^"]+' .br-local.json)
+  BASE_PATH="$PROJECT_REPO/plans"
+  CONST_PATH="$PROJECT_REPO/constitution"
+  DATASET_PATH="$PROJECT_REPO/dataset"        # solo standalone (popolato da Solaria-side)
+  GIT_REPO_PATH="$PROJECT_REPO"
+elif grep -q '"profiles_repo"' .br-local.json 2>/dev/null; then
+  MODE="legacy"
+  PROFILES_REPO=$(grep -oP '"profiles_repo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROFILO=$(grep -oP '"profilo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROJECT_NAME="$PROFILO"
+  BASE_PATH="$PROFILES_REPO/$PROFILO/plans"
+  CONST_PATH="$PROFILES_REPO/$PROFILO/constitution"
+  DATASET_PATH=""                              # non esiste in legacy
+  GIT_REPO_PATH="$PROFILES_REPO"
+fi
+```
+
+| Modalita' | `BASE_PATH` | `CONST_PATH` | Stati supportati |
+|---|---|---|---|
+| Standalone | `$PROJECT_REPO/plans` | `$PROJECT_REPO/constitution` | `draft`, `todo`, `in-progress`, `done` |
+| Legacy | `$PROFILES_REPO/$PROFILO/plans` | `$PROFILES_REPO/$PROFILO/constitution` | `todo`, `in-progress`, `done` |
+
+> **Nota**: `plans/draft/` esiste solo in modalita' standalone — area dove Solaria authora l'AFU prima dell'handoff (Fase 1c). Le skill SDLC ignorano `draft/` (e' Solaria-side) tranne `sdlc-reviewer` e `sdlc-clarify` quando esplicitamente invocate su un draft.
 
 ### Se `.br-local.json` non esiste
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `sdlc-profile-setup`.
+> `.br-local.json` non trovato. Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
 
 ### Sincronizzazione prima della lettura
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
+git -C "$GIT_REPO_PATH" pull origin main --quiet
 ```
 
 ### Commit e push dopo la scrittura
 
 ```bash
-git -C "<profiles_repo>" add .
-git -C "<profiles_repo>" commit -m "<messaggio>"
-git -C "<profiles_repo>" push origin main --quiet
+git -C "$GIT_REPO_PATH" add .
+git -C "$GIT_REPO_PATH" commit -m "<messaggio>"
+git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 
 ---
 
 ## Caricamento contesto progetto (CONST + PROFILE)
 
-Dopo aver risolto i path (`profiles_repo`, `profilo`) e prima di eseguire qualsiasi altra fase, carica i due file di costituzione del progetto:
+Dopo aver risolto i path con l'helper di detection sopra, prima di eseguire qualsiasi altra fase carica i due file di costituzione del progetto:
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
-cat "<profiles_repo>/<profilo>/constitution/CONST.json"
-cat "<profiles_repo>/<profilo>/constitution/PROFILE.json"
+git -C "$GIT_REPO_PATH" pull origin main --quiet
+cat "$CONST_PATH/CONST.json"
+cat "$CONST_PATH/PROFILE.json"
 ```
 
 **Errori di loading (uniformi per tutte le skill SDLC):**
 
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
-| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup`" | Stop |
-| `CONST.json` manca, `PROFILE.json` esiste | "Il profilo `<nome>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
-| `PROFILE.json` manca, `CONST.json` esiste | "Il profilo `<nome>` non ha PROFILE.json. Stato inconsistente — il profilo è incompleto. Ripristinare da git history o rifare il setup." | Stop |
+| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
+| `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
+| `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
 | Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
 | JSON malformed | Mostra errore di parse + path | Stop |
 
@@ -102,29 +136,29 @@ Entrambi i file restano disponibili come contesto per tutta la durata della skil
 Cerca automaticamente il report del review nella struttura `plans/` centralizzata:
 
 ```bash
-git -C "<profiles_repo>" pull origin main --quiet
-ls "<profiles_repo>/<profilo>/plans/todo"/*/CLARIFY.md 2>/dev/null
-ls "<profiles_repo>/<profilo>/plans/in-progress"/*/CLARIFY.md 2>/dev/null
+git -C "$GIT_REPO_PATH" pull origin main --quiet
+ls "$BASE_PATH/todo"/*/CLARIFY.md 2>/dev/null
+ls "$BASE_PATH/in-progress"/*/CLARIFY.md 2>/dev/null
 ```
 
 **Se trovi un solo CLARIFY.md**, proponilo:
 
 > Ho trovato il review del BR:
-> - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_monitoraggio/CLARIFY.md`
+> - `$BASE_PATH/todo/2026-04-28_monitoraggio/CLARIFY.md`
 >
 > Uso questo?
 
 **Se ne trovi piu' di uno**, elenca e chiedi:
 
 > Ho trovato piu' review:
-> - `<profiles_repo>/<profilo>/plans/todo/2026-04-28_monitoraggio/CLARIFY.md`
-> - `<profiles_repo>/<profilo>/plans/todo/2026-04-25_booking-v2/CLARIFY.md`
+> - `$BASE_PATH/todo/2026-04-28_monitoraggio/CLARIFY.md`
+> - `$BASE_PATH/todo/2026-04-25_booking-v2/CLARIFY.md`
 >
 > Quale vuoi aggiornare?
 
 **Se non ne trovi nessuno**, informa:
 
-> Non ho trovato nessun CLARIFY.md nella struttura `<profiles_repo>/<profilo>/plans/`.
+> Non ho trovato nessun CLARIFY.md nella struttura `$BASE_PATH/`.
 > Devi prima eseguire `sdlc-reviewer` per generare il report con le domande.
 
 Dopo l'identificazione, leggi il CLARIFY.md e analizza la sua struttura:
@@ -151,7 +185,30 @@ Se tutte le domande hanno gia' risposta:
 
 ## Fase 2 — Modalita' Input
 
-Chiedi come arrivano le risposte:
+### Auto-detection Modalita' C (SOLO in standalone)
+
+Prima di chiedere all'utente, in modalita' standalone verifica se Solaria ha gia' compilato le risposte direttamente nel `CLARIFY.md`:
+
+```bash
+git -C "$GIT_REPO_PATH" log -1 --format="%h|%s|%an" -- "<path-a-CLARIFY.md>"
+```
+
+Se l'ultimo commit che ha toccato il file ha messaggio che **inizia con `[solaria-clarify]`** (e/o opzionalmente autore `solaria`), inferisci la Modalita' C automaticamente e procedi alla Fase 3 / Modalita' C senza chiedere all'utente.
+
+Se non c'e' un commit `[solaria-clarify]` recente, prosegui con il prompt standard sotto.
+
+### Prompt modalita' input
+
+Chiedi come arrivano le risposte (il set di opzioni si adatta alla modalita'):
+
+**In modalita' standalone** (no DOCX):
+
+> Come arrivano le risposte del funzionale?
+>
+> 1. **MD compilato da Solaria** — Solaria ha gia' scritto le risposte direttamente nel CLARIFY.md committato (`[solaria-clarify]`). Le leggo dal MD.
+> 2. **Te le dico io** — ho le risposte da email, riunione, chat, o altri canali.
+
+**In modalita' legacy** (con DOCX):
 
 > Come arrivano le risposte del funzionale?
 >
@@ -164,7 +221,38 @@ Aspetta la risposta prima di procedere.
 
 ## Fase 3 — Acquisizione Risposte
 
-### Modalita' A — DOCX compilato
+### Modalita' C — MD compilato da Solaria (SOLO standalone)
+
+1. Identifica il commit `[solaria-clarify]` piu' recente sul `CLARIFY.md`:
+
+```bash
+git -C "$GIT_REPO_PATH" log --format="%h|%s|%ai" --all \
+  --grep="^\[solaria-clarify\]" -- "<path-a-CLARIFY.md>" | head -5
+```
+
+2. Confronta lo stato corrente del file con la versione precedente al primo commit `[solaria-clarify]` (o con la versione di sdlc-reviewer marcata `[sdlc-reviewer]`):
+
+```bash
+LAST_REVIEWER_SHA=$(git -C "$GIT_REPO_PATH" log -1 --format="%H" \
+  --grep="^\[sdlc-reviewer\]" -- "<path-a-CLARIFY.md>")
+git -C "$GIT_REPO_PATH" diff "$LAST_REVIEWER_SHA" HEAD -- "<path-a-CLARIFY.md>"
+```
+
+3. Per ogni domanda, cerca differenze nei placeholder `*(inserire qui la risposta)*` sostituiti con testo non vuoto.
+
+4. Presenta le risposte rilevate per conferma, una alla volta, indicando autore + commit:
+
+> **Problema bloccante 1 — [Titolo]**
+> Domanda: [domanda originale]
+> Risposta rilevata (commit `<sha>` di Solaria, <data>): "[testo dal MD]"
+>
+> Confermo questa risposta? (si / no / correggi)
+
+5. Per ogni risposta confermata, marca come acquisita e passa alla rivalutazione (Fase 4). NB: le risposte sono **gia' nel file** committato, quindi la Fase 5.1 (scrittura risposte) viene saltata in Modalita' C — la skill aggiorna solo i campi strutturati (Stato assunzione, Data risposta, sezioni di riepilogo bloccanti/aperti) in un secondo commit.
+
+6. Se sono presenti anche risposte raccolte offline non ancora nel MD, l'utente puo' aggiungere la Modalita' B come complemento.
+
+### Modalita' A — DOCX compilato (SOLO legacy)
 
 1. Chiedi il path del DOCX compilato:
 
@@ -378,28 +466,30 @@ Assunzioni rigettate (risposta diversa dall'assunzione):
 [...]
 ```
 
-### 5.4 — Rigenerazione DOCX
+### 5.4 — Rigenerazione DOCX (SOLO legacy)
 
-Dopo aver aggiornato il CLARIFY.md, rigenera il DOCX:
+In **modalita' legacy**, dopo aver aggiornato il CLARIFY.md rigenera il DOCX:
 
 ```bash
-pandoc -f markdown -t docx "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/CLARIFY.md" -o "<profiles_repo>/<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/CLARIFY.docx"
+pandoc -f markdown -t docx "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/CLARIFY.md" -o "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/CLARIFY.docx"
 ```
 
-Se il file si trova in `<profiles_repo>/<profilo>/plans/in-progress/`, usa quel path:
+Se il file si trova in `$BASE_PATH/in-progress/`, usa quel path:
 
 ```bash
-pandoc -f markdown -t docx "<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/CLARIFY.md" -o "<profiles_repo>/<profilo>/plans/in-progress/<YYYY-MM-DD>_<nome>/CLARIFY.docx"
+pandoc -f markdown -t docx "$BASE_PATH/in-progress/<YYYY-MM-DD>_<nome>/CLARIFY.md" -o "$BASE_PATH/in-progress/<YYYY-MM-DD>_<nome>/CLARIFY.docx"
 ```
 
-### 5.5 — Commit e push su deloitte-profiles
+In **modalita' standalone**: **SKIP** — non rigenerare il DOCX. Il `.md` aggiornato e' sufficiente (Solaria leggera' eventuali ri-richieste dal MD).
 
-Dopo la rigenerazione del DOCX, effettua commit e push su `deloitte-profiles`:
+### 5.5 — Commit e push
+
+Dopo la rigenerazione (legacy) o l'aggiornamento dei campi strutturati (standalone), effettua commit e push:
 
 ```bash
-git -C "<profiles_repo>" add "<profilo>/plans/"
-git -C "<profiles_repo>" commit -m "[sdlc-clarify] <nome>: aggiornato review con risposte funzionale"
-git -C "<profiles_repo>" push origin main --quiet
+git -C "$GIT_REPO_PATH" add "$BASE_PATH/"
+git -C "$GIT_REPO_PATH" commit -m "[sdlc-clarify] <nome>: aggiornato review con risposte funzionale"
+git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 
 ---
@@ -408,13 +498,15 @@ git -C "<profiles_repo>" push origin main --quiet
 
 Presenta all'utente il riepilogo completo:
 
+> **Nota**: la riga `CLARIFY.docx` nei messaggi sotto compare solo in **modalita' legacy**. In standalone il file non viene rigenerato.
+
 **Se tutti i bloccanti sono risolti:**
 
 > ## Aggiornamento review completato
 >
 > **File aggiornati**:
 > - `[path]/CLARIFY.md` — aggiornato con N risposte
-> - `[path]/CLARIFY.docx` — rigenerato
+> - [Solo legacy] `[path]/CLARIFY.docx` — rigenerato
 >
 > **Stato**:
 > - Bloccanti: tutti risolti (N su N)
@@ -429,7 +521,7 @@ Presenta all'utente il riepilogo completo:
 >
 > **File aggiornati**:
 > - `[path]/CLARIFY.md` — aggiornato con N risposte
-> - `[path]/CLARIFY.docx` — rigenerato
+> - [Solo legacy] `[path]/CLARIFY.docx` — rigenerato
 >
 > **Stato**:
 > - Bloccanti risolti: X su N
@@ -439,7 +531,7 @@ Presenta all'utente il riepilogo completo:
 > - Domande ancora aperte: K
 >
 > **Ci sono ancora bloccanti aperti.** Puoi:
-> 1. Attendere le risposte rimanenti e rieseguire `sdlc-clarify`
+> 1. Attendere le risposte rimanenti e rieseguire `sdlc-clarify` (in standalone Solaria compilera' un nuovo round via commit `[solaria-clarify]`)
 > 2. Procedere comunque con `sdlc-analyzer` (i bloccanti verranno segnalati come "Da chiarire" nel gap report)
 
 **Se ci sono assunzioni rigettate:**
@@ -467,5 +559,5 @@ Aggiungi al riepilogo:
 
 ## Dipendenze
 
-- **`pandoc`** — per conversione DOCX ↔ MD e rigenerazione DOCX. Deve essere disponibile su PATH.
-- **`sdlc-reviewer`** — deve essere stato eseguito prima (CLARIFY.md deve esistere)
+- **`pandoc`** — **opzionale (solo modalita' legacy)** per conversione DOCX ↔ MD e rigenerazione DOCX. In modalita' standalone non serve (Solaria scrive direttamente nel MD via GitHub Contents API; la skill legge dal MD e fa diff via `git`).
+- **`sdlc-reviewer`** — deve essere stato eseguito prima (CLARIFY.md deve esistere). In modalita' standalone, la presenza del file in `$BASE_PATH/todo/<plan>/` o `$BASE_PATH/in-progress/<plan>/` e' il prerequisito; il file puo' essere stato creato anche da una invocazione di sdlc-reviewer in F2a opzionale.

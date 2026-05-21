@@ -182,11 +182,27 @@ def process(skill_path: Path) -> tuple[int, int]:
 
 
 SKILLS = [
+    # Wave 1 (gia' fatto in commit 59bcf1b — script idempotente: skip se gia' applicato)
     Path(r"C:\Users\davmelis\Documents\MyGitHub\claude-flow\skills\sdlc-executor\SKILL.md"),
     Path(r"C:\Users\davmelis\Documents\MyGitHub\claude-flow\skills\sdlc-progress-report\SKILL.md"),
     Path(r"C:\Users\davmelis\Documents\MyGitHub\claude-flow\skills\sdlc-estimator\SKILL.md"),
+    # Wave 2 (manifest-aware — cambi addizionali specifici post path dualization)
+    Path(r"C:\Users\davmelis\Documents\MyGitHub\claude-flow\skills\sdlc-reviewer\SKILL.md"),
+    Path(r"C:\Users\davmelis\Documents\MyGitHub\claude-flow\skills\sdlc-clarify\SKILL.md"),
+    Path(r"C:\Users\davmelis\Documents\MyGitHub\claude-flow\skills\sdlc-analyzer\SKILL.md"),
+    Path(r"C:\Users\davmelis\Documents\MyGitHub\claude-flow\skills\sdlc-updater\SKILL.md"),
+    # Wave 3 (profile-setup + debug) — cambi strutturali piu' pesanti, applicare a parte
+    # Path(r"C:\Users\davmelis\Documents\MyGitHub\claude-flow\skills\sdlc-profile-setup\SKILL.md"),
+    # Path(r"C:\Users\davmelis\Documents\MyGitHub\claude-flow\skills\sdlc-debug\SKILL.md"),
 ]
 
 for s in SKILLS:
-    before, after = process(s)
-    print(f"{s.name}: profiles_repo {before} -> {after} occurrences")
+    try:
+        before, after = process(s)
+        print(f"{s.name} ({s.parent.name}): profiles_repo {before} -> {after} occurrences")
+    except RuntimeError as e:
+        # Idempotenza: il file e' gia' stato dualizzato in una run precedente
+        if "non trovata" in str(e):
+            print(f"{s.name} ({s.parent.name}): SKIP (gia' dualizzato)")
+        else:
+            raise
