@@ -118,6 +118,73 @@ Entrambi i file restano disponibili come contesto per tutta la durata della skil
 
 ---
 
+## Modalità di orchestrazione
+
+Ogni skill SDLC può girare in due modalità:
+
+- **`classic`** (default) — esecuzione sequenziale, leggera, pochi token. È il comportamento storico.
+- **`deep`** — orchestrazione parallela multi-agent (Workflow tool) + verifica adversariale: più lenta e costosa, ma più esaustiva.
+
+> **Mai escalation silenziosa.** Non si passa a `deep` (con la relativa spesa) senza una scelta esplicita — flag persistente o conferma dell'utente. Default globale = `classic`.
+
+### Risoluzione della modalità (cascata, in ordine di precedenza)
+
+1. **Flag persistente** in `.sdlc-local.json` (fallback `.br-local.json`) — la sorgente automatica a precedenza più alta. Campi *flat* (grep-compatibili, niente `jq`):
+
+   ```bash
+   LOCAL_CFG=".sdlc-local.json"; [ -f "$LOCAL_CFG" ] || LOCAL_CFG=".br-local.json"
+   ORCH_MODE=$(grep -oP '"orchestration_mode"\s*:\s*"\K[^"]+' "$LOCAL_CFG" 2>/dev/null);  ORCH_MODE=${ORCH_MODE:-classic}
+   ORCH_DEPTH=$(grep -oP '"orchestration_depth"\s*:\s*"\K[^"]+' "$LOCAL_CFG" 2>/dev/null); ORCH_DEPTH=${ORCH_DEPTH:-standard}
+   ORCH_MAXC=$(grep -oP '"orchestration_max_concurrency"\s*:\s*\K[0-9]+' "$LOCAL_CFG" 2>/dev/null); ORCH_MAXC=${ORCH_MAXC:-10}
+   ORCH_PANEL=$(grep -oP '"orchestration_verifier_panel"\s*:\s*\K[0-9]+' "$LOCAL_CFG" 2>/dev/null); ORCH_PANEL=${ORCH_PANEL:-3}
+   ```
+
+2. **Keyword nel trigger** ("a fondo", "esaustivo", "in parallelo", "ultracode") — override per singola invocazione, ma **declassata sotto il flag**: una scelta `classic` deliberata nel flag NON viene scavalcata da una keyword ambigua. Ogni escalation verso `deep` innescata da keyword **passa da conferma esplicita** (AskUserQuestion) prima di spendere.
+
+3. **AskUserQuestion** quando né flag né keyword hanno deciso. Con **auto-suggeritore**: se la dimensione del lavoro supera una soglia (≥3 repo, ≥25 task, ondata ≥8 bug, changelog AFU ampio) proponi `deep` mostrando il razionale, **ma la pre-selezione resta `classic`** (no spesa a sorpresa).
+
+**`/effort ultracode` di sessione**: se attivo a livello sessione, la **prima** skill SDLC invocata chiede **una volta** se applicare `deep` a tutte le skill SDLC della sessione, poi ricorda la risposta.
+
+### Banner di modalità (sempre a video prima del lavoro pesante)
+
+- `deep`:  *"Eseguo in modalità Workflow+approfondita: ~N agent, più lento/costoso."*
+- `classic`: *"Modalità classica (sequenziale)."*
+
+### Esecuzione `deep` — invocazione del Workflow tool
+
+In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo script dedicato in `workflows/` per le skill *heavy* (`sdlc-analyzer`, `sdlc-executor`, `sdlc-debug`, `sdlc-updater`, `sdlc-reviewer` — vero fan-out + `adversarial-verify` + `completeness-critic` + `isolation:'worktree'`), oppure con un singolo sub-step di `completeness/coherence-critic` per le skill *light* (`sdlc-estimator`, `sdlc-clarify`, `sdlc-progress-report`, `sdlc-profile-setup`). Gli schema JSON vivono **negli script `workflows/*.js`**, non qui.
+
+### Capability check + degradazione (assume-disponibile + fallback esplicito)
+
+**Nessun probe preventivo**: procedi assumendo il Workflow tool presente. Se l'invocazione **non è possibile** (tool assente) **oppure fallisce/non completa**:
+
+1. banner a video: *"Workflow tool non disponibile: eseguo in modalità classica sequenziale."*;
+2. prosegui nel ramo `classic` usando la mappa di fallback sotto;
+3. inserisci in testa all'artefatto prodotto (PLAN/CLARIFY/gap report/...) il banner **"COPERTURA RIDOTTA — prodotto senza completeness-critic/adversarial-verify"**. La degradazione è **rumorosa**, mai silenziosa: gli artefatti `classic` e `deep` NON sono equivalenti.
+
+> Due casi distinti: (a) **Workflow tool assente / non parte** → fallback completo a `classic` (sopra). (b) **Barriera parziale** (il workflow parte ma k/N agent falliscono) → lo script ritorna i k riusciti come *proposte non applicate*; i file source-of-truth NON vengono scritti parzialmente; l'agente principale presenta lo stato e l'utente decide.
+
+### Mappa di fallback `deep` → `classic`
+
+| Primitiva `deep` | Fallback `classic` |
+|---|---|
+| `parallel` / `pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
+| `agent({agentType, schema})` | "leggi `~/.claude/agents/<agentType>.md` e lancia un Task" + parsing MD |
+| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-verifier` inline |
+| `completeness-critic` | checklist manuale già presente nella skill |
+| `loop-until-dry` | ciclo fix/riverifica già descritto |
+
+### Invarianti inviolabili (in ENTRAMBE le modalità)
+
+1. Tutti i gate di conferma utente ("mai procedere senza conferma").
+2. Mai auto-commit sulle repo di **codice**.
+3. Il sottoagente implementa, l'agente principale coordina.
+4. Scritture sui file source-of-truth (PROGRESS, BUG_REPORT, CLARIFY, PLAN/TASKS) sempre **single-writer serializzato** (pull→edit→commit→push).
+5. Gli agent di verifica/esplorazione restano **read-only**.
+6. Barriere obbligatorie dove la fase a valle richiede lo stato completo (prima della gap-synthesis, tra wave, prima della presentazione unica dell'auto-detect).
+
+---
+
 ## Fase 1 — Raccolta Input
 
 Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.

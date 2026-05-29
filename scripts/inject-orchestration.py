@@ -10,7 +10,7 @@ deep->classic, invarianti) che permette a ogni skill di girare in modalita'
 `classic` (default, sequenziale) o `deep` (Workflow tool multi-agent + adversarial).
 
 Modellato su scripts/dualize-paths.py (stesso pattern: trova ancora -> inietta,
-skip idempotente se gia' applicato).
+detection ancorata a inizio riga, skip idempotente se gia' applicato).
 
 Punto di iniezione (subito dopo il blocco condiviso "Risoluzione Path + detection
 modalita'", §5 del design):
@@ -18,17 +18,26 @@ modalita'", §5 del design):
   - sdlc-profile-setup (eccezione §7.6: non carica CONST+PROFILE, li crea):
     dopo lo "## Step 1.5 — Scelta modalita'" (la modalita' si risolve dopo lo Step MODE)
 
-Idempotenza: se la skill contiene gia' la heading della sezione -> SKIP.
+Uso:
+  python scripts/inject-orchestration.py            # inietta dove assente (idempotente)
+  python scripts/inject-orchestration.py --replace  # ri-sincronizza il blocco dove gia' presente
 
-Nessuna dipendenza esterna. Rilanciarlo non duplica nulla.
+`--replace` (alias `--force`) sostituisce il blocco esistente con ORCH_BODY aggiornato:
+serve quando si modifica il corpo della sezione, per evitare la divergenza silenziosa
+fonte(script) vs artefatti(9 SKILL.md) — il rischio V5 del design. Senza --replace, le
+skill gia' iniettate vengono saltate (SKIP).
+
+Nessuna dipendenza esterna.
 """
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SKILLS_DIR = REPO_ROOT / "skills"
 
-# Heading canonico della sezione iniettata. Usato anche per il check di idempotenza.
-# Accentato per allinearsi al design doc e al corpo migrato delle skill.
+# Heading canonico della sezione iniettata. Usato anche per il check di idempotenza
+# (match ancorato a inizio riga, non substring in prosa). Accentato per allinearsi
+# al design doc e al corpo migrato delle skill.
 ORCH_HEADING = "## Modalità di orchestrazione"
 
 # ---------------------------------------------------------------------------
@@ -97,7 +106,7 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 3. Il sottoagente implementa, l'agente principale coordina.
 4. Scritture sui file source-of-truth (PROGRESS, BUG_REPORT, CLARIFY, PLAN/TASKS) sempre **single-writer serializzato** (pull→edit→commit→push).
 5. Gli agent di verifica/esplorazione restano **read-only**.
-6. Barriere obbligatorie dove la fase a valle richiede lo stato completo."""
+6. Barriere obbligatorie dove la fase a valle richiede lo stato completo (prima della gap-synthesis, tra wave, prima della presentazione unica dell'auto-detect)."""
 
 # Nota extra appesa solo a skill specifiche (divergenza per-skill minima, §7.6).
 PROFILE_SETUP_NOTE = """
@@ -127,22 +136,65 @@ SKILLS = [
 
 
 def build_block(extra_note: str) -> str:
-    """Sezione completa pronta da inserire: heading + corpo + nota + separatore."""
-    return f"{ORCH_HEADING}\n\n{ORCH_BODY}{extra_note}\n\n---\n"
+    """Sezione completa pronta da inserire: heading + corpo + nota + separatore.
+
+    Termina con '---' senza newline finale: l'inserimento aggiunge una sola riga
+    vuota dopo, evitando il doppio blank prima della heading successiva.
+    """
+    return f"{ORCH_HEADING}\n\n{ORCH_BODY}{extra_note}\n\n---"
 
 
-def inject(content: str, anchor_prefix: str, extra_note: str) -> tuple[str, str]:
-    """Inserisce la sezione subito prima della prima heading '## ' che segue la
-    sezione-ancora. Idempotente: se gia' presente, ritorna invariato.
+def _heading_index(lines: list[str]) -> int | None:
+    """Indice della riga che apre la sezione orchestration, o None se assente.
+    Match ANCORATO a inizio riga (come dualize-paths.py), non substring in prosa:
+    evita falsi SKIP se la frase comparisse nel testo corrente di una skill."""
+    for i, line in enumerate(lines):
+        if line.startswith(ORCH_HEADING):
+            return i
+    return None
 
+
+def _first_h2_after(lines: list[str], start: int) -> int | None:
+    for i in range(start + 1, len(lines)):
+        if lines[i].startswith("## "):
+            return i
+    return None
+
+
+def _existing_block_span(lines: list[str], start: int) -> tuple[int, int]:
+    """(start, end) inclusivi del blocco esistente: dalla heading al suo '---' di chiusura
+    (l'ultimo '---' prima della heading '## ' successiva, o fine file)."""
+    nxt = _first_h2_after(lines, start)
+    end = (nxt if nxt is not None else len(lines)) - 1
+    while end > start and lines[end].strip() == "":
+        end -= 1
+    if lines[end].strip() != "---":
+        raise RuntimeError("blocco orchestration esistente senza separatore '---' di chiusura")
+    return start, end
+
+
+def inject(content: str, anchor_prefix: str, extra_note: str, replace: bool) -> tuple[str, str]:
+    """Inietta (o ri-sincronizza con replace=True) la sezione orchestration.
+
+    Senza replace: idempotente — se gia' presente -> SKIP.
+    Con replace: se presente, sostituisce il blocco esistente con build_block aggiornato.
     Ritorna (nuovo_contenuto, status).
     """
-    if ORCH_HEADING in content:
-        return content, "SKIP (gia' iniettato)"
-
     lines = content.split("\n")
+    existing = _heading_index(lines)
 
-    # 1. trova la riga della heading-ancora
+    # --- caso: sezione gia' presente ---
+    if existing is not None:
+        if not replace:
+            return content, "SKIP (gia' iniettato)"
+        start, end = _existing_block_span(lines, existing)
+        block_lines = build_block(extra_note).split("\n")
+        # lines[end+1:] inizia con la riga vuota gia' presente dopo il '---' -> niente blank extra
+        new_lines = lines[:start] + block_lines + lines[end + 1:]
+        new = "\n".join(new_lines)
+        return (new, "REIMPOSTATO") if new != content else (content, "INVARIATO")
+
+    # --- caso: iniezione ex-novo ---
     anchor_idx = None
     for i, line in enumerate(lines):
         if line.startswith(anchor_prefix):
@@ -151,53 +203,45 @@ def inject(content: str, anchor_prefix: str, extra_note: str) -> tuple[str, str]
     if anchor_idx is None:
         raise RuntimeError(f"ancora '{anchor_prefix}' non trovata")
 
-    # 2. trova la prima heading '## ' SUCCESSIVA alla sezione-ancora
-    next_h_idx = None
-    for i in range(anchor_idx + 1, len(lines)):
-        if lines[i].startswith("## "):
-            next_h_idx = i
-            break
+    next_h_idx = _first_h2_after(lines, anchor_idx)
     if next_h_idx is None:
         raise RuntimeError(
             f"nessuna heading '## ' dopo l'ancora '{anchor_prefix}' (punto di inserimento mancante)"
         )
 
-    # 3. inserisci la sezione (col suo separatore '---') prima di next_h_idx,
-    #    seguita da una riga vuota che la stacca dalla heading successiva.
+    # inserisci la sezione (col suo '---') prima della heading successiva, + una riga vuota
     block_lines = build_block(extra_note).split("\n")
     new_lines = lines[:next_h_idx] + block_lines + [""] + lines[next_h_idx:]
     return "\n".join(new_lines), "INIETTATO"
 
 
-def process(skill_dir: str, anchor_prefix: str, extra_note: str) -> str:
+def process(skill_dir: str, anchor_prefix: str, extra_note: str, replace: bool) -> str:
     path = SKILLS_DIR / skill_dir / "SKILL.md"
     if not path.exists():
         return f"ERRORE: {path} non esiste"
     src = path.read_text(encoding="utf-8")
     try:
-        new, status = inject(src, anchor_prefix, extra_note)
+        new, status = inject(src, anchor_prefix, extra_note, replace)
     except RuntimeError as e:
         return f"ERRORE: {e}"
-    if status == "INIETTATO":
+    if status in ("INIETTATO", "REIMPOSTATO"):
         path.write_text(new, encoding="utf-8")
     return status
 
 
 def main() -> None:
-    print(f"inject-orchestration.py — target: {SKILLS_DIR}\n")
-    injected = skipped = errors = 0
+    replace = ("--replace" in sys.argv) or ("--force" in sys.argv)
+    mode = "REPLACE" if replace else "INJECT"
+    print(f"inject-orchestration.py [{mode}] — target: {SKILLS_DIR}\n")
+    counts: dict[str, int] = {}
     for skill_dir, anchor, note in SKILLS:
-        status = process(skill_dir, anchor, note)
+        status = process(skill_dir, anchor, note, replace)
         tag = "[heavy]" if skill_dir in HEAVY else "[light]"
         print(f"  {skill_dir:22s} {tag:8s} -> {status}")
-        if status == "INIETTATO":
-            injected += 1
-        elif status.startswith("SKIP"):
-            skipped += 1
-        else:
-            errors += 1
-    print(f"\nRiepilogo: {injected} iniettate, {skipped} skip (idempotente), {errors} errori.")
-    if errors:
+        key = "ERRORE" if status.startswith("ERRORE") else status.split(" ")[0]
+        counts[key] = counts.get(key, 0) + 1
+    print("\nRiepilogo: " + ", ".join(f"{v} {k}" for k, v in sorted(counts.items())))
+    if counts.get("ERRORE"):
         raise SystemExit(1)
 
 

@@ -67,6 +67,7 @@ done
 echo ""
 echo "Install workflow scripts (orchestration mode 'deep'):"
 if [[ -d "$REPO_ROOT/workflows" ]]; then
+  echo "  mkdir -p $CLAUDE_HOME/workflows"
   $RUN mkdir -p "$CLAUDE_HOME/workflows"
   found_wf=0
   for f in "$REPO_ROOT"/workflows/*.js; do
