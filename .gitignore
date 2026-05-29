@@ -1,0 +1,4 @@
+# Python bytecode / caches (generati da scripts/*.py, py_compile, pytest)
+__pycache__/
+*.py[cod]
+.pytest_cache/
