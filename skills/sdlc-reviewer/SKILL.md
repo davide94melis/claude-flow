@@ -1,13 +1,13 @@
 ---
 name: sdlc-reviewer
-description: Verifica la qualita', coerenza e completezza della documentazione funzionale di un BR prima dell'analisi tecnica. Produce un report duale — una parte per il team funzionale (problemi da chiarire) e una parte per il team tecnico (assunzioni di default). Esegue anche un check leggero contro il codice per trovare disallineamenti terminologici e strutturali. Usa questa skill quando l'utente dice "rivedi il br", "review del br", "controlla la documentazione", "verifica il br", "nuovo br da verificare", "c'e' un br da rivedere", o qualsiasi variazione che implichi la necessita' di verificare la qualita' della documentazione funzionale prima di procedere con l'analisi tecnica.
+description: Verifica la qualita', coerenza e completezza della documentazione funzionale (AFU, ex BR) prima dell'analisi tecnica. Produce un report duale — una parte per il team funzionale (problemi da chiarire) e una parte per il team tecnico (assunzioni di default). Esegue anche un check leggero contro il codice per trovare disallineamenti terminologici e strutturali. Usa questa skill quando l'utente dice "rivedi il br", "rivedi l'AFU", "review del br", "review dell'AFU", "controlla la documentazione", "verifica il br", "verifica l'AFU", "nuovo br da verificare", "nuova AFU da verificare", "c'e' un br da rivedere", o qualsiasi variazione che implichi la necessita' di verificare la qualita' della documentazione funzionale (BR / AFU) prima di procedere con l'analisi tecnica.
 ---
 
 # SDLC Reviewer — Review Qualita' Documentazione Funzionale
 
-Questa skill si posiziona *prima* di `sdlc-analyzer` nel flusso BR. Analizza la documentazione funzionale per qualita', coerenza e completezza, produce un report duale (per il funzionale e per il tecnico) e, se si decide di procedere, passa le assunzioni a sdlc-analyzer tramite handoff automatico.
+Questa skill si posiziona *prima* di `sdlc-analyzer` nel flusso SDLC. Analizza la documentazione funzionale per qualita', coerenza e completezza, produce un report duale (per il funzionale e per il tecnico) e, se si decide di procedere, passa le assunzioni a sdlc-analyzer tramite handoff automatico.
 
-Il flusso BR completo:
+Il flusso SDLC completo:
 ```
 sdlc-reviewer → sdlc-clarify → sdlc-analyzer → sdlc-executor → sdlc-updater
                                                       ↘ sdlc-progress-report
@@ -31,11 +31,20 @@ Il processo si compone di 4 fasi:
 
 Tutte le operazioni su file plan avvengono nella **project_repo** (modalita' standalone, una repo per progetto) o nella repo `deloitte-profiles` (modalita' legacy), **non** nella repo del codice applicativo. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
-### Lettura `.br-local.json` e detection modalita'
+### Lettura del file di configurazione locale (`.sdlc-local.json` con fallback `.br-local.json`)
 
-All'avvio, leggi `.br-local.json` dalla root della repo corrente:
+**Lettura compatibile**: il file di configurazione locale può chiamarsi `.sdlc-local.json` (nuovo nome, raccomandato) oppure `.br-local.json` (nome legacy, ancora supportato). Cerca PRIMA `.sdlc-local.json`; se non esiste, fa fallback a `.br-local.json`. Se nessuno dei due esiste, ferma e chiedi all'utente di eseguire `/sdlc-profile-setup`.
+
+Se trovi solo `.br-local.json` (profilo legacy), emetti questo warning soft prima di procedere:
+
+> Nota: profilo legacy `.br-local.json` rilevato. Funziona, ma il nuovo nome è `.sdlc-local.json`. Verrà migrato automaticamente al prossimo `/sdlc-profile-setup`, oppure puoi rinominarlo manualmente quando vuoi.
+
+I comandi `bash` seguenti sono scritti referenziando `.br-local.json` per chiarezza storica — applica equivalentemente la stessa logica al file effettivamente trovato (sia `.sdlc-local.json` che `.br-local.json`).
+
+All'avvio, leggi il file (priorità `.sdlc-local.json`, fallback `.br-local.json`) dalla root della repo corrente:
 
 ```bash
+# Esempio con .br-local.json — equivalente per .sdlc-local.json
 cat .br-local.json 2>/dev/null
 ```
 
@@ -69,11 +78,11 @@ fi
 
 > **Nota**: `plans/draft/` esiste solo in modalita' standalone — area dove Solaria authora l'AFU prima dell'handoff (Fase 1c). Le skill SDLC ignorano `draft/` (e' Solaria-side) tranne `sdlc-reviewer` e `sdlc-clarify` quando esplicitamente invocate su un draft.
 
-### Se `.br-local.json` non esiste
+### Se né `.sdlc-local.json` né `.br-local.json` esistono
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
+> Nessun file di configurazione locale trovato (`.sdlc-local.json` né `.br-local.json` legacy). Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
 
 ### Sincronizzazione prima della lettura
 
@@ -105,7 +114,7 @@ cat "$CONST_PATH/PROFILE.json"
 
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
-| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
+| Né `.sdlc-local.json` né `.br-local.json` (legacy) presenti | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
 | `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
 | `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
 | Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
@@ -176,9 +185,9 @@ Se l'utente conferma: usa `manifest.nome` per la Domanda 1 (skip) e `manifest.fi
 
 Se trovi piu' di un plan in `todo/`, listali tutti e chiedi quale rivedere.
 
-### Domanda 1 — Nome del BR
+### Domanda 1 — Nome del Piano
 
-> Come vuoi chiamare questo BR? Il nome verra' usato per creare la cartella di lavoro.
+> Come vuoi chiamare questo Piano? Il nome verra' usato per creare la cartella di lavoro.
 >
 > Esempio: "booking-v2", "monitoraggio-dashboard", "auth-refactor"
 
@@ -188,8 +197,8 @@ Salva il nome. Verra' usato per creare la cartella `$BASE_PATH/todo/<YYYY-MM-DD>
 
 ### Domanda 2 — Documentazione
 
-> Dove trovo la documentazione del BR? Dammi i path per:
-> - **BR** (il documento principale dei requisiti)
+> Dove trovo l'AFU? Dammi i path per:
+> - **AFU** (il documento principale dei requisiti)
 > - **Mockup** (se presenti)
 > - **Qualsiasi altro file rilevante** (specifiche tecniche, template, mapping, matrici)
 >
@@ -199,14 +208,14 @@ Salva il nome. Verra' usato per creare la cartella `$BASE_PATH/todo/<YYYY-MM-DD>
 
 ### Domanda 3 — Codebase
 
-> Quali sono le repository/codebase coinvolte in questo BR?
+> Quali sono le repository/codebase coinvolte in questo Piano?
 > Per ognuna, dammi:
 > - **Nome** (es. "back-end", "front-end", "api-gateway")
 > - **Sigla** (un'abbreviazione breve, es. "BE", "FE", "GW")
 > - **Path** (il path locale al codebase)
 >
 > Queste servono per verificare la coerenza della documentazione con il codice esistente.
-> Se una repo non e' coinvolta nel BR, non includerla.
+> Se una repo non e' coinvolta nel Piano, non includerla.
 
 Salva i nomi, le sigle e i path. Questi stessi dati verranno riutilizzati da sdlc-analyzer.
 
@@ -215,7 +224,7 @@ Salva i nomi, le sigle e i path. Questi stessi dati verranno riutilizzati da sdl
 Dopo aver raccolto tutti gli input, ricapitola e chiedi conferma:
 
 > Riepilogo:
-> - Nome BR: [nome] → cartella `$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/`
+> - Nome Piano: [nome] → cartella `$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/`
 > - Documentazione: [lista con path]
 > - Repository coinvolte:
 >   [per ognuna: Nome (SIGLA) → path]
@@ -282,26 +291,26 @@ Per ogni documento singolo convertito, verifica:
 - **Coerenza interna** — le stesse informazioni sono descritte in modo coerente in tutte le sezioni? Un campo e' obbligatorio in una sezione e opzionale in un'altra? Uno stato e' definito diversamente in punti diversi?
 - **Completezza dei flussi** — ogni flusso descrive il caso felice E le eccezioni, gli errori, i flussi alternativi? Ci sono scenari utente che iniziano ma non finiscono, o che hanno un esito senza un ingresso?
 - **Chiarezza dei requisiti** — ci sono requisiti vaghi ("il sistema deve gestire adeguatamente...", "se opportuno", "quando necessario", "le informazioni necessarie")? Ogni requisito e' interpretabile in un solo modo?
-- **Regole di business** — le regole di business sono esplicitate? Gli stati, le transizioni, le condizioni, i vincoli sono definiti? O il BR descrive la UI senza definire la logica dietro?
+- **Regole di business** — le regole di business sono esplicitate? Gli stati, le transizioni, le condizioni, i vincoli sono definiti? O l'AFU descrive la UI senza definire la logica dietro?
 
 ### 3.2 — Analisi inter-documento
 
 Confronto tra documenti diversi:
 
-- **BR vs mockup** — ogni elemento visuale nel mockup ha un corrispettivo funzionale nel BR? Il BR descrive funzionalita' che il mockup non mostra? I campi, i bottoni, le label sono coerenti?
-- **BR vs specifiche tecniche** — se ci sono specifiche tecniche, sono coerenti con i requisiti funzionali? I vincoli tecnici sono compatibili con il flusso descritto?
-- **Terminologia** — lo stesso concetto e' chiamato con lo stesso nome in tutti i documenti? Se il BR dice "pratica" e il mockup dice "richiesta", e' un problema.
+- **AFU vs mockup** — ogni elemento visuale nel mockup ha un corrispettivo funzionale nell'AFU? L'AFU descrive funzionalita' che il mockup non mostra? I campi, i bottoni, le label sono coerenti?
+- **AFU vs specifiche tecniche** — se ci sono specifiche tecniche, sono coerenti con i requisiti funzionali? I vincoli tecnici sono compatibili con il flusso descritto?
+- **Terminologia** — lo stesso concetto e' chiamato con lo stesso nome in tutti i documenti? Se l'AFU dice "pratica" e il mockup dice "richiesta", e' un problema.
 
 ### 3.3 — Check leggero contro il codice
 
 Per ogni codebase fornito, verifica superficialmente:
 
-- **Entita' e modelli dati** — il BR presuppone strutture dati che nel codice esistono ma sono diverse? (nomi diversi, campi diversi, relazioni diverse)
-- **Enum e costanti** — il BR definisce stati o valori che nel codice esistono gia' come enum con valori/nomi diversi?
-- **API/endpoint** — il BR descrive operazioni che nel codice corrispondono ad API con naming o struttura diversa?
-- **Flussi e stati** — il BR descrive transizioni di stato che nel codice funzionano diversamente?
+- **Entita' e modelli dati** — l'AFU presuppone strutture dati che nel codice esistono ma sono diverse? (nomi diversi, campi diversi, relazioni diverse)
+- **Enum e costanti** — l'AFU definisce stati o valori che nel codice esistono gia' come enum con valori/nomi diversi?
+- **API/endpoint** — l'AFU descrive operazioni che nel codice corrispondono ad API con naming o struttura diversa?
+- **Flussi e stati** — l'AFU descrive transizioni di stato che nel codice funzionano diversamente?
 
-Lo scopo NON e' fare la gap analysis (quello lo fa `sdlc-analyzer`) ma trovare problemi di *documentazione* visibili solo confrontando col codice: il BR presuppone strutture che nel codice esistono ma sono diverse. Questi disallineamenti vanno segnalati al team funzionale perche' possono essere errori nel BR o evoluzioni non documentate.
+Lo scopo NON e' fare la gap analysis (quello lo fa `sdlc-analyzer`) ma trovare problemi di *documentazione* visibili solo confrontando col codice: l'AFU presuppone strutture che nel codice esistono ma sono diverse. Questi disallineamenti vanno segnalati al team funzionale perche' possono essere errori nell'AFU o evoluzioni non documentate.
 
 Usa gli agent di tipo `Explore` per parallelizzare l'esplorazione dei diversi codebase quando possibile.
 
@@ -319,7 +328,7 @@ Ogni problema trovato viene classificato per tipo con flag bloccante si/no:
 | **Gap funzionale** | Pezzi mancanti nella descrizione del comportamento (flussi, eccezioni, regole) |
 | **Ambiguita'** | Punti interpretabili in piu' modi (requisiti vaghi, condizioni non definite) |
 | **Riferimento mancante** | Dipendenze esterne non specificate (integrazioni, processi, fonti dati) |
-| **Disallineamento col codice** | Il BR presuppone strutture/terminologie diverse da quelle nel codice |
+| **Disallineamento col codice** | L'AFU presuppone strutture/terminologie diverse da quelle nel codice |
 
 Per ogni problema documenta:
 - **Categoria**: una delle 5 sopra
@@ -335,7 +344,7 @@ Per ogni problema documenta:
 Genera il file `$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/CLARIFY.md` con questa struttura:
 
 ```
-# Review Documentazione BR [nome/versione]
+# Review Documentazione AFU [nome/versione]
 
 Data review: `<data>`
 
@@ -411,9 +420,9 @@ a un problema della Parte 1.
 Questa info e' solo per il team tecnico — il funzionale non ha contesto
 per capirla.]
 
-| # | Concetto BR | Nel codice | File/Classe | Nota |
+| # | Concetto AFU | Nel codice | File/Classe | Nota |
 |---|---|---|---|---|
-| D-001 | "stato pratica: Aperta, Chiusa" | enum PracticeStatus: OPEN, CLOSED, SUSPENDED | src/.../PracticeStatus.java | Il BR non menziona SUSPENDED |
+| D-001 | "stato pratica: Aperta, Chiusa" | enum PracticeStatus: OPEN, CLOSED, SUSPENDED | src/.../PracticeStatus.java | L'AFU non menziona SUSPENDED |
 
 ---
 
@@ -435,7 +444,7 @@ In **modalita' legacy** (deloitte-profiles), dopo aver generato CLARIFY.md conve
 pandoc -f markdown -t docx "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/CLARIFY.md" -o "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/CLARIFY.docx"
 ```
 
-Entrambi i file (MD e DOCX) vengono salvati nella cartella del BR. Il DOCX contiene i placeholder "*(inserire qui la risposta)*" sotto ogni domanda, pronti per la compilazione.
+Entrambi i file (MD e DOCX) vengono salvati nella cartella del Piano. Il DOCX contiene i placeholder "*(inserire qui la risposta)*" sotto ogni domanda, pronti per la compilazione.
 
 In **modalita' standalone** (project_repo): **NON generare il DOCX**. Solaria scrive le risposte direttamente nel `CLARIFY.md` committato via GitHub Contents API (commit message `[solaria-clarify]`). Il file `.md` con placeholder e' sufficiente.
 

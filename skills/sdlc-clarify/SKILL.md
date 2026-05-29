@@ -1,13 +1,13 @@
 ---
 name: sdlc-clarify
-description: Gestisce le risposte del team funzionale alle domande sollevate in CLARIFY.md da sdlc-reviewer. Aggiorna il report con le risposte ricevute, ri-valuta bloccanti e assunzioni, e rigenera il DOCX. Supporta risposte via DOCX compilato o conversazione diretta, e puo' essere eseguita piu' volte per risposte parziali. Usa questa skill quando l'utente dice "chiarimenti ricevuti", "risposte ricevute", "aggiorna con i chiarimenti", "il funzionale ha risposto", "ho le risposte", "risposte al review", o qualsiasi variazione che implichi la ricezione di risposte dal team funzionale alle domande del review BR.
+description: Gestisce le risposte del team funzionale alle domande sollevate in CLARIFY.md da sdlc-reviewer. Aggiorna il report con le risposte ricevute, ri-valuta bloccanti e assunzioni, e rigenera il DOCX. Supporta risposte via DOCX compilato o conversazione diretta, e puo' essere eseguita piu' volte per risposte parziali. Usa questa skill quando l'utente dice "chiarimenti ricevuti", "risposte ricevute", "aggiorna con i chiarimenti", "il funzionale ha risposto", "ho le risposte", "risposte al review", o qualsiasi variazione che implichi la ricezione di risposte dal team funzionale alle domande del review BR / AFU.
 ---
 
 # SDLC Clarify — Risposte del Funzionale e Aggiornamento Review
 
-Questa skill si posiziona tra `sdlc-reviewer` e `sdlc-analyzer` nel flusso BR. Riceve le risposte del team funzionale alle domande sollevate nel CLARIFY.md, aggiorna il report, ri-valuta bloccanti e assunzioni.
+Questa skill si posiziona tra `sdlc-reviewer` e `sdlc-analyzer` nel flusso SDLC. Riceve le risposte del team funzionale alle domande sollevate nel CLARIFY.md, aggiorna il report, ri-valuta bloccanti e assunzioni.
 
-Il flusso BR completo:
+Il flusso SDLC completo:
 ```
 sdlc-reviewer → sdlc-clarify → sdlc-analyzer → sdlc-executor → sdlc-updater
                                                       ↘ sdlc-progress-report
@@ -37,11 +37,20 @@ Il processo si compone di 6 fasi:
 
 Tutte le operazioni su file plan avvengono nella **project_repo** (modalita' standalone, una repo per progetto) o nella repo `deloitte-profiles` (modalita' legacy), **non** nella repo del codice applicativo. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
-### Lettura `.br-local.json` e detection modalita'
+### Lettura del file di configurazione locale (`.sdlc-local.json` con fallback `.br-local.json`)
 
-All'avvio, leggi `.br-local.json` dalla root della repo corrente:
+**Lettura compatibile**: il file di configurazione locale può chiamarsi `.sdlc-local.json` (nuovo nome, raccomandato) oppure `.br-local.json` (nome legacy, ancora supportato). Cerca PRIMA `.sdlc-local.json`; se non esiste, fa fallback a `.br-local.json`. Se nessuno dei due esiste, ferma e chiedi all'utente di eseguire `/sdlc-profile-setup`.
+
+Se trovi solo `.br-local.json` (profilo legacy), emetti questo warning soft prima di procedere:
+
+> Nota: profilo legacy `.br-local.json` rilevato. Funziona, ma il nuovo nome è `.sdlc-local.json`. Verrà migrato automaticamente al prossimo `/sdlc-profile-setup`, oppure puoi rinominarlo manualmente quando vuoi.
+
+I comandi `bash` seguenti sono scritti referenziando `.br-local.json` per chiarezza storica — applica equivalentemente la stessa logica al file effettivamente trovato (sia `.sdlc-local.json` che `.br-local.json`).
+
+All'avvio, leggi il file (priorità `.sdlc-local.json`, fallback `.br-local.json`) dalla root della repo corrente:
 
 ```bash
+# Esempio con .br-local.json — equivalente per .sdlc-local.json
 cat .br-local.json 2>/dev/null
 ```
 
@@ -75,11 +84,11 @@ fi
 
 > **Nota**: `plans/draft/` esiste solo in modalita' standalone — area dove Solaria authora l'AFU prima dell'handoff (Fase 1c). Le skill SDLC ignorano `draft/` (e' Solaria-side) tranne `sdlc-reviewer` e `sdlc-clarify` quando esplicitamente invocate su un draft.
 
-### Se `.br-local.json` non esiste
+### Se né `.sdlc-local.json` né `.br-local.json` esistono
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
+> Nessun file di configurazione locale trovato (`.sdlc-local.json` né `.br-local.json` legacy). Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
 
 ### Sincronizzazione prima della lettura
 
@@ -111,7 +120,7 @@ cat "$CONST_PATH/PROFILE.json"
 
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
-| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
+| Né `.sdlc-local.json` né `.br-local.json` (legacy) presenti | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
 | `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
 | `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
 | Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
@@ -143,7 +152,7 @@ ls "$BASE_PATH/in-progress"/*/CLARIFY.md 2>/dev/null
 
 **Se trovi un solo CLARIFY.md**, proponilo:
 
-> Ho trovato il review del BR:
+> Ho trovato il review dell'AFU:
 > - `$BASE_PATH/todo/2026-04-28_monitoraggio/CLARIFY.md`
 >
 > Uso questo?

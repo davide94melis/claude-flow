@@ -1,11 +1,11 @@
 ---
 name: sdlc-executor
-description: Esegue i task del piano di implementazione generato da sdlc-analyzer. Ogni sviluppatore/agente usa questa skill per lavorare le proprie task assegnate, con sottoagenti Claude che implementano codice e test mentre l'agente principale coordina, verifica e traccia il progresso. Supporta qualsiasi composizione di repository — il progetto può avere una o più repo con nomi arbitrari. Usa questa skill quando l'utente dice "lavora il task", "inizia a lavorare", "esegui il piano", "sono lo sviluppatore X", "devo lavorare le mie task", "task executor", "esegui task", o qualsiasi variazione che implichi l'inizio della lavorazione di task da un piano di implementazione BR. Attivala anche quando l'utente menziona un file di progresso o chiede di riprendere il lavoro su task assegnate.
+description: Esegue i task del piano di implementazione generato da sdlc-analyzer. Ogni sviluppatore/agente usa questa skill per lavorare le proprie task assegnate, con sottoagenti Claude che implementano codice e test mentre l'agente principale coordina, verifica e traccia il progresso. Supporta qualsiasi composizione di repository — il progetto può avere una o più repo con nomi arbitrari. Usa questa skill quando l'utente dice "lavora il task", "inizia a lavorare", "esegui il piano", "sono lo sviluppatore X", "devo lavorare le mie task", "task executor", "esegui task", o qualsiasi variazione che implichi l'inizio della lavorazione di task da un piano di implementazione (BR / AFU / Piano). Attivala anche quando l'utente menziona un file di progresso o chiede di riprendere il lavoro su task assegnate.
 ---
 
 # SDLC Executor — Esecuzione Task da TASKS
 
-Questa skill è il complemento operativo di `sdlc-analyzer`. Mentre `sdlc-analyzer` analizza un BR e genera PLAN + TASKS, questa skill permette a ogni sviluppatore (assistito da un agente Claude Code) di eseguire le proprie task assegnate.
+Questa skill è il complemento operativo di `sdlc-analyzer`. Mentre `sdlc-analyzer` analizza un'AFU e genera PLAN + TASKS, questa skill permette a ogni sviluppatore (assistito da un agente Claude Code) di eseguire le proprie task assegnate.
 
 L'agente principale coordina il lavoro, delega l'implementazione a sottoagenti, verifica i risultati e tiene aggiornato il file di progresso.
 
@@ -15,11 +15,20 @@ L'agente principale coordina il lavoro, delega l'implementazione a sottoagenti, 
 
 Tutte le operazioni su file plan avvengono nella **project_repo** (modalita' standalone, una repo per progetto) o nella repo `deloitte-profiles` (modalita' legacy), **non** nella repo del codice applicativo. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
-### Lettura `.br-local.json` e detection modalita'
+### Lettura del file di configurazione locale (`.sdlc-local.json` con fallback `.br-local.json`)
 
-All'avvio, leggi `.br-local.json` dalla root della repo corrente:
+**Lettura compatibile**: il file di configurazione locale può chiamarsi `.sdlc-local.json` (nuovo nome, raccomandato) oppure `.br-local.json` (nome legacy, ancora supportato). Cerca PRIMA `.sdlc-local.json`; se non esiste, fa fallback a `.br-local.json`. Se nessuno dei due esiste, ferma e chiedi all'utente di eseguire `/sdlc-profile-setup`.
+
+Se trovi solo `.br-local.json` (profilo legacy), emetti questo warning soft prima di procedere:
+
+> Nota: profilo legacy `.br-local.json` rilevato. Funziona, ma il nuovo nome è `.sdlc-local.json`. Verrà migrato automaticamente al prossimo `/sdlc-profile-setup`, oppure puoi rinominarlo manualmente quando vuoi.
+
+I comandi `bash` seguenti sono scritti referenziando `.br-local.json` per chiarezza storica — applica equivalentemente la stessa logica al file effettivamente trovato (sia `.sdlc-local.json` che `.br-local.json`).
+
+All'avvio, leggi il file (priorità `.sdlc-local.json`, fallback `.br-local.json`) dalla root della repo corrente:
 
 ```bash
+# Esempio con .br-local.json — equivalente per .sdlc-local.json
 cat .br-local.json 2>/dev/null
 ```
 
@@ -53,11 +62,11 @@ fi
 
 > **Nota**: `plans/draft/` esiste solo in modalita' standalone — area dove Solaria authora l'AFU prima dell'handoff (Fase 1c). Le skill SDLC ignorano `draft/` (e' Solaria-side) tranne `sdlc-reviewer` e `sdlc-clarify` quando esplicitamente invocate su un draft.
 
-### Se `.br-local.json` non esiste
+### Se né `.sdlc-local.json` né `.br-local.json` esistono
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
+> Nessun file di configurazione locale trovato (`.sdlc-local.json` né `.br-local.json` legacy). Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
 
 ### Sincronizzazione prima della lettura
 
@@ -89,7 +98,7 @@ cat "$CONST_PATH/PROFILE.json"
 
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
-| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
+| Né `.sdlc-local.json` né `.br-local.json` (legacy) presenti | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
 | `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
 | `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
 | Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
@@ -115,16 +124,16 @@ Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 
 ### Domanda 1 — File del piano
 
-Prima di chiedere, sincronizza la repo profili e verifica se esiste la struttura `plans/` nel profilo. Cerca cartelle BR nelle tre aree:
+Prima di chiedere, sincronizza la repo profili e verifica se esiste la struttura `plans/` nel profilo. Cerca cartelle dei Piani nelle tre aree:
 
 ```bash
 git -C "$GIT_REPO_PATH" pull origin main --quiet
 ls -d "$BASE_PATH/todo"/*/ "$BASE_PATH/in-progress"/*/ "$BASE_PATH/done"/*/ 2>/dev/null
 ```
 
-**Se trovi cartelle BR**, elencale e proponi:
+**Se trovi cartelle dei Piani**, elencale e proponi:
 
-> Ho trovato queste cartelle BR:
+> Ho trovato queste cartelle dei Piani:
 > - `$BASE_PATH/todo/2026-04-28_booking-v2/` (contiene PLAN.md, TASKS.md)
 > - `$BASE_PATH/in-progress/2026-04-15_monitoraggio/` (contiene PROGRESS.md)
 >
@@ -144,7 +153,7 @@ Leggi tutti i file forniti. Estrai dal gap report e dal piano:
 
 ### Spostamento in `plans/in-progress/`
 
-Quando lo sviluppatore conferma e la lavorazione sta per iniziare, sposta l'intera cartella del BR da `$BASE_PATH/todo/` a `$BASE_PATH/in-progress/` (se non e' gia' li'):
+Quando lo sviluppatore conferma e la lavorazione sta per iniziare, sposta l'intera cartella del Piano da `$BASE_PATH/todo/` a `$BASE_PATH/in-progress/` (se non e' gia' li'):
 
 ```bash
 git -C "$GIT_REPO_PATH" mv "<profilo>/plans/todo/<YYYY-MM-DD>_<nome>/" "<profilo>/plans/in-progress/"
@@ -153,7 +162,7 @@ git -C "$GIT_REPO_PATH" commit -m "[sdlc-executor] <nome>: avvio lavorazione, sp
 git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 
-Il file di progresso viene creato (o cercato) dentro la cartella del BR in `$BASE_PATH/in-progress/`.
+Il file di progresso viene creato (o cercato) dentro la cartella del Piano in `$BASE_PATH/in-progress/`.
 
 ### Domanda 2 — Path dei codebase locali
 
@@ -171,7 +180,7 @@ Dal report e dal piano, estrai tutti i nomi e le sigle dei codebase/repository r
 Dal report, estrai i nomi dei file di documentazione referenziati. Per ognuno, chiedi il path locale:
 
 > Il report fa riferimento a questi documenti:
-> - **BR**: `<nome file originale>`
+> - **AFU**: `<nome file originale>`
 > - **Mockup**: `<nome file originale>`
 > - [altri file]
 >
@@ -207,10 +216,10 @@ Procedi solo dopo la conferma.
 
 ### Se il file non esiste — Crealo
 
-Crea il file `PROGRESS.md` nella stessa cartella del BR (es. `$BASE_PATH/in-progress/<YYYY-MM-DD>_<nome>/PROGRESS.md`), con questa struttura:
+Crea il file `PROGRESS.md` nella stessa cartella del Piano (es. `$BASE_PATH/in-progress/<YYYY-MM-DD>_<nome>/PROGRESS.md`), con questa struttura:
 
 ```
-# Progresso Implementazione [Nome BR]
+# Progresso Implementazione [Nome Piano]
 
 Data creazione: `<data>`
 Ultimo aggiornamento: `<data e ora>`
@@ -293,7 +302,7 @@ Prima di leggere il file di progresso, sincronizza la repo profili:
 git -C "$GIT_REPO_PATH" pull origin main --quiet
 ```
 
-Leggi il PROGRESS.md dalla cartella del BR in `$BASE_PATH/in-progress/<data>_<nome>/PROGRESS.md`.
+Leggi il PROGRESS.md dalla cartella del Piano in `$BASE_PATH/in-progress/<data>_<nome>/PROGRESS.md`.
 
 Tutti gli sviluppatori scrivono nello stesso file nella repo centralizzata, quindi il progresso e' sempre aggiornato dopo il pull.
 
@@ -366,7 +375,7 @@ Ogni sottoagente deve ricevere un prompt autosufficiente che include:
 
 1. **Contesto del progetto** — path del codebase, struttura del progetto, pattern e convenzioni in uso
 2. **Cosa fare** — descrizione precisa del lavoro, con riferimento ai file specifici da creare/modificare
-3. **Riferimenti** — estratti rilevanti dal gap report (cosa richiede il BR, cosa esiste, cosa manca)
+3. **Riferimenti** — estratti rilevanti dal gap report (cosa richiede l'AFU, cosa esiste, cosa manca)
 4. **Convenzioni** — naming, struttura package, stile di codice del progetto (osservato dai file esistenti)
 5. **Vincoli** — cosa NON fare, limiti di scope, attenzioni specifiche dalla task
 6. **Output atteso** — file da creare/modificare, test da scrivere, documentazione da aggiungere
@@ -597,7 +606,7 @@ git -C "$GIT_REPO_PATH" push origin main --quiet
 
 Comunica:
 
-> Tutte le task del piano sono completate **e** tutti i bug (tecnici + funzionali) sono chiusi. Cartella del BR spostata in `$BASE_PATH/done/`.
+> Tutte le task del piano sono completate **e** tutti i bug (tecnici + funzionali) sono chiusi. Cartella del Piano spostata in `$BASE_PATH/done/`.
 
 **Flag `--no-auto-close`**: se TL/PM vuole mantenere il plan aperto (soak in produzione, audit, ulteriori cicli di testing), supporta l'override esplicito che disabilita lo spostamento automatico in `done/`. In quel caso comunica:
 
@@ -617,7 +626,7 @@ Non bloccare l'esecuzione su questo log — e' solo orientativo.
 
 ### Task bloccata
 
-Se durante la lavorazione emerge un blocco (dipendenza non prevista, ambiguità nel BR, problema tecnico):
+Se durante la lavorazione emerge un blocco (dipendenza non prevista, ambiguità nell'AFU, problema tecnico):
 
 1. Segna la task come "Bloccata" nel progresso con la motivazione
 2. Avvisa lo sviluppatore e proponi alternative:

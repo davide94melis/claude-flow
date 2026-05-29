@@ -1,11 +1,11 @@
 ---
 name: sdlc-updater
-description: Aggiorna gap report e piano di implementazione quando il BR o la documentazione viene modificata. Confronta la nuova documentazione con quella precedente, identifica i delta, e aggiorna report e piano preservando il progresso delle task già completate o in corso. Supporta qualsiasi composizione di repository — le sigle e i nomi vengono letti dinamicamente dai file esistenti. Usa questa skill quando l'utente dice "il br è stato aggiornato", "nuova versione del br", "aggiorna il piano", "documentazione aggiornata", "c'è un aggiornamento al br", "mockup aggiornati", "nuova versione documentazione", o qualsiasi variazione che implichi una modifica alla documentazione di un BR già analizzato.
+description: Aggiorna gap report e piano di implementazione quando il BR o la documentazione viene modificata. Confronta la nuova documentazione con quella precedente, identifica i delta, e aggiorna report e piano preservando il progresso delle task già completate o in corso. Supporta qualsiasi composizione di repository — le sigle e i nomi vengono letti dinamicamente dai file esistenti. Usa questa skill quando l'utente dice "il br è stato aggiornato", "nuova versione del br", "aggiorna il piano", "documentazione aggiornata", "c'è un aggiornamento al br", "mockup aggiornati", "nuova versione documentazione", o qualsiasi variazione che implichi una modifica alla documentazione di un BR / AFU / Piano già analizzato.
 ---
 
 # SDLC Updater — Aggiornamento PLAN e TASKS su Documentazione Modificata
 
-Questa skill è il terzo tassello del flusso BR, dopo `sdlc-analyzer` (analisi iniziale) e `sdlc-executor` (esecuzione task). Si attiva quando la documentazione del BR viene aggiornata e bisogna propagare le modifiche al PLAN e al TASKS, senza perdere il lavoro già fatto.
+Questa skill è il terzo tassello del flusso SDLC, dopo `sdlc-analyzer` (analisi iniziale) e `sdlc-executor` (esecuzione task). Si attiva quando la documentazione dell'AFU viene aggiornata e bisogna propagare le modifiche al PLAN e al TASKS, senza perdere il lavoro già fatto.
 
 Il principio guida: **mai sovrascrivere il progresso**. Le task completate restano completate, quelle in corso restano in corso. Solo i gap nuovi o modificati generano aggiornamenti al piano.
 
@@ -15,11 +15,20 @@ Il principio guida: **mai sovrascrivere il progresso**. Le task completate resta
 
 Tutte le operazioni su file plan avvengono nella **project_repo** (modalita' standalone, una repo per progetto) o nella repo `deloitte-profiles` (modalita' legacy), **non** nella repo del codice applicativo. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
-### Lettura `.br-local.json` e detection modalita'
+### Lettura del file di configurazione locale (`.sdlc-local.json` con fallback `.br-local.json`)
 
-All'avvio, leggi `.br-local.json` dalla root della repo corrente:
+**Lettura compatibile**: il file di configurazione locale può chiamarsi `.sdlc-local.json` (nuovo nome, raccomandato) oppure `.br-local.json` (nome legacy, ancora supportato). Cerca PRIMA `.sdlc-local.json`; se non esiste, fa fallback a `.br-local.json`. Se nessuno dei due esiste, ferma e chiedi all'utente di eseguire `/sdlc-profile-setup`.
+
+Se trovi solo `.br-local.json` (profilo legacy), emetti questo warning soft prima di procedere:
+
+> Nota: profilo legacy `.br-local.json` rilevato. Funziona, ma il nuovo nome è `.sdlc-local.json`. Verrà migrato automaticamente al prossimo `/sdlc-profile-setup`, oppure puoi rinominarlo manualmente quando vuoi.
+
+I comandi `bash` seguenti sono scritti referenziando `.br-local.json` per chiarezza storica — applica equivalentemente la stessa logica al file effettivamente trovato (sia `.sdlc-local.json` che `.br-local.json`).
+
+All'avvio, leggi il file (priorità `.sdlc-local.json`, fallback `.br-local.json`) dalla root della repo corrente:
 
 ```bash
+# Esempio con .br-local.json — equivalente per .sdlc-local.json
 cat .br-local.json 2>/dev/null
 ```
 
@@ -53,11 +62,11 @@ fi
 
 > **Nota**: `plans/draft/` esiste solo in modalita' standalone — area dove Solaria authora l'AFU prima dell'handoff (Fase 1c). Le skill SDLC ignorano `draft/` (e' Solaria-side) tranne `sdlc-reviewer` e `sdlc-clarify` quando esplicitamente invocate su un draft.
 
-### Se `.br-local.json` non esiste
+### Se né `.sdlc-local.json` né `.br-local.json` esistono
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
+> Nessun file di configurazione locale trovato (`.sdlc-local.json` né `.br-local.json` legacy). Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
 
 ### Sincronizzazione prima della lettura
 
@@ -89,7 +98,7 @@ cat "$CONST_PATH/PROFILE.json"
 
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
-| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
+| Né `.sdlc-local.json` né `.br-local.json` (legacy) presenti | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
 | `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
 | `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
 | Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
@@ -143,16 +152,16 @@ In **modalita' legacy**, salta questa domanda e procedi con la Domanda 1 standar
 
 ### Domanda 1 — File esistenti
 
-Cerca automaticamente cartelle BR nella struttura `plans/`:
+Cerca automaticamente cartelle dei Piani nella struttura `plans/`:
 
 ```bash
 git -C "$GIT_REPO_PATH" pull origin main --quiet
 ls -d "$BASE_PATH/in-progress"/*/ "$BASE_PATH/todo"/*/ 2>/dev/null
 ```
 
-**Se trovi cartelle BR**, elencale con il loro contenuto:
+**Se trovi cartelle dei Piani**, elencale con il loro contenuto:
 
-> Ho trovato questa cartella BR:
+> Ho trovato questa cartella del Piano:
 > - `$BASE_PATH/in-progress/2026-04-28_booking-v2/`
 >   - `PLAN.md`
 >   - `TASKS.md`
@@ -217,7 +226,7 @@ Converti i nuovi documenti in MD (stessa procedura di `sdlc-analyzer`):
 - MD → copia diretta
 - Immagini → Read diretto
 
-Salva nella cartella `requirements/` dentro la cartella del BR (es. `$BASE_PATH/in-progress/<YYYY-MM-DD>_<nome>/requirements/`), sovrascrivendo i file precedenti dove applicabile.
+Salva nella cartella `requirements/` dentro la cartella del Piano (es. `$BASE_PATH/in-progress/<YYYY-MM-DD>_<nome>/requirements/`), sovrascrivendo i file precedenti dove applicabile.
 
 ### 2.2 — Identificazione delta
 
@@ -309,7 +318,7 @@ In **modalita' standalone**, il `changelog` del manifest e' la fonte primaria de
 
 Aggiorna il TASKS preservando il progresso.
 
-**Pre-step: colonna Branch** — Se il backlog operativo del piano NON ha una colonna **Branch**, aggiungila PRIMA di qualsiasi altra modifica. Per ogni task esistente, genera il nome branch seguendo il pattern `feature/<br-name>-<slug-attivita>` (dove `<br-name>` e' il nome del BR e `<slug>` e' derivato dal nome dell'attivita'). Per le merge task (T-MERGE-*), il valore e' `—`. Comunica all'utente:
+**Pre-step: colonna Branch** — Se il backlog operativo del piano NON ha una colonna **Branch**, aggiungila PRIMA di qualsiasi altra modifica. Per ogni task esistente, genera il nome branch seguendo il pattern `feature/<piano-name>-<slug-attivita>` (dove `<piano-name>` e' il nome del Piano e `<slug>` e' derivato dal nome dell'attivita'). Per le merge task (T-MERGE-*), il valore e' `—`. Comunica all'utente:
 
 > Il piano non aveva la colonna Branch. L'ho aggiunta con i nomi branch generati per ogni task.
 > Verifica che i nomi siano corretti — se qualche task e' gia' stata lavorata su un branch diverso, aggiorna il nome.
@@ -325,7 +334,7 @@ Aggiorna il TASKS preservando il progresso.
 **Task nuove** (requisito nuovo):
 - Assegna un nuovo ID sequenziale che continua dalla numerazione esistente
 - Assegna lo **stream** appropriato: usa uno stream esistente se la task appartiene alla stessa area funzionale, oppure crea un nuovo stream se rappresenta una funzionalità nuova
-- Assegna un nome **Branch** seguendo lo stesso pattern del piano (`feature/<br-name>-<slug-attivita>`)
+- Assegna un nome **Branch** seguendo lo stesso pattern del piano (`feature/<piano-name>-<slug-attivita>`)
 - Assegnale al developer più adatto in base a ruolo, seniority e carico attuale (dal progresso)
 - Inseriscile nella wave appropriata rispettando le dipendenze
 - Se il team è cambiato, ridistribuisci considerando i nuovi membri
@@ -350,7 +359,7 @@ Se il file di progresso esiste, aggiornalo:
 - Segna le task annullate con stato "Annullata"
 - Segna le task sospese con stato "Sospesa"
 - Aggiorna il riepilogo (totali, percentuali)
-- Aggiungi voce al log attività: `[data] — Aggiornamento piano da nuova documentazione BR: N task aggiunte, M modificate, K annullate`
+- Aggiungi voce al log attività: `[data] — Aggiornamento piano da nuova documentazione AFU: N task aggiunte, M modificate, K annullate`
 
 ### 3.4 — Commit e push aggiornamenti
 

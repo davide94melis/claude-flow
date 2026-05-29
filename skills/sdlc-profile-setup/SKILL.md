@@ -1,6 +1,6 @@
 ---
 name: sdlc-profile-setup
-description: Crea un nuovo profilo progetto in deloitte-profiles con auto-detect del codebase, domande guidate su dominio e design system, e configurazione automatica di .br-local.json. Usa questa skill quando l'utente dice "crea profilo progetto", "setup profilo", "nuovo profilo", "configura il profilo", o qualsiasi variazione che implichi la creazione o configurazione di un profilo progetto per le skill BR.
+description: Crea un nuovo profilo progetto in deloitte-profiles con auto-detect del codebase, domande guidate su dominio e design system, e configurazione automatica di .sdlc-local.json (con fallback compatibile a .br-local.json per profili legacy). Usa questa skill quando l'utente dice "crea profilo progetto", "setup profilo", "nuovo profilo", "configura il profilo", o qualsiasi variazione che implichi la creazione o configurazione di un profilo progetto per le skill SDLC.
 ---
 
 # SDLC Profile Setup — Creazione Guidata Profilo Progetto
@@ -458,16 +458,39 @@ git push -u origin "profile/<nome>"
 
 ---
 
-## Step 10 — Aggiorna .br-local.json
+## Step 10 — Aggiorna .sdlc-local.json (con migrazione automatica per profili legacy)
 
-Per ogni codebase fornito nello Step 3, proponi di aggiungere i campi a `.br-local.json`. Lo schema cambia in base a `MODE`:
+Per ogni codebase fornito nello Step 3, proponi di aggiungere i campi a `.sdlc-local.json`. Lo schema cambia in base a `MODE`. Se nel codebase esiste già un `.br-local.json` legacy, viene migrato automaticamente.
+
+**Algoritmo di scrittura/migrazione (4 scenari)**:
+
+1. **`.sdlc-local.json` esiste già** → leggi il contenuto, preserva tutti i campi esistenti (developer, paths, customPaths, ecc.), aggiungi/aggiorna solo i campi della modalità scelta. **Non mischiare i due set** (`project_repo` e `profiles_repo` sono mutualmente esclusivi): se l'utente sta migrando un codebase da legacy a standalone, rimuovi `profiles_repo`+`profilo` e aggiungi `project_repo`+`project_name`, comunicandolo esplicitamente.
+
+2. **Solo `.br-local.json` esiste (legacy)** → migrazione automatica:
+   - Leggi il contenuto di `.br-local.json`
+   - Scrivi il contenuto (preservando i campi esistenti + aggiungendo/aggiornando i campi della modalità) in `.sdlc-local.json`
+   - Rinomina il vecchio file in `.br-local.json.bak` (NON cancellare, lascia traccia di rollback)
+   - Comunica all'utente:
+     ```
+     > Profilo legacy `.br-local.json` rilevato. Lo migro a `.sdlc-local.json`.
+     > Il vecchio file viene conservato come `.br-local.json.bak` (puoi cancellarlo
+     > quando sei sicuro che tutto funzioni).
+     ```
+
+3. **Entrambi `.sdlc-local.json` e `.br-local.json` esistono (caso patologico)** → usa `.sdlc-local.json`, lascia `.br-local.json` invariato, segnala warning:
+   ```
+   > Trovati entrambi `.sdlc-local.json` e `.br-local.json` nella repo. Uso il primo.
+   > Ti consiglio di rimuovere manualmente `.br-local.json` per evitare ambiguità.
+   ```
+
+4. **Nessuno dei due esiste** → crea ex novo `.sdlc-local.json` con i campi base della modalità scelta.
 
 **Se `MODE=standalone`**:
 
-> Per ogni codebase, aggiorno `.br-local.json` con il riferimento al project_repo.
+> Per ogni codebase, aggiorno `.sdlc-local.json` con il riferimento al project_repo.
 >
 > ### BE — Back-end (`C:/progetti/myapp-backend`)
-> File: `C:/progetti/myapp-backend/.br-local.json`
+> File: `C:/progetti/myapp-backend/.sdlc-local.json`
 >
 > ```json
 > {
@@ -480,10 +503,10 @@ Per ogni codebase fornito nello Step 3, proponi di aggiungere i campi a `.br-loc
 
 **Se `MODE=legacy`**:
 
-> Per ogni codebase, aggiorno `.br-local.json` con il riferimento al profilo.
+> Per ogni codebase, aggiorno `.sdlc-local.json` con il riferimento al profilo.
 >
 > ### BE — Back-end (`C:/progetti/myapp-backend`)
-> File: `C:/progetti/myapp-backend/.br-local.json`
+> File: `C:/progetti/myapp-backend/.sdlc-local.json`
 >
 > ```json
 > {
@@ -494,9 +517,7 @@ Per ogni codebase fornito nello Step 3, proponi di aggiungere i campi a `.br-loc
 >
 > Procedo?
 
-**Se `.br-local.json` esiste gia'**: leggi il contenuto, preserva tutti i campi esistenti (developer, paths, customPaths, ecc.) e aggiungi/aggiorna solo i campi della modalita' scelta. **Non mischiare i due set** (`project_repo` e `profiles_repo` sono mutualmente esclusivi): se l'utente sta migrando un codebase da legacy a standalone, rimuovi `profiles_repo`+`profilo` e aggiungi `project_repo`+`project_name`, comunicandolo esplicitamente.
-
-**Se `.br-local.json` non esiste**: crea il file con i campi base della modalita' scelta:
+**Se nessuno dei due file esiste** (`.sdlc-local.json` né `.br-local.json` legacy): crea ex novo `.sdlc-local.json` con i campi base della modalita' scelta:
 
 ```json
 // standalone
@@ -515,7 +536,7 @@ Dopo aver completato tutti i codebase, conferma:
 > - Profilo: `<profiles_repo>/<nome>/constitution/CONST.json` + `PROFILE.json`
 > - Struttura: `constitution/`, `agents/`, `references/`, `plans/todo|in-progress|done/`
 > - References: `<profiles_repo>/<nome>/references/` (N file)
-> - `.br-local.json` aggiornato in N codebase
+> - `.sdlc-local.json` aggiornato/creato in N codebase (eventuali `.br-local.json` legacy migrati a `.sdlc-local.json` + `.br-local.json.bak`)
 >
 > Il profilo e' un documento vivente: `sdlc-analyzer` lo aggiornera' automaticamente quando rileva nuove convenzioni durante l'analisi.
 

@@ -1,14 +1,14 @@
 ---
 name: sdlc-estimator
-description: Stima il team necessario per completare un BR entro una deadline, con simulazioni what-if su team, deadline, scope e rischio. Due modalita' — rough (pre-analisi, dalla documentazione) e dettagliata (post-analisi, dal piano). Produce scenari ottimistico/realistico/pessimistico con timeline, bottleneck, allocazione team e suggerimenti scope cut. Genera report MD + Excel. Usa questa skill quando l'utente dice "stima il br", "quanti sviluppatori servono", "simulazione team", "stima effort", "stima team", o qualsiasi variazione che implichi la necessita' di stimare l'effort o il team per un BR.
+description: Stima il team necessario per completare un Piano (ex BR, derivato da un'AFU) entro una deadline, con simulazioni what-if su team, deadline, scope e rischio. Due modalita' — rough (pre-analisi, dalla documentazione AFU) e dettagliata (post-analisi, dal TASKS del Piano). Produce scenari ottimistico/realistico/pessimistico con timeline, bottleneck, allocazione team e suggerimenti scope cut. Genera report MD + Excel. Usa questa skill quando l'utente dice "stima il br", "stima il Piano", "stima l'AFU", "quanti sviluppatori servono", "simulazione team", "stima effort", "stima team", o qualsiasi variazione che implichi la necessita' di stimare l'effort o il team per un BR / AFU / Piano.
 ---
 
 # SDLC Estimator — Stima Team e Simulazioni What-If
 
-Questa skill stima quanti sviluppatori servono per completare un BR entro una deadline, con simulazioni interattive per variare team, deadline e scope. Produce 3 scenari (ottimistico/realistico/pessimistico) e report esportabili.
+Questa skill stima quanti sviluppatori servono per completare un Piano entro una deadline, con simulazioni interattive per variare team, deadline e scope. Produce 3 scenari (ottimistico/realistico/pessimistico) e report esportabili.
 
 Due modalita':
-- **Rough** (pre-analisi) — dalla documentazione BR, stima approssimativa (±30-40%)
+- **Rough** (pre-analisi) — dalla documentazione AFU, stima approssimativa (±30-40%)
 - **Dettagliata** (post-analisi) — dal TASKS, stima precisa (±10-15%)
 
 ---
@@ -17,11 +17,20 @@ Due modalita':
 
 Tutte le operazioni su file plan avvengono nella **project_repo** (modalita' standalone, una repo per progetto) o nella repo `deloitte-profiles` (modalita' legacy), **non** nella repo del codice applicativo. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
-### Lettura `.br-local.json` e detection modalita'
+### Lettura del file di configurazione locale (`.sdlc-local.json` con fallback `.br-local.json`)
 
-All'avvio, leggi `.br-local.json` dalla root della repo corrente:
+**Lettura compatibile**: il file di configurazione locale può chiamarsi `.sdlc-local.json` (nuovo nome, raccomandato) oppure `.br-local.json` (nome legacy, ancora supportato). Cerca PRIMA `.sdlc-local.json`; se non esiste, fa fallback a `.br-local.json`. Se nessuno dei due esiste, ferma e chiedi all'utente di eseguire `/sdlc-profile-setup`.
+
+Se trovi solo `.br-local.json` (profilo legacy), emetti questo warning soft prima di procedere:
+
+> Nota: profilo legacy `.br-local.json` rilevato. Funziona, ma il nuovo nome è `.sdlc-local.json`. Verrà migrato automaticamente al prossimo `/sdlc-profile-setup`, oppure puoi rinominarlo manualmente quando vuoi.
+
+I comandi `bash` seguenti sono scritti referenziando `.br-local.json` per chiarezza storica — applica equivalentemente la stessa logica al file effettivamente trovato (sia `.sdlc-local.json` che `.br-local.json`).
+
+All'avvio, leggi il file (priorità `.sdlc-local.json`, fallback `.br-local.json`) dalla root della repo corrente:
 
 ```bash
+# Esempio con .br-local.json — equivalente per .sdlc-local.json
 cat .br-local.json 2>/dev/null
 ```
 
@@ -55,11 +64,11 @@ fi
 
 > **Nota**: `plans/draft/` esiste solo in modalita' standalone — area dove Solaria authora l'AFU prima dell'handoff (Fase 1c). Le skill SDLC ignorano `draft/` (e' Solaria-side) tranne `sdlc-reviewer` e `sdlc-clarify` quando esplicitamente invocate su un draft.
 
-### Se `.br-local.json` non esiste
+### Se né `.sdlc-local.json` né `.br-local.json` esistono
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
+> Nessun file di configurazione locale trovato (`.sdlc-local.json` né `.br-local.json` legacy). Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
 
 ### Sincronizzazione prima della lettura
 
@@ -91,7 +100,7 @@ cat "$CONST_PATH/PROFILE.json"
 
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
-| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
+| Né `.sdlc-local.json` né `.br-local.json` (legacy) presenti | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
 | `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
 | `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
 | Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
@@ -118,16 +127,16 @@ La skill cerca il TASKS in `$BASE_PATH/`.
 ## Rilevamento Modalita'
 
 - **Se esiste un TASKS** (`TASKS.md`) → modalita' **dettagliata**
-- **Se non esiste un TASKS ma ci sono documenti BR** → modalita' **rough**
+- **Se non esiste un TASKS ma ci sono documenti AFU** → modalita' **rough**
 
 La skill comunica la modalita' rilevata:
 
-> Ho rilevato che il BR **<nome>** ha un TASKS.
+> Ho rilevato che il Piano **<nome>** ha un TASKS.
 > Uso la modalita' **dettagliata** (precisione ±10-15%).
 
 oppure:
 
-> Il BR **<nome>** non ha ancora un TASKS. Uso la modalita' **rough** dalla documentazione (precisione ±30-40%).
+> Il Piano **<nome>** non ha ancora un TASKS. Uso la modalita' **rough** dalla documentazione (precisione ±30-40%).
 
 ---
 
@@ -135,20 +144,20 @@ oppure:
 
 Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 
-### Domanda 1 — BR di riferimento
+### Domanda 1 — Piano di riferimento
 
-Cerca i BR attivi:
+Cerca i Piani attivi:
 
 ```bash
 git -C "$GIT_REPO_PATH" pull origin main --quiet
 ls -d "$BASE_PATH/todo"/*/ "$BASE_PATH/in-progress"/*/ 2>/dev/null
 ```
 
-Se ne trovi uno, proponilo. Se piu' di uno, chiedi quale. Se nessuno, avvisa che serve almeno la documentazione BR.
+Se ne trovi uno, proponilo. Se piu' di uno, chiedi quale. Se nessuno, avvisa che serve almeno la documentazione AFU.
 
 ### Domanda 2 — Deadline target
 
-> Entro quando deve essere completato il BR?
+> Entro quando deve essere completato il Piano?
 >
 > Dammi una data (es. "30 maggio 2026", "fine giugno", "tra 3 settimane")
 
@@ -166,7 +175,7 @@ Tenta di proporre il team dai dati disponibili:
 > - **Nome**
 > - **Seniority**: senior / mid / junior
 > - **Area**: BE / FE / BE+FE
-> - **Disponibilita'**: percentuale di tempo dedicato a questo BR (default 100%)
+> - **Disponibilita'**: percentuale di tempo dedicato a questo Piano (default 100%)
 >
 > Esempio:
 > - Marco, senior, BE, 100%
@@ -188,7 +197,7 @@ Se l'utente sceglie personalizza, mostra i default in tabella e permetti di camb
 ### Modalita' Rough
 
 1. Lancia in **parallelo**:
-   - **Analista BR** (`sdlc-estimation-analyst`): leggi le sue istruzioni da `~/.claude/agents/sdlc-estimation-analyst.md`. Passagli la documentazione BR e il profilo progetto (se disponibile da `.br-local.json` → `profiles_repo`/`profilo`).
+   - **Analista AFU** (`sdlc-estimation-analyst`): leggi le sue istruzioni da `~/.claude/agents/sdlc-estimation-analyst.md`. Passagli la documentazione AFU e il profilo progetto (se disponibile da `.sdlc-local.json`/`.br-local.json` legacy → `profiles_repo`/`profilo`).
    - **Storico** (`sdlc-estimation-historian`): leggi le sue istruzioni da `~/.claude/agents/sdlc-estimation-historian.md`. Passagli il path a `$BASE_PATH/done/` e i parametri di default.
 
 2. Ricevi i risultati:
@@ -201,7 +210,7 @@ Se l'utente sceglie personalizza, mostra i default in tabella e permetti di camb
 >
 > **Funzionalita' rilevate:** N
 > **Task stimate:** M
-> **Calibrazione storica:** Xx (da K BR precedenti)
+> **Calibrazione storica:** Xx (da K Piani precedenti)
 >
 > [tabella funzionalita' dall'analista]
 >
@@ -289,13 +298,13 @@ Quando l'utente sceglie "Salva e genera report":
 
 ### ESTIMATE.md
 
-Scrivi il file nella cartella del BR:
-`$BASE_PATH/todo/<data>_<nome>/ESTIMATE.md` (o `in-progress/` se il BR è già in lavorazione)
+Scrivi il file nella cartella del Piano:
+`$BASE_PATH/todo/<data>_<nome>/ESTIMATE.md` (o `in-progress/` se il Piano è già in lavorazione)
 
 Struttura:
 
 ```markdown
-# Stima BR — <nome>
+# Stima Piano — <nome>
 
 Data stima: <data odierna>
 Modalita': <rough|dettagliata>
@@ -347,13 +356,13 @@ Deadline target: <data>
 | Junior | 1.8x |
 
 ### Calibrazione storica
-Fattore: Xx (da N BR precedenti)
+Fattore: Xx (da N Piani precedenti)
 
 ## Storico di Riferimento
 
 (presente solo se ci sono dati storici)
 
-[tabella BR passati dallo storico]
+[tabella Piani passati dallo storico]
 ```
 
 ### ESTIMATE.xlsx
@@ -388,7 +397,7 @@ Dopo aver scritto entrambi i file:
 
 ```bash
 git -C "$GIT_REPO_PATH" add "<profilo>/plans/"
-git -C "$GIT_REPO_PATH" commit -m "[sdlc-estimator] <nome-br>: stima team (<modalita'>)"
+git -C "$GIT_REPO_PATH" commit -m "[sdlc-estimator] <piano-name>: stima team (<modalita'>)"
 git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 

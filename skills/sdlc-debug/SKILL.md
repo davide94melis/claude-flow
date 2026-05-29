@@ -1,11 +1,11 @@
 ---
 name: sdlc-debug
-description: Gestisce i bug segnalati dai funzionali durante e dopo il testing di un Business Requirement. Importa bug da Excel o Jira, li collega alle task del piano, li assegna agli sviluppatori, esegue i fix con sottoagenti Claude e verifica in 3 fasi, gestisce la chiusura con validazione funzionale e il re-import iterativo. Supporta qualsiasi composizione di repository. Usa questa skill quando l'utente dice "ci sono dei bug", "bug dal funzionale", "segnalazioni test", "defect ricevuti", "lavora il bug", "fix il bug", "debug br", "il funzionale ha testato", "bug confermati", "aggiorna i bug", o qualsiasi variazione che implichi la gestione di bug su un BR. Attivala anche quando l'utente menziona un file di segnalazioni o chiede di lavorare i defect.
+description: Gestisce i bug segnalati dai funzionali durante e dopo il testing di un Piano (ex Business Requirement, derivato da un'AFU). Importa bug da Excel o Jira, li collega alle task del piano, li assegna agli sviluppatori, esegue i fix con sottoagenti Claude e verifica in 3 fasi, gestisce la chiusura con validazione funzionale e il re-import iterativo. Supporta qualsiasi composizione di repository. Usa questa skill quando l'utente dice "ci sono dei bug", "bug dal funzionale", "segnalazioni test", "defect ricevuti", "lavora il bug", "fix il bug", "debug br", "debug Piano", "bug su Piano", "il funzionale ha testato", "bug confermati", "aggiorna i bug", o qualsiasi variazione che implichi la gestione di bug su un BR / AFU / Piano. Attivala anche quando l'utente menziona un file di segnalazioni o chiede di lavorare i defect.
 ---
 
 # SDLC Debug — Gestione Bug da Testing Funzionale
 
-Questa skill gestisce i bug segnalati dai funzionali durante e dopo il testing di un Business Requirement. Copre l'intero ciclo: importazione, analisi, fix con sottoagenti, verifica, chiusura con validazione funzionale, e re-import iterativo.
+Questa skill gestisce i bug segnalati dai funzionali durante e dopo il testing di un Piano (ex Business Requirement, derivato da un'AFU). Copre l'intero ciclo: importazione, analisi, fix con sottoagenti, verifica, chiusura con validazione funzionale, e re-import iterativo.
 
 Il debug e' uno **stage parallelo**: coesiste con l'esecuzione delle task, non e' sequenziale.
 
@@ -14,36 +14,43 @@ stato_pipeline:  approved ──→ execute ──→ done
 debug:           ─────────── debug_attivo ─────── debug chiuso
 ```
 
-Il BR passa a `done` solo quando tutte le task sono completate E tutti i bug sono chiusi.
+Il Piano passa a `done` solo quando tutte le task sono completate E tutti i bug sono chiusi.
 
 ---
 
 ## Risoluzione Path — deloitte-profiles
 
-Tutte le operazioni su file BR avvengono nella repo `deloitte-profiles`, non nella repo del codice.
+Tutte le operazioni sui file del Piano avvengono nella repo `deloitte-profiles`, non nella repo del codice.
 
-### Lettura `.br-local.json`
+### Lettura del file di configurazione locale (`.sdlc-local.json` con fallback `.br-local.json`)
 
-All'avvio, leggi `.br-local.json` dalla root della repo corrente:
+**Lettura compatibile**: il file di configurazione locale può chiamarsi `.sdlc-local.json` (nuovo nome, raccomandato) oppure `.br-local.json` (nome legacy, ancora supportato). Cerca PRIMA `.sdlc-local.json`; se non esiste, fa fallback a `.br-local.json`. Se nessuno dei due esiste, chiedi all'utente come collegarsi al profilo (vedi sotto).
+
+Se trovi solo `.br-local.json` (profilo legacy), emetti questo warning soft prima di procedere:
+
+> Nota: profilo legacy `.br-local.json` rilevato. Funziona, ma il nuovo nome è `.sdlc-local.json`. Verrà migrato automaticamente al prossimo `/sdlc-profile-setup`, oppure puoi rinominarlo manualmente quando vuoi.
+
+All'avvio, leggi il file (priorità `.sdlc-local.json`, fallback `.br-local.json`):
 
 ```bash
+# Esempio con .br-local.json — equivalente per .sdlc-local.json
 cat .br-local.json 2>/dev/null
 ```
 
 Estrai `profiles_repo`, `profilo`, `developer`.
 
-Il **base path** per gli artefatti BR e': `<profiles_repo>/<profilo>/plans/`
+Il **base path** per gli artefatti del Piano e': `<profiles_repo>/<profilo>/plans/`
 
-### Se `.br-local.json` non esiste
+### Se né `.sdlc-local.json` né `.br-local.json` esistono
 
 Sei uno sviluppatore — per collegarti al profilo esistente:
 
-> `.br-local.json` non trovato. Per collegarti al profilo, ho bisogno di:
+> Nessun file di configurazione locale trovato (`.sdlc-local.json` né `.br-local.json` legacy). Per collegarti al profilo, ho bisogno di:
 > 1. **Path del clone di deloitte-profiles**
 > 2. **Nome del profilo**
 > 3. **Il tuo nome**
 
-Crea `.br-local.json` con:
+Crea `.sdlc-local.json` (nuovo nome raccomandato) con:
 ```json
 {
   "profilo": "<profilo>",
@@ -82,7 +89,7 @@ cat "<profiles_repo>/<profilo>/constitution/PROFILE.json"
 
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
-| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup`" | Stop |
+| Né `.sdlc-local.json` né `.br-local.json` (legacy) presenti | "Esegui prima `/sdlc-profile-setup`" | Stop |
 | `CONST.json` manca, `PROFILE.json` esiste | "Il profilo `<nome>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
 | `PROFILE.json` manca, `CONST.json` esiste | "Il profilo `<nome>` non ha PROFILE.json. Stato inconsistente — il profilo è incompleto. Ripristinare da git history o rifare il setup." | Stop |
 | Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
@@ -121,7 +128,7 @@ Quando il profilo è disponibile:
 
 La skill rileva automaticamente la modalita' di funzionamento:
 
-- **Import mode**: non esiste `BUG_REPORT.md` nella cartella del BR, oppure l'utente dice "ci sono dei bug", "segnalazioni test", "defect ricevuti"
+- **Import mode**: non esiste `BUG_REPORT.md` nella cartella del Piano, oppure l'utente dice "ci sono dei bug", "segnalazioni test", "defect ricevuti"
 - **Execution mode**: esistono bug assegnati allo sviluppatore con stato diverso da `chiuso`, oppure l'utente dice "lavora il bug", "fix il bug"
 - **Chiusura mode**: l'utente dice "il funzionale ha testato", "bug confermati", "aggiorna i bug"
 
@@ -160,9 +167,9 @@ Tutti i livelli seguono il ciclo di verifica completo (3 fasi).
 
 Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva.
 
-### Domanda 1 — BR di riferimento
+### Domanda 1 — Piano di riferimento
 
-Cerca i BR attivi:
+Cerca i Piani attivi:
 
 ```bash
 git -C "<profiles_repo>" pull origin main --quiet
@@ -249,7 +256,7 @@ Il mapping dei tipi e' flessibile — se il file usa termini diversi, la skill p
 >
 > Vuoi importare tutte le Y, oppure filtrare per tipo?
 
-**Screenshot:** se il file ha un foglio "Screen" con immagini referenziate dalla colonna Screen, estrai le immagini e salvale nella cartella del BR:
+**Screenshot:** se il file ha un foglio "Screen" con immagini referenziate dalla colonna Screen, estrai le immagini e salvale nella cartella del Piano:
 
 `<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/screenshots/` (o `plans/todo/` se non ancora in-progress)
 
@@ -257,7 +264,7 @@ Il mapping dei tipi e' flessibile — se il file usa termini diversi, la skill p
 
 Usa la skill `jira` (se disponibile) o l'MCP Jira se configurato. Chiedi:
 
-1. **Progetto Jira** — o deducilo dal BR
+1. **Progetto Jira** — o deducilo dall'AFU
 2. **Filtro** — tipo = Bug, stato = Open/To Do, opzionalmente sprint o label
 
 Per ogni ticket importato, mappa i campi Jira standard:
@@ -303,7 +310,7 @@ Per i bug senza match: chiedi esplicitamente a chi assegnare.
 
 > Riepilogo import:
 > - Sorgente: [Excel / Jira / entrambi]
-> - BR: [nome]
+> - Piano: [nome]
 > - Bug importati: N (di cui X bug, Y label, Z CR)
 > - Severita': A critici, B maggiori, C minori
 > - Assegnati a: [lista sviluppatori con conteggio]
@@ -314,7 +321,7 @@ Dopo la conferma, scrivi i bug nella source of truth.
 
 ### Scrittura BUG_REPORT.md
 
-Crea `BUG_REPORT.md` nella cartella del BR (es. `<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/BUG_REPORT.md`). Usa il formato definito nella sezione "Struttura BUG_REPORT.md".
+Crea `BUG_REPORT.md` nella cartella del Piano (es. `<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/BUG_REPORT.md`). Usa il formato definito nella sezione "Struttura BUG_REPORT.md".
 
 Dopo la scrittura, esegui commit + push su deloitte-profiles:
 
@@ -353,7 +360,7 @@ Aspetta la conferma prima di procedere.
 Per bug di tipo `label` o con severita' `minore` nella stessa sezione, proponi di raggrupparli:
 
 > I bug BUG-015, BUG-016, BUG-017 sono tutti cambi label nella sezione "Pop-Up Informazioni Importanti".
-> Vuoi lavorarli insieme su un unico branch `fix/<br-name>-label-popup`?
+> Vuoi lavorarli insieme su un unico branch `fix/<piano-name>-label-popup`?
 
 Se confermato, lancia un sottoagente unico con tutti i bug del gruppo.
 
@@ -387,16 +394,16 @@ Aspetta la conferma.
 
 Dopo la conferma, crea il branch in tutte le repo coinvolte:
 
-1. **Determina il nome del branch:** `fix/<br-name>-BUG-<NNN>-<slug>` (es. `fix/monitoring-BUG-003-table-sort`). Per bug raggruppati: `fix/<br-name>-label-<sezione>`.
+1. **Determina il nome del branch:** `fix/<piano-name>-BUG-<NNN>-<slug>` (es. `fix/monitoring-BUG-003-table-sort`). Per bug raggruppati: `fix/<piano-name>-label-<sezione>`.
 
 2. **Repo del piano** (la repo corrente):
    ```bash
-   git checkout -b fix/<br-name>-BUG-<NNN>-<slug>
+   git checkout -b fix/<piano-name>-BUG-<NNN>-<slug>
    ```
 
 3. **Per ogni altra repo coinvolta** (da `.br-local.json` o dai path forniti nella Fase 1 di sdlc-executor):
    ```bash
-   git -C <path-repo-esterna> checkout -b fix/<br-name>-BUG-<NNN>-<slug>
+   git -C <path-repo-esterna> checkout -b fix/<piano-name>-BUG-<NNN>-<slug>
    ```
 
 4. Aggiorna lo stato del bug a `in_corso` e il campo `branch`.
@@ -552,7 +559,7 @@ Mai committare autonomamente. Suggerisci per ogni repo coinvolta:
 >
 > Dopo il commit, pusha:
 > ```
-> git push origin fix/<br-name>-BUG-003-<slug>
+> git push origin fix/<piano-name>-BUG-003-<slug>
 > ```
 
 **Se il fix coinvolge piu' repo:**
@@ -632,7 +639,7 @@ Quando un bug torna da `verificato` a `aperto`:
 
 ### Re-import iterativo
 
-La skill puo' essere invocata piu' volte sullo stesso BR. A ogni invocazione:
+La skill puo' essere invocata piu' volte sullo stesso Piano. A ogni invocazione:
 
 - Bug gia' importati (match per `id_originale`) non vengono duplicati
 - Nuovi bug nel file/Jira vengono aggiunti con ID sequenziale dal prossimo disponibile (es. se l'ultimo e' BUG-033, il prossimo e' BUG-034)
@@ -666,7 +673,7 @@ git -C "<profiles_repo>" commit -m "[sdlc-debug] <nome>: debug completato (N bug
 git -C "<profiles_repo>" push origin main --quiet
 ```
 
-Se il BR e' in stato `execute` e tutte le task E tutti i bug sono completati, il BR puo' passare a `done`.
+Se il Piano e' in stato `execute` e tutte le task E tutti i bug sono completati, il Piano puo' passare a `done`.
 
 ---
 
@@ -675,7 +682,7 @@ Se il BR e' in stato `execute` e tutte le task E tutti i bug sono completati, il
 Questo e' il formato canonico del file BUG_REPORT.md:
 
 ```markdown
-# Bug Report — <nome BR>
+# Bug Report — <nome Piano>
 
 Data import: <data>
 Sorgente: <file/jira/entrambi>
@@ -766,14 +773,14 @@ Ultimo aggiornamento: <data e ora>
 
 ## Context
 
-This is one of the skills in the BR (Business Requirement) lifecycle suite. The other skills are:
+This is one of the skills in the SDLC lifecycle suite (BR / AFU / Piano workflow). The other skills are:
 - sdlc-reviewer: reviews functional documentation quality
 - sdlc-clarify: manages functional team responses to review questions
-- sdlc-analyzer: gap analysis between BR docs and codebase
+- sdlc-analyzer: gap analysis between AFU docs and codebase
 - sdlc-executor: executes implementation tasks from the plan
-- sdlc-updater: updates plan when BR documentation changes
+- sdlc-updater: updates plan when AFU documentation changes
 - sdlc-progress-report: generates Excel progress reports
 
 sdlc-debug fits as a PARALLEL stage alongside sdlc-executor. It uses the same patterns: subagent delegation, 3-phase verification, progress tracking.
 
-All BR artifacts (TASKS.md, PLAN.md, PROGRESS.md, BUG_REPORT.md, screenshots) live centrally in `<profiles_repo>/<profilo>/plans/`, not in the code repository. `BUG_REPORT.md` is the source of truth for bugs.
+All Plan artifacts (TASKS.md, PLAN.md, PROGRESS.md, BUG_REPORT.md, screenshots) live centrally in `<profiles_repo>/<profilo>/plans/`, not in the code repository. `BUG_REPORT.md` is the source of truth for bugs.

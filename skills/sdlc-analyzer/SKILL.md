@@ -1,13 +1,13 @@
 ---
 name: sdlc-analyzer
-description: Analizza un nuovo Business Requirement (BR) confrontandolo con i codebase esistenti del progetto, genera un gap report dettagliato per funzionalità e un piano di implementazione con task indipendenti assegnate a sviluppatori muniti di Claude Code. Usa questa skill quando l'utente dice "abbiamo un nuovo br", "nuovo br", "c'è un br nuovo", "analizza il br", "gap analysis br", "nuovo business requirement", o qualsiasi variazione che implichi l'arrivo di un nuovo documento di requisiti da analizzare e pianificare. Attivala anche quando l'utente menziona la necessità di confrontare documentazione di requisiti con il codice per trovare cosa manca e pianificare lo sviluppo.
+description: Analizza una nuova AFU (Analisi Funzionale Utente, ex Business Requirement / BR) confrontandola con i codebase esistenti del progetto, genera un gap report dettagliato per funzionalità e un Piano di implementazione con task indipendenti assegnate a sviluppatori muniti di Claude Code. Usa questa skill quando l'utente dice "abbiamo un nuovo br", "abbiamo una nuova afu", "nuovo Piano", "nuovo br", "c'è un br nuovo", "analizza il br", "analizza l'AFU", "gap analysis br", "gap analysis AFU", "nuovo business requirement", "nuova analisi funzionale utente", o qualsiasi variazione che implichi l'arrivo di un nuovo documento di requisiti da analizzare e pianificare. Attivala anche quando l'utente menziona la necessità di confrontare documentazione di requisiti con il codice per trovare cosa manca e pianificare lo sviluppo.
 ---
 
 # SDLC Analyzer — PLAN & TASKS
 
-Questa skill guida l'analisi di un nuovo Business Requirement: dal confronto con i codebase al piano di sviluppo con task indipendenti per un team di sviluppatori, ognuno munito di Claude Code.
+Questa skill guida l'analisi di una nuova AFU (Analisi Funzionale Utente, ex Business Requirement): dal confronto con i codebase al Piano di sviluppo con task indipendenti per un team di sviluppatori, ognuno munito di Claude Code.
 
-Il flusso BR completo:
+Il flusso SDLC completo:
 ```
 sdlc-reviewer → sdlc-clarify → sdlc-analyzer → sdlc-executor → sdlc-updater
                                                       ↘ sdlc-progress-report
@@ -15,9 +15,9 @@ sdlc-reviewer → sdlc-clarify → sdlc-analyzer → sdlc-executor → sdlc-upda
 
 Il processo si compone di 4 fasi:
 1. **Raccolta input** (domande conversazionali, una alla volta)
-2. **Conversione documentazione** (solo se `sdlc-reviewer` non e' stato eseguito prima — se trova `requirements/` nella cartella del BR, salta questa fase)
+2. **Conversione documentazione** (solo se `sdlc-reviewer` non e' stato eseguito prima — se trova `requirements/` nella cartella del Piano, salta questa fase)
 3. **Analisi gap** (confronto documentazione vs codice)
-4. **Generazione output** (2 file MD: gap report + piano di implementazione, nella cartella del BR)
+4. **Generazione output** (2 file MD: gap report + piano di implementazione, nella cartella del Piano)
 
 ---
 
@@ -25,11 +25,20 @@ Il processo si compone di 4 fasi:
 
 Tutte le operazioni su file plan avvengono nella **project_repo** (modalita' standalone, una repo per progetto) o nella repo `deloitte-profiles` (modalita' legacy), **non** nella repo del codice applicativo. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
-### Lettura `.br-local.json` e detection modalita'
+### Lettura del file di configurazione locale (`.sdlc-local.json` con fallback `.br-local.json`)
 
-All'avvio, leggi `.br-local.json` dalla root della repo corrente:
+**Lettura compatibile**: il file di configurazione locale può chiamarsi `.sdlc-local.json` (nuovo nome, raccomandato) oppure `.br-local.json` (nome legacy, ancora supportato). Cerca PRIMA `.sdlc-local.json`; se non esiste, fa fallback a `.br-local.json`. Se nessuno dei due esiste, ferma e chiedi all'utente di eseguire `/sdlc-profile-setup`.
+
+Se trovi solo `.br-local.json` (profilo legacy), emetti questo warning soft prima di procedere:
+
+> Nota: profilo legacy `.br-local.json` rilevato. Funziona, ma il nuovo nome è `.sdlc-local.json`. Verrà migrato automaticamente al prossimo `/sdlc-profile-setup`, oppure puoi rinominarlo manualmente quando vuoi.
+
+I comandi `bash` seguenti sono scritti referenziando `.br-local.json` per chiarezza storica — applica equivalentemente la stessa logica al file effettivamente trovato (sia `.sdlc-local.json` che `.br-local.json`).
+
+All'avvio, leggi il file (priorità `.sdlc-local.json`, fallback `.br-local.json`) dalla root della repo corrente:
 
 ```bash
+# Esempio con .br-local.json — equivalente per .sdlc-local.json
 cat .br-local.json 2>/dev/null
 ```
 
@@ -63,11 +72,11 @@ fi
 
 > **Nota**: `plans/draft/` esiste solo in modalita' standalone — area dove Solaria authora l'AFU prima dell'handoff (Fase 1c). Le skill SDLC ignorano `draft/` (e' Solaria-side) tranne `sdlc-reviewer` e `sdlc-clarify` quando esplicitamente invocate su un draft.
 
-### Se `.br-local.json` non esiste
+### Se né `.sdlc-local.json` né `.br-local.json` esistono
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
+> Nessun file di configurazione locale trovato (`.sdlc-local.json` né `.br-local.json` legacy). Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
 
 ### Sincronizzazione prima della lettura
 
@@ -99,7 +108,7 @@ cat "$CONST_PATH/PROFILE.json"
 
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
-| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
+| Né `.sdlc-local.json` né `.br-local.json` (legacy) presenti | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
 | `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
 | `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
 | Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
@@ -123,7 +132,7 @@ Entrambi i file restano disponibili come contesto per tutta la durata della skil
 
 Poni ogni domanda singolarmente, aspetta la risposta, poi passa alla successiva. Non anticipare domande e non procedere finche' l'utente non ha risposto.
 
-### Domanda 0 — Cartella BR esistente
+### Domanda 0 — Cartella Piano esistente
 
 Prima di chiedere qualsiasi cosa, verifica cosa Solaria (standalone) o `sdlc-reviewer` (legacy) hanno gia' depositato in `plans/todo/`:
 
@@ -150,7 +159,7 @@ ls "$BASE_PATH/todo"/*/CLARIFY.md 2>/dev/null
 
 **Se trovi una cartella con CLARIFY.md** (legacy o standalone con review tech opzionale attivata), proponila:
 
-> Ho trovato una cartella BR con review gia' completata:
+> Ho trovato una cartella Piano con review gia' completata:
 > - `$BASE_PATH/todo/2026-04-28_booking-v2/CLARIFY.md`
 > - Documentazione convertita in `requirements/`
 >
@@ -172,9 +181,9 @@ Se l'utente conferma:
 - Salta le domande su documentazione e codebase — leggile dal CLARIFY.md
 - Procedi direttamente alla Domanda 3 (Team di sviluppo)
 
-**Se non trovi nulla**, chiedi il nome del BR:
+**Se non trovi nulla**, chiedi il nome del Piano:
 
-> Come vuoi chiamare questo BR? Il nome verra' usato per creare la cartella di lavoro.
+> Come vuoi chiamare questo Piano? Il nome verra' usato per creare la cartella di lavoro.
 >
 > Esempio: "booking-v2", "monitoraggio-dashboard", "auth-refactor"
 
@@ -182,13 +191,13 @@ Poi procedi con le domande successive.
 
 ### Domanda 1 — Codebase
 
-> Quali sono le repository/codebase coinvolte in questo BR?
+> Quali sono le repository/codebase coinvolte in questo Piano?
 > Per ognuna, dammi:
 > - **Nome** (es. "back-end", "front-end", "api-gateway", "mobile-app", "notification-service" — qualsiasi nome che identifichi la repo)
 > - **Sigla** (un'abbreviazione breve, es. "BE", "FE", "GW", "MOB", "NS" — verrà usata nelle tabelle e nei report)
 > - **Path** (il path locale al codebase)
 >
-> Elenca tutte quelle coinvolte, senza limiti. Se una repo non è coinvolta nel BR, non includerla.
+> Elenca tutte quelle coinvolte, senza limiti. Se una repo non è coinvolta nel Piano, non includerla.
 >
 > Esempio:
 > - Back-end (BE) → `/path/to/backend`
@@ -199,8 +208,8 @@ Salva i nomi, le sigle e i path forniti. Usa le sigle dell'utente in tutto il re
 
 ### Domanda 2 — Documentazione
 
-> Dove trovo la documentazione del BR? Dammi i path per:
-> - **BR** (il documento principale dei requisiti)
+> Dove trovo l'AFU? Dammi i path per:
+> - **AFU** (il documento principale dei requisiti)
 > - **Mockup** (se presenti)
 > - **Qualsiasi altro file rilevante** (specifiche tecniche, template, mapping, matrici)
 >
@@ -233,13 +242,13 @@ Procedi solo dopo la conferma.
 
 ## Fase 2 — Conversione Documentazione in Markdown
 
-**Se `sdlc-reviewer` e' stato eseguito** e la cartella `requirements/` esiste gia' nella cartella del BR (`$BASE_PATH/todo/<data>_<nome>/requirements/`), **salta completamente questa fase** e vai alla Fase 3. La conversione e' gia' stata fatta da sdlc-reviewer.
+**Se `sdlc-reviewer` e' stato eseguito** e la cartella `requirements/` esiste gia' nella cartella del Piano (`$BASE_PATH/todo/<data>_<nome>/requirements/`), **salta completamente questa fase** e vai alla Fase 3. La conversione e' gia' stata fatta da sdlc-reviewer.
 
 **Se `sdlc-reviewer` non e' stato eseguito**, converti tutti i documenti non-MD in formato Markdown. Questo riduce significativamente il contesto necessario e rende i documenti piu' leggibili per l'analisi.
 
 ### Procedura di conversione
 
-Crea la cartella del BR e la sottocartella per i documenti convertiti:
+Crea la cartella del Piano e la sottocartella per i documenti convertiti:
 
 ```bash
 mkdir -p "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements"
@@ -301,7 +310,7 @@ I mockup vivono in `requirements/mockups/` perche' Solaria li include in `manife
 
 ### 3.1 — Lettura della documentazione
 
-Leggi integralmente ogni documento MD convertito nella cartella `requirements/` (dentro la cartella del BR). Per le immagini (mockup), usa Read sul file originale e descrivi nel dettaglio cosa vedi, mappando le UI ai componenti da implementare.
+Leggi integralmente ogni documento MD convertito nella cartella `requirements/` (dentro la cartella del Piano). Per le immagini (mockup), usa Read sul file originale e descrivi nel dettaglio cosa vedi, mappando le UI ai componenti da implementare.
 
 Da ogni documento, estrai:
 - Ogni requisito funzionale (cosa deve fare il sistema)
@@ -323,34 +332,34 @@ Per ogni codebase fornito, analizza:
 
 Usa gli agent di tipo `Explore` per parallelizzare l'esplorazione dei diversi codebase quando possibile.
 
-**Nota**: il codebase viene letto dalla repo del progetto (dove la skill e' invocata). Solo gli artefatti BR (report, piano) vengono scritti in `deloitte-profiles`.
+**Nota**: il codebase viene letto dalla repo del progetto (dove la skill e' invocata). Solo gli artefatti del Piano (report, piano implementazione) vengono scritti in `deloitte-profiles`.
 
 ### 3.3 — Confronto e classificazione gap
 
-Per ogni funzionalità richiesta dal BR, confronta con il codice esistente e classifica:
+Per ogni funzionalità richiesta dall'AFU, confronta con il codice esistente e classifica:
 
 | Stato | Significato |
 |---|---|
 | **Coperto** | Implementato correttamente, nessun gap |
 | **Parziale** | Implementato in parte, manca qualcosa di specifico |
 | **Mancante** | Non implementato, da sviluppare da zero |
-| **Discrepanza** | Implementato ma diverso da quanto richiesto dal BR |
-| **Da chiarire** | Il BR è ambiguo o il codice suggerisce un'interpretazione diversa |
+| **Discrepanza** | Implementato ma diverso da quanto richiesto dall'AFU |
+| **Da chiarire** | L'AFU è ambigua o il codice suggerisce un'interpretazione diversa |
 
 Per ogni gap, documenta:
-- **Cosa richiede il BR** (con riferimento a sezione/pagina del documento)
+- **Cosa richiede l'AFU** (con riferimento a sezione/pagina del documento)
 - **Cosa esiste nel codice** (con path esatti a file/classi/metodi)
 - **Cosa manca o è diverso** (con dettaglio sufficiente per implementare)
 - **Repository coinvolte** (usa le sigle fornite dall'utente)
 - **Complessità stimata** (Bassa / Media / Alta)
 
-Il livello di dettaglio deve essere sufficiente perché un agente Claude Code, leggendo solo il gap report, possa capire esattamente cosa va fatto senza dover rileggere il BR originale.
+Il livello di dettaglio deve essere sufficiente perché un agente Claude Code, leggendo solo il gap report, possa capire esattamente cosa va fatto senza dover rileggere l'AFU originale.
 
 ---
 
 ## Fase 4 — Generazione Output
 
-Se la cartella del BR non esiste ancora (sdlc-reviewer non eseguito), creala:
+Se la cartella del Piano non esiste ancora (sdlc-reviewer non eseguito), creala:
 
 ```bash
 mkdir -p "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements"
@@ -358,7 +367,7 @@ mkdir -p "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements"
 
 (in-progress e done sono già create da sdlc-profile-setup)
 
-Genera entrambi i file nella cartella del BR in `$BASE_PATH/todo/`. Questo e' lo stato iniziale: la cartella intera si sposta in `in-progress/` quando uno sviluppatore avvia la lavorazione con `sdlc-executor`, e in `done/` al completamento di tutte le task.
+Genera entrambi i file nella cartella del Piano in `$BASE_PATH/todo/`. Questo e' lo stato iniziale: la cartella intera si sposta in `in-progress/` quando uno sviluppatore avvia la lavorazione con `sdlc-executor`, e in `done/` al completamento di tutte le task.
 
 ### 4.1 — PLAN
 
@@ -367,7 +376,7 @@ Genera entrambi i file nella cartella del BR in `$BASE_PATH/todo/`. Questo e' lo
 Struttura:
 
 ```
-# Report Verifica BR [nome/versione]
+# Report Verifica AFU [nome/versione]
 
 Data verifica: `<data>`
 Modalita': `standalone` | `legacy`
@@ -380,7 +389,7 @@ Branch verificato:
 - <SIGLA>: `<branch>`
 
 Perimetro documentale verificato:
-- BR: `<path>`
+- AFU: `<path>`
 - Mockup: `<path>`
 [altri documenti]
 
@@ -422,7 +431,7 @@ Genera dinamicamente una colonna per ogni repository coinvolta, usando le sigle 
 
 | Requisito | <SIGLA_1> | <SIGLA_2> | ... <SIGLA_N> | Stato | Evidenze | Gap |
 |---|---|---|---|---|---|---|
-| [Requisito dal BR] | [Implementato/Non implementato/N/A] | [Implementato/Non implementato/N/A] | ... | [Coperto/Parziale/Mancante/Discrepanza/Da chiarire] | [Path esatti a file e classi rilevanti, per ogni repo] | [Descrizione precisa del gap, o "Nessuno"] |
+| [Requisito dall'AFU] | [Implementato/Non implementato/N/A] | [Implementato/Non implementato/N/A] | ... | [Coperto/Parziale/Mancante/Discrepanza/Da chiarire] | [Path esatti a file e classi rilevanti, per ogni repo] | [Descrizione precisa del gap, o "Nessuno"] |
 
 [Una riga per ogni requisito identificato, raggruppate per funzionalità. Se il progetto ha una sola repo, la matrice avrà una sola colonna repo.]
 
@@ -431,7 +440,7 @@ Genera dinamicamente una colonna per ogni repository coinvolta, usando le sigle 
 ### 1. [Nome gap]
 
 [Dettaglio completo del gap:]
-- Cosa richiede il BR
+- Cosa richiede l'AFU
 - Cosa esiste nel codice (con path)
 - Cosa manca
 - Impatto su quali moduli
@@ -452,7 +461,7 @@ Formato di ogni finding:
 - **Principio violato:** `<categoria.regola>` (es. `quality_standards.test_coverage.minimum_percent`)
 - **Dove:** `<repo>/<path>:<linea>` o `<repo>/<modulo>` se diffuso
 - **Evidenza:** snippet di codice o metrica osservata
-- **Impatto sul BR corrente:** `BLOCCA il task X` | `Da fixare in coda al BR` | `Solo segnalazione (gap pregresso)`
+- **Impatto sul Piano corrente:** `BLOCCA il task X` | `Da fixare in coda al Piano` | `Solo segnalazione (gap pregresso)`
 
 Se nessuna violazione è stata rilevata, lascia la sezione vuota con il testo: "Nessuna violazione dei principi CONST rilevata durante l'analisi."
 ```
@@ -466,7 +475,7 @@ Ogni riga della matrice e ogni gap aperto deve contenere path esatti ai file ril
 Struttura:
 
 ```
-# Piano Implementazione [Nome feature/BR]
+# Piano Implementazione [Nome feature/AFU]
 
 Data: `<data>`
 
@@ -497,7 +506,7 @@ Assunzioni:
 
 Ogni stream rappresenta un flusso di lavoro funzionalmente coeso: un insieme di task che appartengono alla stessa area funzionale e lavorano sullo stesso branch o su branch sequenziali. Le task all'interno dello stesso stream condividono il contesto di codice — il completamento di una rende il codice disponibile localmente per la successiva senza bisogno di merge.
 
-Definisci gli stream basandoti sulle funzionalità del BR, non sulla struttura tecnica. Esempi:
+Definisci gli stream basandoti sulle funzionalità dell'AFU, non sulla struttura tecnica. Esempi:
 - `stream-booking` — tutte le task relative alla funzionalità Booking
 - `stream-monitoraggio` — tutte le task relative al Monitoraggio
 - `stream-fondazioni` — task di base che creano entità/enum/migration condivise
@@ -520,7 +529,7 @@ Regole:
 
 | ID | Stream | Owner | Area | Branch | Priorità | Attività | Descrizione | Dipendenze | Effort |
 |---|---|---|---|---|---:|---|---|---|---:|
-| `T-001` | `stream-fondazioni` | `[Dev]` | BE/FE | `feature/<br-name>-<slug>` | P0/P1/P2 | [Nome task] | [Descrizione dettagliata, con riferimento ai gap del report, file da toccare, pattern da seguire] | [ID dipendenze o "Nessuna"] | `N gg` |
+| `T-001` | `stream-fondazioni` | `[Dev]` | BE/FE | `feature/<piano-name>-<slug>` | P0/P1/P2 | [Nome task] | [Descrizione dettagliata, con riferimento ai gap del report, file da toccare, pattern da seguire] | [ID dipendenze o "Nessuna"] | `N gg` |
 
 [Una riga per ogni task]
 
@@ -579,7 +588,7 @@ Regole:
 - [lista di cosa deve funzionare per considerare il perimetro chiuso]
 ```
 
-### 4.3 — Commit e push degli artefatti BR
+### 4.3 — Commit e push degli artefatti del Piano
 
 Dopo aver generato `PLAN.md` e `TASKS.md`, esegui commit e push verso `deloitte-profiles`:
 
@@ -617,7 +626,7 @@ Quando scomponi il lavoro in task, questi principi guidano le decisioni:
 
 **Granularità giusta** — Ogni task deve essere completabile in 1-5 giorni. Troppo grande: spezzala. Troppo piccola (< 2 ore): accorpala con task correlate.
 
-**Branch convention** — Ogni task ha un branch specificato nella colonna **Branch** del backlog. Il naming segue il pattern `feature/<br-name>-<slug-attivita>` (es. `feature/monitoring-enum-entities-core`). Per task multi-repo (Area = BE+FE), lo stesso nome branch viene usato in tutte le repo coinvolte. Per le merge task (T-MERGE-*), la colonna Branch e' `—` (non hanno un branch proprio). Specifica l'ordine di merge basato sulle dipendenze.
+**Branch convention** — Ogni task ha un branch specificato nella colonna **Branch** del backlog. Il naming segue il pattern `feature/<piano-name>-<slug-attivita>` (es. `feature/monitoring-enum-entities-core`). Per task multi-repo (Area = BE+FE), lo stesso nome branch viene usato in tutte le repo coinvolte. Per le merge task (T-MERGE-*), la colonna Branch e' `—` (non hanno un branch proprio). Specifica l'ordine di merge basato sulle dipendenze.
 
 **Autosufficiente per Claude Code** — Ogni task deve contenere abbastanza contesto perché un agente Claude Code possa implementarla leggendo solo la task e il gap report. Includi: file esatti da modificare/creare, pattern del progetto da seguire, criteri di completamento verificabili, e note specifiche (convenzioni, attenzioni, edge case).
 

@@ -1,6 +1,6 @@
 ---
 name: sdlc-progress-report
-description: Genera o aggiorna un file Excel con il riepilogo completo delle task, progressi e avanzamenti per sviluppatore a partire dal piano e dal file di progresso di sdlc-analyzer/sdlc-executor. Supporta qualsiasi composizione di repository — i nomi e le sigle vengono letti dinamicamente dal piano. Usa questa skill quando l'utente dice "genera il report excel", "aggiorna l'excel", "stato avanzamento excel", "esporta il progresso", "report avanzamento", "excel dei progressi", "aggiorna il foglio", "com'è la situazione delle task", o qualsiasi variazione che implichi la necessità di un report Excel sullo stato di avanzamento delle task di un piano BR.
+description: Genera o aggiorna un file Excel con il riepilogo completo delle task, progressi e avanzamenti per sviluppatore a partire dal piano e dal file di progresso di sdlc-analyzer/sdlc-executor. Supporta qualsiasi composizione di repository — i nomi e le sigle vengono letti dinamicamente dal piano. Usa questa skill quando l'utente dice "genera il report excel", "aggiorna l'excel", "stato avanzamento excel", "esporta il progresso", "report avanzamento", "excel dei progressi", "aggiorna il foglio", "com'è la situazione delle task", o qualsiasi variazione che implichi la necessità di un report Excel sullo stato di avanzamento delle task di un piano (BR / AFU / Piano).
 ---
 
 # SDLC Progress Report — Export Excel Avanzamento Task
@@ -13,11 +13,20 @@ Questa skill genera o aggiorna un file Excel con il riepilogo completo delle tas
 
 Tutte le operazioni su file plan avvengono nella **project_repo** (modalita' standalone, una repo per progetto) o nella repo `deloitte-profiles` (modalita' legacy), **non** nella repo del codice applicativo. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
-### Lettura `.br-local.json` e detection modalita'
+### Lettura del file di configurazione locale (`.sdlc-local.json` con fallback `.br-local.json`)
 
-All'avvio, leggi `.br-local.json` dalla root della repo corrente:
+**Lettura compatibile**: il file di configurazione locale può chiamarsi `.sdlc-local.json` (nuovo nome, raccomandato) oppure `.br-local.json` (nome legacy, ancora supportato). Cerca PRIMA `.sdlc-local.json`; se non esiste, fa fallback a `.br-local.json`. Se nessuno dei due esiste, ferma e chiedi all'utente di eseguire `/sdlc-profile-setup`.
+
+Se trovi solo `.br-local.json` (profilo legacy), emetti questo warning soft prima di procedere:
+
+> Nota: profilo legacy `.br-local.json` rilevato. Funziona, ma il nuovo nome è `.sdlc-local.json`. Verrà migrato automaticamente al prossimo `/sdlc-profile-setup`, oppure puoi rinominarlo manualmente quando vuoi.
+
+I comandi `bash` seguenti sono scritti referenziando `.br-local.json` per chiarezza storica — applica equivalentemente la stessa logica al file effettivamente trovato (sia `.sdlc-local.json` che `.br-local.json`).
+
+All'avvio, leggi il file (priorità `.sdlc-local.json`, fallback `.br-local.json`) dalla root della repo corrente:
 
 ```bash
+# Esempio con .br-local.json — equivalente per .sdlc-local.json
 cat .br-local.json 2>/dev/null
 ```
 
@@ -51,11 +60,11 @@ fi
 
 > **Nota**: `plans/draft/` esiste solo in modalita' standalone — area dove Solaria authora l'AFU prima dell'handoff (Fase 1c). Le skill SDLC ignorano `draft/` (e' Solaria-side) tranne `sdlc-reviewer` e `sdlc-clarify` quando esplicitamente invocate su un draft.
 
-### Se `.br-local.json` non esiste
+### Se né `.sdlc-local.json` né `.br-local.json` esistono
 
 Ferma l'esecuzione e avvisa:
 
-> `.br-local.json` non trovato. Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
+> Nessun file di configurazione locale trovato (`.sdlc-local.json` né `.br-local.json` legacy). Devi prima eseguire `/sdlc-profile-setup`, che ti chiedera' se vuoi configurare in **modalita' standalone** (raccomandato per nuovi progetti, una repo per progetto con cartella `dataset/` Solaria-side) o **modalita' legacy** (progetti gia' esistenti in `deloitte-profiles`).
 
 ### Sincronizzazione prima della lettura
 
@@ -87,7 +96,7 @@ cat "$CONST_PATH/PROFILE.json"
 
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
-| `.br-local.json` manca | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
+| Né `.sdlc-local.json` né `.br-local.json` (legacy) presenti | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
 | `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
 | `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
 | Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
@@ -111,7 +120,7 @@ Entrambi i file restano disponibili come contesto per tutta la durata della skil
 
 ### Ricerca automatica
 
-Cerca cartelle BR nella struttura `plans/` centralizzata in `deloitte-profiles`, in ordine di priorita':
+Cerca cartelle dei Piani nella struttura `plans/` centralizzata in `deloitte-profiles`, in ordine di priorita':
 
 ```bash
 git -C "$GIT_REPO_PATH" pull origin main --quiet
@@ -123,7 +132,7 @@ Serve trovare:
 - **File di Progresso** (`PROGRESS.md`) — opzionale, se non esiste le task partono tutte da 0%
 - **PLAN** (`PLAN.md`) — opzionale, usato per arricchire le descrizioni
 
-**Se trovi cartelle BR**, proponile:
+**Se trovi cartelle dei Piani**, proponile:
 
 > Ho trovato:
 > - `$BASE_PATH/in-progress/2026-04-28_booking-v2/`
@@ -136,7 +145,7 @@ Se non trovi nulla, chiedi i path manualmente.
 
 ### Verifica Excel esistente
 
-Cerca nella stessa cartella del BR se esiste gia' un file Excel:
+Cerca nella stessa cartella del Piano se esiste gia' un file Excel:
 
 ```bash
 ls "$BASE_PATH/in-progress"/*/PROGRESS.xlsx "$BASE_PATH/todo"/*/PROGRESS.xlsx "$BASE_PATH/done"/*/PROGRESS.xlsx 2>/dev/null
@@ -165,7 +174,7 @@ Sincronizza la repo profili prima di leggere:
 git -C "$GIT_REPO_PATH" pull origin main --quiet
 ```
 
-Leggi il PROGRESS.md dalla cartella del BR in `$BASE_PATH/<stato>/<data>_<nome>/PROGRESS.md`. Il file e' sempre aggiornato dopo il pull perche' tutti gli sviluppatori scrivono nella repo centralizzata.
+Leggi il PROGRESS.md dalla cartella del Piano in `$BASE_PATH/<stato>/<data>_<nome>/PROGRESS.md`. Il file e' sempre aggiornato dopo il pull perche' tutti gli sviluppatori scrivono nella repo centralizzata.
 
 ### Estrazione campi
 
@@ -259,7 +268,7 @@ In fondo alla tabella, una riga "TOTALE" con le somme.
 Dashboard complessiva con le metriche chiave:
 
 ```
-Progetto: [nome BR]
+Progetto: [nome Piano]
 Data generazione: [data]
 Ultimo aggiornamento progresso: [data dal file progresso]
 
@@ -296,7 +305,7 @@ Formatta questa sezione come testo leggibile, non come tabella. Usa merge di cel
 
 ### Nome e posizione file
 
-Salva nella stessa cartella del BR all'interno della repo centralizzata:
+Salva nella stessa cartella del Piano all'interno della repo centralizzata:
 - **Path**: `$BASE_PATH/<stato>/<YYYY-MM-DD>_<nome>/PROGRESS.xlsx`
 - **Aggiornamento**: sovrascrivi il file esistente
 
