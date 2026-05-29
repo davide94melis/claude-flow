@@ -485,6 +485,19 @@ Per ogni codebase fornito nello Step 3, proponi di aggiungere i campi a `.sdlc-l
 
 4. **Nessuno dei due esiste** → crea ex novo `.sdlc-local.json` con i campi base della modalità scelta.
 
+**Campi di orchestrazione (sempre inclusi, default `classic`)**:
+
+Oltre ai campi di modalità, `.sdlc-local.json` contiene 4 campi **flat** che controllano come le skill SDLC si orchestrano — modalità `classic` (sequenziale, leggera, il comportamento storico) vs `deep` (workflow multi-agent + verifica adversariale). Sono flat (non annidati) per restare leggibili col `grep -oP` usato dalle skill su Git-bash Windows, senza dipendere da `jq`. Dettagli: `docs/ORCHESTRATION_INTEGRATION_DESIGN.md`.
+
+| Campo | Default | Significato |
+|---|---|---|
+| `orchestration_mode` | `"classic"` | `classic` (sequenziale) \| `deep` (workflow + adversarial verify) |
+| `orchestration_depth` | `"standard"` | `standard` \| `ultracode` (approfondimento extra in `deep`) |
+| `orchestration_max_concurrency` | `10` | tetto agent concorrenti nei fan-out `deep` |
+| `orchestration_verifier_panel` | `3` | numero di verificatori nei panel adversariali `deep` |
+
+**Default conservativo**: per ogni profilo nuovo scrivi sempre `orchestration_mode: "classic"` — nessuna escalation a `deep` senza scelta esplicita dell'utente (mai spesa a sorpresa). Nello **scenario 1** (`.sdlc-local.json` già esistente) **preserva** eventuali valori `orchestration_*` presenti: non resettare a `classic` una scelta `deep` deliberata su un re-run del setup.
+
 **Se `MODE=standalone`**:
 
 > Per ogni codebase, aggiorno `.sdlc-local.json` con il riferimento al project_repo.
@@ -495,7 +508,11 @@ Per ogni codebase fornito nello Step 3, proponi di aggiungere i campi a `.sdlc-l
 > ```json
 > {
 >   "project_repo": "<PROJECT_REPO_ROOT>",
->   "project_name": "<nome>"
+>   "project_name": "<nome>",
+>   "orchestration_mode": "classic",
+>   "orchestration_depth": "standard",
+>   "orchestration_max_concurrency": 10,
+>   "orchestration_verifier_panel": 3
 > }
 > ```
 >
@@ -511,7 +528,11 @@ Per ogni codebase fornito nello Step 3, proponi di aggiungere i campi a `.sdlc-l
 > ```json
 > {
 >   "profilo": "<nome>",
->   "profiles_repo": "<path-profiles-repo>"
+>   "profiles_repo": "<path-profiles-repo>",
+>   "orchestration_mode": "classic",
+>   "orchestration_depth": "standard",
+>   "orchestration_max_concurrency": 10,
+>   "orchestration_verifier_panel": 3
 > }
 > ```
 >
@@ -521,10 +542,10 @@ Per ogni codebase fornito nello Step 3, proponi di aggiungere i campi a `.sdlc-l
 
 ```json
 // standalone
-{ "project_repo": "<PROJECT_REPO_ROOT>", "project_name": "<nome>" }
+{ "project_repo": "<PROJECT_REPO_ROOT>", "project_name": "<nome>", "orchestration_mode": "classic", "orchestration_depth": "standard", "orchestration_max_concurrency": 10, "orchestration_verifier_panel": 3 }
 
 // legacy
-{ "profilo": "<nome>", "profiles_repo": "<path-profiles-repo>" }
+{ "profilo": "<nome>", "profiles_repo": "<path-profiles-repo>", "orchestration_mode": "classic", "orchestration_depth": "standard", "orchestration_max_concurrency": 10, "orchestration_verifier_panel": 3 }
 ```
 
 Procedi solo dopo conferma dell'utente. Aggiorna/crea il file per ogni codebase.
@@ -537,6 +558,7 @@ Dopo aver completato tutti i codebase, conferma:
 > - Struttura: `constitution/`, `agents/`, `references/`, `plans/todo|in-progress|done/`
 > - References: `<profiles_repo>/<nome>/references/` (N file)
 > - `.sdlc-local.json` aggiornato/creato in N codebase (eventuali `.br-local.json` legacy migrati a `.sdlc-local.json` + `.br-local.json.bak`)
+> - Orchestrazione: `classic` (default conservativo). Per attivare la modalità workflow+approfondita, rilancia `/sdlc-profile-setup` o imposta `orchestration_mode: "deep"` in `.sdlc-local.json`.
 >
 > Il profilo e' un documento vivente: `sdlc-analyzer` lo aggiornera' automaticamente quando rileva nuove convenzioni durante l'analisi.
 

@@ -65,6 +65,23 @@ for f in "$REPO_ROOT"/agents/sdlc-*.md; do
 done
 
 echo ""
+echo "Install workflow scripts (orchestration mode 'deep'):"
+if [[ -d "$REPO_ROOT/workflows" ]]; then
+  $RUN mkdir -p "$CLAUDE_HOME/workflows"
+  found_wf=0
+  for f in "$REPO_ROOT"/workflows/*.js; do
+    [[ -f "$f" ]] || continue
+    found_wf=1
+    name=$(basename "$f")
+    echo "  cp $f -> $CLAUDE_HOME/workflows/$name"
+    $RUN cp "$f" "$CLAUDE_HOME/workflows/"
+  done
+  [[ $found_wf -eq 0 ]] && echo "  (nessuno script .js in workflows/ — verranno aggiunti dalla rollout skill heavy)"
+else
+  echo "  (workflows/ assente — skip)"
+fi
+
+echo ""
 echo "Install documentation reference:"
 if [[ -f "$REPO_ROOT/SDLC_SKILLS_DOCUMENTATION.md" ]]; then
   echo "  cp $REPO_ROOT/SDLC_SKILLS_DOCUMENTATION.md -> $CLAUDE_HOME/skills/SDLC_SKILLS_DOCUMENTATION.md"
