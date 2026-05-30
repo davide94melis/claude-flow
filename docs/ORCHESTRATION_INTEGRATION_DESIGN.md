@@ -6,8 +6,8 @@
 > [`SOLARIA_SDLC_INTEGRATION.md`](./SOLARIA_SDLC_INTEGRATION.md) ·
 > [`ROADMAP_NEW_SKILLS.md`](./ROADMAP_NEW_SKILLS.md)
 
-**Stato:** design approvato (tutte le decisioni chiuse). **Step 1+2 implementati** (2026-05-30): flag `orchestration_*` in `sdlc-profile-setup`, `scripts/inject-orchestration.py` + sezione "## Modalità di orchestrazione" iniettata in tutte e 9 le SKILL.md, `sync-installed.sh` aggiornato. **Step 3 — strumenti del pilota `sdlc-analyzer` pronti** (`workflows/sdlc-analyzer-gap.js`, ramo `deep` cablato, comparatore `scripts/golden-compare-gap.py`): manca solo il **run del golden-test** in sessione nuova (vedi [`GOLDEN_TEST_ANALYZER.md`](./GOLDEN_TEST_ANALYZER.md)). Restano step 4–5 (executor/debug/updater/reviewer) e step 6 (cerchio light).
-**Data:** 2026-05-29 (design) · 2026-05-30 (step 1+2 + strumenti step 3).
+**Stato:** design approvato e **rollout completo implementato** (2026-05-30): step 1+2 (flag + sezione "## Modalità di orchestrazione" in tutte e 9 le SKILL.md), step 3-5 (5 workflow heavy in `workflows/`: analyzer-gap, executor-wave, debug-fixwave, updater-delta, reviewer-quality + wiring `deep`), step 6 (cerchio light: estimator/clarify/progress-report/profile-setup, solo coherence-critic). Tutti i workflow superati da review adversariale statica. **Golden-test del pilota SALTATO per decisione utente** (risparmio token sul run su codebase reale): il pattern è stato propagato sulla sola forza della review statica, non del run empirico. Il run resta facoltativo (strumenti pronti, vedi [`GOLDEN_TEST_ANALYZER.md`](./GOLDEN_TEST_ANALYZER.md)).
+**Data:** 2026-05-29 (design) · 2026-05-30 (rollout completo step 1-6).
 **Metodo:** analisi prodotta con un workflow multi-agent (15 agent: 9 mapper-skill + 2 mapper infra/docs + 1 sintesi + 3 critiche adversariali), poi consolidata con l'utente via 4 decisioni chiave.
 
 ---
@@ -292,12 +292,12 @@ Nonostante D2 ("tutte e 9"), il rollout **valida prima su una skill** per accorg
 
 1. ✅ **`sdlc-profile-setup`** *(fatto 2026-05-30)*: estendere `.sdlc-local.json` col flag + default `classic` → posto canonico da cui le altre leggono.
 2. ✅ **`inject-orchestration.py`** + aggiornare `sync-installed.sh` *(fatto 2026-05-30)*: blocco opt-in in tutte e 9 (coerenza by-construction) + mapping di degrado uniforme. Lo script supporta `--replace` per ri-sincronizzare il blocco senza divergenza fonte/artefatti (V5).
-3. 🔧 **Pilota `sdlc-analyzer`** *(strumenti pronti 2026-05-30; run differito)*: `workflows/sdlc-analyzer-gap.js` (explore fan-out → sintesi → completeness-critic + adversarial), ramo `deep` cablato in §3.2/§3.3/Fase 4, comparatore `scripts/golden-compare-gap.py`. Il **golden-test `classic` vs `deep`** su un'AFU fissa gira in una **sessione nuova** sul progetto reale BancaAgente — vedi [`GOLDEN_TEST_ANALYZER.md`](./GOLDEN_TEST_ANALYZER.md). Valida il pattern e **misura la divergenza** prima di propagare a step 4–6.
-4. **`sdlc-executor` + `sdlc-debug`** (condividono `sdlc-verifier` + worktree).
-5. **`sdlc-updater` + `sdlc-reviewer`** (logica gap/delta).
-6. **Cerchio light** (solo coherence-critic).
+3. 🔧 **Pilota `sdlc-analyzer`** *(strumenti pronti 2026-05-30; golden-test run SALTATO per decisione utente)*: `workflows/sdlc-analyzer-gap.js`, ramo `deep` in §3.2/§3.3/Fase 4, comparatore `scripts/golden-compare-gap.py`. Il **golden-test `classic` vs `deep`** resta facoltativo (vedi [`GOLDEN_TEST_ANALYZER.md`](./GOLDEN_TEST_ANALYZER.md)).
+4. ✅ **`sdlc-executor` + `sdlc-debug`** *(fatto 2026-05-30)*: `workflows/sdlc-executor-wave.js` + `sdlc-debug-fixwave.js` (worktree + sdlc-verifier panel; contratto patch→git apply).
+5. ✅ **`sdlc-updater` + `sdlc-reviewer`** *(fatto 2026-05-30)*: `workflows/sdlc-updater-delta.js` + `sdlc-reviewer-quality.js` (gap/delta + judge-panel).
+6. ✅ **Cerchio light** *(fatto 2026-05-30)*: estimator/clarify/progress-report/profile-setup — solo coherence-critic, nessun JS.
 
-> Il golden-test allo step 3 è la difesa contro il rischio V5 (divergenza non rilevabile): se gli output `classic` e `deep` su un input fisso non sono confrontabili/spiegabili, il pattern va corretto prima di propagarlo.
+> Il golden-test allo step 3 era la difesa contro il rischio V5. **È stato saltato per decisione utente** (costo token del run): in sostituzione, ogni workflow ha superato una **review adversariale statica** (lettura, non esecuzione). Resta che la divergenza `classic` vs `deep` non è stata misurata empiricamente su un input reale — il run del golden-test è la verifica raccomandata prima di affidarsi alla modalità `deep` in produzione.
 
 ---
 

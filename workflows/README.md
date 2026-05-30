@@ -20,11 +20,11 @@ degli agent in `agents/` (lì il tool `Task` li ignorerebbe).
 
 | Script | Skill | Stato |
 |---|---|---|
-| `sdlc-analyzer-gap.js` | `sdlc-analyzer` | da costruire (pilota, §11 step 3) |
-| `sdlc-executor-wave.js` | `sdlc-executor` | da costruire (§11 step 4) |
-| `sdlc-debug-fixwave.js` | `sdlc-debug` | da costruire (§11 step 4) |
-| `sdlc-updater-delta.js` | `sdlc-updater` | da costruire (§11 step 5) |
-| `sdlc-reviewer-quality.js` | `sdlc-reviewer` | da costruire (§11 step 5) |
+| `sdlc-analyzer-gap.js` | `sdlc-analyzer` | ✅ creato (pilota, §11 step 3) — golden-test run differito |
+| `sdlc-executor-wave.js` | `sdlc-executor` | ✅ creato (§11 step 4) |
+| `sdlc-debug-fixwave.js` | `sdlc-debug` | ✅ creato (§11 step 4) |
+| `sdlc-updater-delta.js` | `sdlc-updater` | ✅ creato (§11 step 5) |
+| `sdlc-reviewer-quality.js` | `sdlc-reviewer` | ✅ creato (§11 step 5) |
 
 Le skill *light* (`sdlc-estimator`, `sdlc-clarify`, `sdlc-progress-report`,
 `sdlc-profile-setup`) **non** hanno uno script qui: in `deep` aggiungono solo un
