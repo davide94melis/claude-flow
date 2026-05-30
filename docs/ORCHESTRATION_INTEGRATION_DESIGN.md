@@ -6,8 +6,8 @@
 > [`SOLARIA_SDLC_INTEGRATION.md`](./SOLARIA_SDLC_INTEGRATION.md) ·
 > [`ROADMAP_NEW_SKILLS.md`](./ROADMAP_NEW_SKILLS.md)
 
-**Stato:** design approvato (tutte le decisioni chiuse). **Step 1+2 del rollout (§11) implementati** (2026-05-30): flag `orchestration_*` in `sdlc-profile-setup`, `scripts/inject-orchestration.py` + sezione "## Modalità di orchestrazione" iniettata in tutte e 9 le SKILL.md, `sync-installed.sh` aggiornato, `workflows/` predisposta. Restano da costruire gli script `workflows/*.js` heavy (§11 step 3-5) e il cerchio light (§11 step 6).
-**Data:** 2026-05-29 (design) · 2026-05-30 (step 1+2).
+**Stato:** design approvato (tutte le decisioni chiuse). **Step 1+2 implementati** (2026-05-30): flag `orchestration_*` in `sdlc-profile-setup`, `scripts/inject-orchestration.py` + sezione "## Modalità di orchestrazione" iniettata in tutte e 9 le SKILL.md, `sync-installed.sh` aggiornato. **Step 3 — strumenti del pilota `sdlc-analyzer` pronti** (`workflows/sdlc-analyzer-gap.js`, ramo `deep` cablato, comparatore `scripts/golden-compare-gap.py`): manca solo il **run del golden-test** in sessione nuova (vedi [`GOLDEN_TEST_ANALYZER.md`](./GOLDEN_TEST_ANALYZER.md)). Restano step 4–5 (executor/debug/updater/reviewer) e step 6 (cerchio light).
+**Data:** 2026-05-29 (design) · 2026-05-30 (step 1+2 + strumenti step 3).
 **Metodo:** analisi prodotta con un workflow multi-agent (15 agent: 9 mapper-skill + 2 mapper infra/docs + 1 sintesi + 3 critiche adversariali), poi consolidata con l'utente via 4 decisioni chiave.
 
 ---
@@ -292,7 +292,7 @@ Nonostante D2 ("tutte e 9"), il rollout **valida prima su una skill** per accorg
 
 1. ✅ **`sdlc-profile-setup`** *(fatto 2026-05-30)*: estendere `.sdlc-local.json` col flag + default `classic` → posto canonico da cui le altre leggono.
 2. ✅ **`inject-orchestration.py`** + aggiornare `sync-installed.sh` *(fatto 2026-05-30)*: blocco opt-in in tutte e 9 (coerenza by-construction) + mapping di degrado uniforme. Lo script supporta `--replace` per ri-sincronizzare il blocco senza divergenza fonte/artefatti (V5).
-3. **Pilota `sdlc-analyzer`** (ROI massimo, fan-out già previsto) con **golden-test `classic` vs `deep`** su un'AFU fissa → valida il pattern e **misura la divergenza** dei due rami.
+3. 🔧 **Pilota `sdlc-analyzer`** *(strumenti pronti 2026-05-30; run differito)*: `workflows/sdlc-analyzer-gap.js` (explore fan-out → sintesi → completeness-critic + adversarial), ramo `deep` cablato in §3.2/§3.3/Fase 4, comparatore `scripts/golden-compare-gap.py`. Il **golden-test `classic` vs `deep`** su un'AFU fissa gira in una **sessione nuova** sul progetto reale BancaAgente — vedi [`GOLDEN_TEST_ANALYZER.md`](./GOLDEN_TEST_ANALYZER.md). Valida il pattern e **misura la divergenza** prima di propagare a step 4–6.
 4. **`sdlc-executor` + `sdlc-debug`** (condividono `sdlc-verifier` + worktree).
 5. **`sdlc-updater` + `sdlc-reviewer`** (logica gap/delta).
 6. **Cerchio light** (solo coherence-critic).
