@@ -477,6 +477,10 @@ Dopo la conferma, crea il branch in tutte le repo coinvolte:
 
 ### Esecuzione con sottoagenti
 
+**In `deep`** (vedi "## Modalità di orchestrazione"): per un batch di bug assegnati invoca il **Workflow tool** `name: sdlc-debug-fixwave` con `{bugs (con `stack` per il routing), repos, profile, const, depth, verifier_panel}`. Il workflow fa root-cause read-only in parallelo, poi i fix in **worktree isolati** con routing per-stack, verifica ognuno con `sdlc-verifier` (panel adversariale in `ultracode`) e il loop fix→riverifica (`loop-until-dry`). Poi **tu** (single-writer): applica il `patch` dei bug `VERIFIED` uno alla volta (`git apply`), aggiorna `BUG_REPORT.md` (append, ID/counter), suggerisci i commit (mai automatici). Se `partial: true` / bug `NEEDS_ATTENTION` (§8.2): non applicare nulla, presenta lo stato e fai decidere l'utente; banner **COPERTURA RIDOTTA** se degradi a `classic`. La **validazione funzionale (Fase 3) resta umana**.
+
+**In `classic`** (default): lavora i bug come descritto qui sotto (routing per-stack, verifica 3 fasi inline, una alla volta).
+
 #### Routing a Specialist per Stack
 
 **Se il profilo progetto e' disponibile**, determina il subagent_type in base al codebase coinvolto nel bug:

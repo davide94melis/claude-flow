@@ -379,7 +379,9 @@ Per ogni codebase fornito, verifica superficialmente:
 
 Lo scopo NON e' fare la gap analysis (quello lo fa `sdlc-analyzer`) ma trovare problemi di *documentazione* visibili solo confrontando col codice: l'AFU presuppone strutture che nel codice esistono ma sono diverse. Questi disallineamenti vanno segnalati al team funzionale perche' possono essere errori nell'AFU o evoluzioni non documentate.
 
-Usa gli agent di tipo `Explore` per parallelizzare l'esplorazione dei diversi codebase quando possibile.
+**In `classic`** (default): usa gli agent di tipo `Explore` per parallelizzare l'esplorazione dei diversi codebase quando possibile.
+
+**In `deep`** (vedi "## Modalità di orchestrazione"): invoca il **Workflow tool** `name: sdlc-reviewer-quality` con `{documents (i MD in requirements/), repos, profile, const, depth, verifier_panel}`. Il workflow analizza i documenti in parallelo (intra-doc) + check read-only vs codice per repo, sintetizza problemi/assunzioni/disallineamenti (inter-doc), poi `completeness-critic` + `adversarial` (scettici cercano bloccanti/ambiguità MANCATI con lenti diverse) + `judge-panel` sulle assunzioni di Parte 2. In Fase 4 consuma `problemi` + `assunzioni_judged` (assunzioni con `davvero_non_bloccante=false` → promuovi a bloccante; con `rischio_corretto=false` → ri-valuta rischio/costo in Parte 2) + `missed` (problemi aggiunti dagli scettici) + `disallineamenti`. La **scrittura del CLARIFY.md single-file + DOCX e il commit restano dell'agente principale** (single-writer); se il workflow non parte, degrada a `classic` con banner **COPERTURA RIDOTTA**.
 
 ---
 

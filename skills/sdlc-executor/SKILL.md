@@ -425,6 +425,10 @@ Quando la task e' confermata e le dipendenze sono soddisfatte, crea i branch in 
 
 Per ogni task, l'agente principale (tu) fai da coordinatore. Delega il lavoro concreto a sottoagenti Claude, ognuno con un compito specifico e ben delimitato.
 
+**In `deep`** (vedi "## Modalità di orchestrazione"): per la fase implementazione+verifica dei sotto-lavori *dentro questa task* invoca il **Workflow tool** `name: sdlc-executor-wave` con `{task, subjobs (la tua scomposizione), repos, gap_excerpt, profile, const, depth, verifier_panel}`. Il workflow implementa i sotto-lavori indipendenti in **parallelo in worktree isolati** per wave di dipendenza, verifica ognuno con `sdlc-verifier` (panel adversariale in `ultracode`) e fa il loop fix→riverifica (`loop-until-dry`). Poi **tu** (single-writer): per ogni sotto-lavoro `VERIFIED` **applica il suo `patch` al branch della task una alla volta** (`git apply`; merge controllato a valle, §8.4), con i gate utente e i commit **serializzati** (mai parallelizzare commit su più aree, §8.1). Se `partial: true` / sotto-lavori `NEEDS_ATTENTION` (§8.2): NON applicare nulla, presenta lo stato come *proposta non applicata* e fai decidere l'utente; banner **COPERTURA RIDOTTA** se degradi a `classic`. Gate di conferma, branch-prima-di-impl, commit (mai automatici) e PROGRESS restano serializzati, una task alla volta.
+
+**In `classic`** (default): scomponi e dispatcha i sottoagenti come descritto qui sotto (parallelizzazione opportunistica, verifica 3 fasi inline).
+
 #### Come scomporre una task in sotto-lavori
 
 Leggi la descrizione della task dal piano e dal gap report. Identifica i sotto-lavori necessari, ad esempio:

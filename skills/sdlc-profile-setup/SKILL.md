@@ -370,6 +370,8 @@ Aspetta la risposta. Se l'utente vuole modifiche, applicale e ripresenta il JSON
 
 Assembla i dati raccolti negli Step 1-7 in `PROFILE.json` (struttura come da `profile-schema.json`). Include solo le sezioni con dati reali — ometti campi vuoti o sezioni saltate.
 
+**In `deep`** (cerchio *light*, vedi "## Modalità di orchestrazione" e l'eccezione §7.6): nessun workflow pesante. Due sub-step leggeri: (1) auto-detect multi-repo più approfondito con explorer `sdlc-codebase-explorer` in "modalità senza profilo" sui codebase dello Step 3; (2) un **completeness-critic** sul PROFILE **prima della conferma** — un PROFILE errato viene ereditato da TUTTE le altre 8 skill, quindi vale una verifica scettica (campi stack/convenzioni/dominio coerenti col codice rilevato?). Banner **COPERTURA RIDOTTA** se degradi a `classic`.
+
 Struttura del JSON:
 
 ```json

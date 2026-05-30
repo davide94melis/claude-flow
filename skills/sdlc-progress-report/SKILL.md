@@ -269,6 +269,8 @@ Se il file di progresso non esiste, imposta progresso a 0% e stato a "Da iniziar
 
 ## Fase 3 — Generazione / Aggiornamento Excel
 
+**In `deep`** (cerchio *light*, vedi "## Modalità di orchestrazione"): nessun workflow pesante. Dopo aver generato i 3 fogli e prima del salvataggio, esegui UN solo sub-step di **completeness-critic di coerenza-dati** (un Task o `sdlc-verifier` scettico): ogni riga del TASKS è mappata in "Task"? gli stati di PROGRESS sono riconciliati col foglio? le somme per-wave/per-sviluppatore sono coerenti tra i 3 fogli? Correggi le incoerenze prima di salvare. Banner **COPERTURA RIDOTTA** se degradi a `classic`.
+
 Usa Python con `openpyxl` per generare il file. L'Excel deve contenere 3 fogli:
 
 ### Foglio 1 — "Task"

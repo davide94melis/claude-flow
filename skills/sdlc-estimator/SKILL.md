@@ -261,6 +261,8 @@ Se l'utente sceglie personalizza, mostra i default in tabella e permetti di camb
 
 ## Fase 2 — Esecuzione Stima
 
+**In `deep`** (cerchio *light*, vedi "## Modalità di orchestrazione"): nessun workflow pesante. Aggiungi UN solo sub-step di **coherence-critic** dopo aver raccolto i risultati — una verifica scettica (un Task o un'istanza `sdlc-verifier`) sulla calibrazione storica (`historian`) e sulla copertura delle funzionalità AFU (`analyst` rough): ogni funzionalità ha una stima? il fattore di calibrazione è coerente coi Piani in `done/`? I **3 scenari restano DETERMINISTICI** (Regola "niente random", §6/§8.3): NON parallelizzarli né introdurre variabilità. Banner **COPERTURA RIDOTTA** se degradi a `classic`.
+
 ### Modalita' Rough
 
 1. Lancia in **parallelo**:

@@ -391,6 +391,8 @@ Dopo tutte le domande:
 
 ## Fase 4 — Rivalutazione
 
+**In `deep`** (cerchio *light*, vedi "## Modalità di orchestrazione"): nessun workflow pesante. Due sub-step leggeri: (1) un **finder** sull'estrazione delle risposte ambigue dal diff/DOCX che **classifica, non riscrive** (Regola verbatim); (2) un **adversarial-verify SOLO sulle assunzioni "Rigettata"** — un rigetto errato inietta un fatto sbagliato in `sdlc-analyzer`: un'istanza `sdlc-verifier` scettica conferma che la risposta del funzionale contraddice davvero l'assunzione prima di marcarla `Rigettata`. Banner **COPERTURA RIDOTTA** se degradi a `classic`.
+
 Per ogni risposta ricevuta, valuta l'impatto:
 
 ### Problemi bloccanti

@@ -322,6 +322,10 @@ Per ogni requisito nuovo o modificato, verifica lo stato nel codice attuale (com
 
 Per i requisiti rimossi, verifica se il codice corrispondente era già stato implementato (task completate nel progresso).
 
+**In `deep`** (vedi "## Modalità di orchestrazione"): dopo aver calcolato il delta (2.2), invoca il **Workflow tool** `name: sdlc-updater-delta` con `{delta, repos, completed_tasks, profile, const, depth, verifier_panel}`. Il workflow fa il gap-check read-only del delta per repo (explorer paralleli), un `completeness-critic` sul delta (nessun delta non classificato) e un `adversarial-verify` mirato sui **MODIFICATO che ricadono su task già Completate** (falso "invariato" = lavoro perso; falso "modificato" = T-fix inutili). Consuma `delta_classified` + `completeness.missing` + `adversarial` (`serve_tfix`) per decidere gli aggiornamenti. La detection del delta (2.2) e la **scrittura di PLAN/TASKS/PROGRESS restano dell'agente principale** (single-writer); se il workflow non parte, degrada a `classic` con banner **COPERTURA RIDOTTA**.
+
+**In `classic`** (default): verifica i delta nel codice in modo sequenziale come sopra.
+
 ---
 
 ## Fase 3 — Aggiornamento Report
