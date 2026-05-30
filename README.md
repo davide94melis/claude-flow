@@ -122,6 +122,23 @@ Scenarista per simulazioni. Calcola timeline giorno per giorno, identifica bottl
 
 Con profilo configurato, `sdlc-executor` e `sdlc-debug` instradano i sottoagenti al subagent_type appropriato (es. `spring-boot-engineer` per Spring Boot, `angular-architect` per Angular). Senza profilo, usano `general-purpose` (retrocompatibilita').
 
+## Modalità di orchestrazione (classic / deep)
+
+Ogni skill SDLC può girare in due modalità, scelte dall'utente (default `classic`):
+
+- **`classic`** — sequenziale, leggera, pochi token. Il comportamento storico.
+- **`deep`** — orchestrazione multi-agent via **Workflow tool** + verifica adversariale: più lenta/costosa ma più esaustiva. Mai escalation silenziosa: si attiva solo via flag persistente o conferma esplicita.
+
+**Flag** in `.sdlc-local.json` (fallback `.br-local.json`), campi flat scritti da `sdlc-profile-setup`: `orchestration_mode` (`classic`|`deep`), `orchestration_depth` (`standard`|`ultracode`), `orchestration_max_concurrency`, `orchestration_verifier_panel`.
+
+**Due cerchi** (design completo: [`docs/ORCHESTRATION_INTEGRATION_DESIGN.md`](docs/ORCHESTRATION_INTEGRATION_DESIGN.md)):
+- **Heavy** — 5 script in [`workflows/`](workflows/) (`sdlc-analyzer-gap`, `sdlc-executor-wave`, `sdlc-debug-fixwave`, `sdlc-updater-delta`, `sdlc-reviewer-quality`): fan-out parallelo + `adversarial-verify` + `completeness-critic` + worktree isolati.
+- **Light** (`sdlc-estimator`, `sdlc-clarify`, `sdlc-progress-report`, `sdlc-profile-setup`) — solo un sub-step di coherence/completeness-critic.
+
+In `deep` i workflow **propongono**; l'agente principale resta single-writer (gate utente, niente auto-commit sul codice, scritture serializzate sui file source-of-truth). Se il Workflow tool è assente o fallisce, degrada a `classic` con banner **"COPERTURA RIDOTTA"** nell'artefatto. Deploy dei workflow: `scripts/sync-installed.sh --apply`.
+
+> Il pattern `deep` è validato con review adversariale statica ma **non ancora con un run empirico** (golden-test facoltativo: [`docs/GOLDEN_TEST_ANALYZER.md`](docs/GOLDEN_TEST_ANALYZER.md)).
+
 ## Installazione
 
 Copia le cartelle delle skill nella directory `~/.claude/skills/`:

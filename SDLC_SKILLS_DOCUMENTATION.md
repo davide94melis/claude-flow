@@ -162,6 +162,26 @@ Non sono necessari lock, file separati per developer, o aggregazione cross-branc
 
 ---
 
+## Modalità di orchestrazione (classic / deep)
+
+Ogni skill può eseguire in **`classic`** (default, sequenziale) o **`deep`** (Workflow tool multi-agent + verifica adversariale). La scelta è dell'utente — mai escalation silenziosa.
+
+**Risoluzione (cascata):** flag persistente in `.sdlc-local.json` (fallback `.br-local.json`; campi flat `orchestration_mode`/`orchestration_depth`/`orchestration_max_concurrency`/`orchestration_verifier_panel`) > keyword nel trigger (con conferma) > AskUserQuestion. Default globale `classic`.
+
+**Due cerchi:**
+- **Heavy** (`sdlc-analyzer`, `sdlc-executor`, `sdlc-debug`, `sdlc-updater`, `sdlc-reviewer`): in `deep` invocano uno script `workflows/*.js` con fan-out parallelo (explorer/implementer/verifier), `completeness-critic`, `adversarial-verify`. Per executor/debug i fix girano in **worktree isolati** e il workflow ritorna un `patch` che l'agente principale applica con `git apply`.
+- **Light** (`sdlc-estimator`, `sdlc-clarify`, `sdlc-progress-report`, `sdlc-profile-setup`): in `deep` aggiungono solo un sub-step di coherence/completeness-critic (nessun workflow JS). `sdlc-estimator` mantiene i 3 scenari **deterministici**.
+
+**Invarianti (entrambe le modalità):** gate di conferma utente, mai auto-commit sul codice, il sottoagente implementa / l'agente principale coordina e scrive (single-writer serializzato su PLAN/TASKS/PROGRESS/BUG_REPORT/CLARIFY), agent di verifica/esplorazione read-only. In `deep` i workflow **propongono**, non scrivono i file source-of-truth.
+
+**Capability + degradazione:** assume-disponibile (nessun probe); se il Workflow tool manca o fallisce → fallback `classic` con banner **"COPERTURA RIDOTTA"** nell'artefatto (gli output `classic` e `deep` NON sono equivalenti).
+
+**Deploy:** `scripts/sync-installed.sh --apply` copia skill, agent e `workflows/*.js` in `~/.claude/`.
+
+Dettaglio completo: `docs/ORCHESTRATION_INTEGRATION_DESIGN.md`. Validazione empirica facoltativa (golden-test, saltata per decisione): `docs/GOLDEN_TEST_ANALYZER.md`.
+
+---
+
 ## 1. BR Profile Setup
 
 **Skill**: `sdlc-profile-setup`
