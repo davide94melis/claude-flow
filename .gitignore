@@ -2,3 +2,6 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# Golden-test scratch (output classic.md/deep.md/divergenza.md — vedi docs/GOLDEN_TEST_ANALYZER.md)
+.golden/

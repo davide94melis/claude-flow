@@ -397,7 +397,9 @@ Per ogni codebase fornito, analizza:
 - **Frontend** (se applicabile): componenti, routing, modelli, i18n, servizi
 - **Configurazione**: properties, feature flag, sicurezza
 
-Usa gli agent di tipo `Explore` per parallelizzare l'esplorazione dei diversi codebase quando possibile.
+**In `classic`** (default): usa gli agent di tipo `Explore` per parallelizzare l'esplorazione dei diversi codebase quando possibile (fan-out opportunistico, model-driven).
+
+**In `deep`** (vedi "## Modalità di orchestrazione"): invoca il **Workflow tool** `name: sdlc-analyzer-gap`, passando `{repos, requirements (estratti in 3.1), profile, const, depth, max_concurrency, verifier_panel}`. Il workflow esegue il fan-out parallelo degli explorer `sdlc-codebase-explorer` — un explorer per repo, e in `depth: ultracode` un explorer per **repo × layer** (dati/API/servizi/repo/FE/config) per ridurre i falsi "Mancante" — con **barriera** prima della sintesi. Se il Workflow tool non è disponibile o fallisce, degrada a `classic` con banner **COPERTURA RIDOTTA**.
 
 **Nota**: il codebase viene letto dalla repo del progetto (dove la skill e' invocata). Solo gli artefatti del Piano (report, piano implementazione) vengono scritti in `deloitte-profiles`.
 
@@ -422,6 +424,13 @@ Per ogni gap, documenta:
 
 Il livello di dettaglio deve essere sufficiente perché un agente Claude Code, leggendo solo il gap report, possa capire esattamente cosa va fatto senza dover rileggere l'AFU originale.
 
+**In `deep`**: parti dal `matrix_draft` restituito dal Workflow tool `sdlc-analyzer-gap` e raffinalo prima di scrivere il report:
+- **completeness-critic**: per ogni requisito in `completeness.orphan_requirements` aggiungi la riga mancante (nessun requisito AFU orfano); valuta `completeness.extra_rows`.
+- **adversarial-verify**: per ogni voce in `adversarial`, se `status_riconciliato` ≠ `status_originale` adotta lo stato riconciliato (maggioranza semplice >1/2 dei voti; in pareggio → `Da chiarire`) e cita le `controprove` nelle colonne Evidenze/Gap.
+- **barriera parziale (§8.2)**: se `meta_run.explore_ok < meta_run.explore_units` (o `partial: true`), alcuni explorer sono falliti — tratta l'output come *proposta non applicata*: presenta lo stato parziale, **non scrivere** finché l'utente non conferma, e aggiungi in testa al PLAN il banner **COPERTURA RIDOTTA**.
+
+La **sintesi finale e la scrittura del report restano dell'agente principale** (single-writer): il workflow propone, tu decidi e scrivi.
+
 ---
 
 ## Fase 4 — Generazione Output
@@ -435,6 +444,10 @@ mkdir -p "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements"
 (in-progress e done sono già create da sdlc-profile-setup)
 
 Genera entrambi i file nella cartella del Piano in `$BASE_PATH/todo/`. Questo e' lo stato iniziale: la cartella intera si sposta in `in-progress/` quando uno sviluppatore avvia la lavorazione con `sdlc-executor`, e in `done/` al completamento di tutte le task.
+
+**In `deep`** — banner e judge-panel (vedi "## Modalità di orchestrazione"):
+- Mostra il banner di modalità all'avvio del lavoro pesante. Se hai dovuto degradare a `classic` (Workflow tool assente o fallito), scrivi in testa al PLAN il banner **"COPERTURA RIDOTTA — prodotto senza completeness-critic/adversarial-verify"**: gli artefatti `classic` e `deep` non sono equivalenti, la degradazione è rumorosa.
+- Dopo aver scritto il TASKS (4.2), esegui un **judge-panel** sulle task — auto-sufficienza di ogni task, granularità 1–5 gg, correttezza delle merge task `T-MERGE-NNN` e delle dipendenze: lancia `verifier_panel` verifiche scettiche (Task con prompt da `~/.claude/agents/sdlc-verifier.md` adattato al planning) e correggi le task segnalate **prima** del commit. In `classic` questo passo non viene eseguito.
 
 ### 4.1 — PLAN
 
