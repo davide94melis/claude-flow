@@ -271,7 +271,7 @@ Salva il nome. Verra' usato per creare la cartella `$BASE_PATH/todo/<YYYY-MM-DD>
 >
 > Accetto MD, PDF, DOCX, XLSX, PPTX e immagini.
 
-> **Nota standalone**: se la Domanda 0 ha trovato e validato un manifest Solaria, questa domanda viene **skippata** — i file sono auto-popolati da `manifest.files[]` e si trovano gia' in `$BASE_PATH/todo/<plan>/requirements/` (inclusi i `requirements/mockups/`). Il playbook test in `$BASE_PATH/todo/<plan>/tests/` non e' input della review (verra' usato in F2c).
+> **Nota standalone**: se la Domanda 0 ha trovato e validato un manifest Solaria, questa domanda viene **skippata** — i file sono auto-popolati da `manifest.files[]` e si trovano gia' in `$BASE_PATH/todo/<plan>/requirements/` (inclusi i `requirements/mockups/` se presenti — i mockup sono opzionali). Il playbook test in `$BASE_PATH/todo/<plan>/tests/` non e' input della review (verra' usato in F2c).
 
 ### Domanda 3 — Codebase
 
