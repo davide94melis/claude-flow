@@ -638,6 +638,27 @@ Se l'esito e' COMPLETA:
 
 Aggiorna il file di progresso: stato "Completata", progresso 100%, note con riepilogo del lavoro svolto, log attività aggiornato.
 
+**Gate smoke test** — prima di proporre la prossima task, offri allo sviluppatore degli smoke test mirati a QUESTA task appena completata. È un gate utente (mai procedere senza conferma) ed è indipendente dalla modalità di orchestrazione (`classic`/`deep`): vive qui nella prosa, a valle della verifica, e **non** va inserito nel workflow `sdlc-executor-wave` (quel workflow termina al confine "sotto-lavoro verificato" e delega applicazione patch/commit/PROGRESS all'agente principale — lo smoke gate gira dopo, qui).
+
+> La task **T-XXX** è completata e verificata.
+> Vuoi che generi degli **smoke test** mirati a questa task, per validarne rapidamente i flussi prima di proseguire?
+>
+> 1. Sì — genera gli smoke test e guidami nell'esecuzione passo passo
+> 2. No — passa direttamente alla prossima task
+
+Se l'utente sceglie **2 (No)**: prosegui senza fare nulla (vai a "proponi la prossima task").
+
+Se l'utente sceglie **1 (Sì)**:
+
+1. **Genera smoke test SPECIFICI** ai requisiti e ai flussi di questa task (derivati dal piano + dal codice appena scritto), mai generici. Per ogni flusso significativo della task produci:
+   - una **checklist guidata** manuale (precondizioni · passi · risultato atteso), pensata per l'esecuzione da parte dell'utente;
+   - dove fattibile, **comandi runnable** (curl per API, comando CLI, invocazione di un test mirato) che l'utente lancia e di cui riporta l'esito;
+   - **solo se la task tocca UI / flussi end-to-end** (`repository` o `stream` della task con sigla `FE`, `MOBILE`, `WEB`) **e** il profilo segnala Playwright (es. `conventions.testing` cita "Playwright", o è presente un tooling e2e frontend): genera anche uno o più **test Playwright** mirati al flusso (file `.spec.ts` + istruzioni per eseguirli). Per task solo backend, ometti Playwright.
+
+   Per scegliere comandi/framework leggi la config di test del profilo **a cascata** (non esiste una chiave `test_command`): (1) `tech_stack.<SIGLA>.test_framework` del repo/area della task; (2) `conventions.backend_java.test_framework` / `conventions.frontend_*` / `conventions.testing` (free-text); (3) inferenza dal framework + build tool (npm/Maven/Gradle). Se nulla è determinabile, genera solo la checklist guidata.
+2. **Persisti** gli smoke test in `$BASE_PATH/<stato>/<plan>/tests/smoke/<task-id>.md` (un file per task, es. `T-XXX.md`; `<stato>` = stato corrente del plan, tipicamente `in-progress` — **non** hardcodarlo: il file viaggia con la cartella quando il plan passa a `done/`). Crea la cartella `tests/smoke/` al volo (`mkdir -p`). Questi sono test **tecnici, per-task, eseguibili**, distinti da `tests/playbook.{md,xlsx}` (funzionale, manuale, generato da Solaria, eseguito dal team funzionale in F2c). Committa il file sul **repo profilo/progetto** con la stessa disciplina single-writer del PROGRESS (pull → write → commit → push), messaggio `[sdlc-executor] <task-id>: smoke test`. **Mai** scrivere smoke test nei repo di codice applicativo.
+3. **Guida l'esecuzione passo passo**: presenta **un test alla volta** (precondizioni, passi, risultato atteso), attendi che l'utente lo esegua e ne riporti l'esito, registra pass/fail, poi passa al successivo. A fine ciclo dai un **riepilogo** (N pass / M fail). Se un test **fallisce**, offri: (a) lanciare un sottoagente per investigare e correggere (poi ri-verifica la task), oppure (b) loggare il problema nel PROGRESS e proseguire — fai decidere l'utente.
+
 Dopo aver aggiornato il progresso, proponi la prossima task disponibile:
 
 > Vuoi procedere con la prossima task **T-005 — [nome]**?
