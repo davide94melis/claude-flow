@@ -243,7 +243,7 @@ Se trovi UN plan valido (gate=GO, review_clarify_status=closed), proponilo autom
 > Ho trovato il plan `<nome>` v<versione> consegnato da Solaria in `$BASE_PATH/todo/<dir>/`:
 > - Coverage: <percent>%, gate: GO, review/clarify: closed
 > - Files: [lista da manifest.files]
-> - Test playbook: [playbook_md] + [playbook_xlsx] (per F2c ondata b)
+> - Test playbook: [playbook_md] + [playbook_xlsx] (per F2c ondata b) — *mostra questa riga solo se `manifest.tests` è presente; per un package AFU-only (nessun playbook) ometti la riga*
 > - Stakeholder: <stakeholder>, deadline: <deadline>, priorita: <priorita>
 >
 > Confermi che vuoi rivedere questo plan?
