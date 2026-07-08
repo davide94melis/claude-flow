@@ -428,7 +428,7 @@ Per ogni problema documenta:
 
 ### Registro funzionale (dual-register) — regola dura + esempi
 
-**Regola dura**: il testo primario di ogni domanda (Parte 1) è in **linguaggio business**, leggibile da un funzionale senza contesto tecnico. Il dettaglio tecnico va **solo** nel campo "Dettaglio tecnico (per il TL)" e nella Parte 2. Stesso schema condiviso con le OPEN_QUESTIONS del Weaver Solaria: `{feature, contesto_funzionale, domanda_funzionale, opzioni[], dettaglio_tecnico?}`.
+**Regola dura**: il testo primario di ogni domanda (Parte 1) è in **linguaggio business**, leggibile da un funzionale senza contesto tecnico. Il dettaglio tecnico va **solo** nel campo "Dettaglio tecnico (per il TL)" e nella Parte 2. Stesso schema condiviso con le OPEN_QUESTIONS del Weaver Solaria: `{feature, context_funzionale, domanda_funzionale, opzioni[], dettaglio_tecnico?}`.
 
 **Esempio CATTIVO (troppo tecnico in Parte 1):**
 > Domanda: Il campo `statoPratica` del DTO `PracticeDTO` deve accettare l'enum `SUSPENDED` oltre a `OPEN/CLOSED`, e l'endpoint `PATCH /practices/{id}` deve validarlo a boundary?
