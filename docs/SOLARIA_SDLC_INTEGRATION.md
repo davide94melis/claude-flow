@@ -343,7 +343,7 @@ Greenfield + web ⇒ il Weaver propone gli item in §3 flaggandoli, e il Reviewe
 
 ### Contesto: concorrenza / resume (`_state.json`)
 Path: `<progetto>/plans/<stato>/<plan>/_state.json`. Chiavi: `plan, versione, phase("authoring"|"gate"|"post-go"|"clarify"|"handoff"), gate_outcome, review_clarify_status("open"|"closed"), open_questions[], features{ "F-NN": { owner, status("todo"|"in-progress"|"done"), heartbeat(ISO8601) } }, plan_lock{ owner, heartbeat }`.
-La feature è l'unità di ownership; gli artefatti plan-level (manifest, indice §6, sezioni globali §1/§2/§5) sono protetti da `plan_lock` (single-writer). Soglia heartbeat stantio = 15 min. Senza contesto: niente `_state.json`, comportamento attuale + avviso esplicito "nessun contesto".
+La feature è l'unità di ownership; gli artefatti plan-level (manifest, indice §6, sezioni globali §1/§2/§3/§5) sono protetti da `plan_lock` (single-writer). Soglia heartbeat stantio = 15 min. Senza contesto: niente `_state.json`, comportamento attuale + avviso esplicito "nessun contesto".
 
 ---
 
