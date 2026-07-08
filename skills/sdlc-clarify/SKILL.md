@@ -299,6 +299,14 @@ Aspetta la risposta prima di procedere.
 
 ### Modalita' C — MD compilato da Solaria (SOLO standalone)
 
+> **Contesto CLARIFY-BOTH**: dal round clarify redesign, Solaria (Orchestrator, single writer) **ricompila davvero il CLARIFY.md** — non lascia più solo l'AFU rigenerato. Nello **stesso round** Solaria:
+> - riempie in Parte 1 i campi `**Risposta del funzionale**:` + `**Data risposta**:` (commit `[solaria-clarify]`);
+> - aggiorna in Parte 2 lo `Stato` delle assunzioni `A-XXX` e la risoluzione dei disallineamenti `D-XXX`;
+> - aggiorna il "Riepilogo per sdlc-analyzer";
+> - **e** rigenera l'AFU v2 con bump `versione`/`parent_version`/`changelog` (commit `[solaria-update]`).
+>
+> Le domande e le categorie originali **non** vengono toccate (contratto invariato). Il tuo compito NON è più scrivere le risposte (ci sono già): è **acquisirle con conferma**, verificarne la coerenza col bump AFU, e aggiornare i soli campi derivati non ancora scritti.
+
 1. Identifica il commit `[solaria-clarify]` piu' recente sul `CLARIFY.md`:
 
 ```bash
@@ -314,7 +322,22 @@ LAST_REVIEWER_SHA=$(git -C "$GIT_REPO_PATH" log -1 --format="%H" \
 git -C "$GIT_REPO_PATH" diff "$LAST_REVIEWER_SHA" HEAD -- "<path-a-CLARIFY.md>"
 ```
 
-3. Per ogni domanda, cerca differenze nei placeholder `*(inserire qui la risposta)*` sostituiti con testo non vuoto.
+3. Per ogni domanda, rileva le risposte scritte da Solaria cercando nel diff:
+   - righe aggiunte `**Risposta del funzionale**:` con testo non vuoto (formato CLARIFY-BOTH), **e/oppure**
+   - il placeholder `*(inserire qui la risposta)*` sostituito con testo non vuoto (formato legacy);
+   - transizioni di `Stato` nelle assunzioni `A-XXX` (es. da *In attesa* a **Confermata**/**Rigettata**) e risoluzioni dei disallineamenti `D-XXX` in Parte 2.
+
+3bis. **Cross-check bump AFU (stesso round)**: verifica che l'AFU sia stato rigenerato nello stesso round delle risposte:
+
+   ```bash
+   AFU_FILE=$(ls "$BASE_PATH"/*/<dir>/requirements/AFU-*.md 2>/dev/null | head -1)
+   git -C "$GIT_REPO_PATH" log -1 --format="%h|%s|%ai" --grep="^\[solaria-update\]" -- "$AFU_FILE"
+   # versione/parent_version dal front-matter AFU
+   awk '/^---$/{c++; next} c==1' "$AFU_FILE" | grep -E "^versione:|^parent_version:"
+   ```
+
+   - Se trovi il commit `[solaria-clarify]` sul CLARIFY **ma non** un `[solaria-update]` sull'AFU con `versione` incrementata → **avvisa l'utente**: "Round clarify incompleto lato Solaria: risposte presenti nel CLARIFY ma AFU non rigenerato/non bumpato. Acquisisco le risposte, ma segnalo il disallineamento — verifica con Solaria prima di procedere con sdlc-analyzer."
+   - Se entrambi presenti e `versione` bumpata → round CLARIFY-BOTH coerente, procedi.
 
 4. Presenta le risposte rilevate per conferma, una alla volta, indicando autore + commit:
 
@@ -324,7 +347,7 @@ git -C "$GIT_REPO_PATH" diff "$LAST_REVIEWER_SHA" HEAD -- "<path-a-CLARIFY.md>"
 >
 > Confermo questa risposta? (si / no / correggi)
 
-5. Per ogni risposta confermata, marca come acquisita e passa alla rivalutazione (Fase 4). NB: le risposte sono **gia' nel file** committato, quindi la Fase 5.1 (scrittura risposte) viene saltata in Modalita' C — la skill aggiorna solo i campi strutturati (Stato assunzione, Data risposta, sezioni di riepilogo bloccanti/aperti) in un secondo commit.
+5. Per ogni risposta confermata, marca come acquisita e passa alla rivalutazione (Fase 4). NB: le risposte sono **gia' nel file** committato, quindi la Fase 5.1 (scrittura risposte) viene saltata in Modalita' C — la skill aggiorna solo i campi strutturati (Stato assunzione, Data risposta, sezioni di riepilogo bloccanti/aperti) in un secondo commit. Se la Parte 2 (`Stato` assunzioni `A-XXX`, risoluzioni `D-XXX`) è già stata compilata da Solaria, **non riscriverla**: verificane solo la coerenza con le risposte confermate e integra unicamente i campi mancanti.
 
 6. Se sono presenti anche risposte raccolte offline non ancora nel MD, l'utente puo' aggiungere la Modalita' B come complemento.
 
