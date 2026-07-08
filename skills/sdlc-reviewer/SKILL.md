@@ -351,6 +351,16 @@ Comunica all'utente lo stato della conversione:
 
 ## Fase 3 — Analisi della Documentazione
 
+### 3.0 — Riconoscimento struttura AFU (feature-first vs legacy)
+
+Prima dell'analisi, rileva la struttura dell'AFU in `requirements/AFU-*.md`:
+
+- **Feature-first**: ha front-matter YAML (`feature_index`, `rule_index`) e la §6 "Indice di copertura canoniche". In questo caso:
+  - **Ancora ogni rilievo a un ID**: il campo "Dove" di ogni problema usa `F-NN` (feature), `RB-<AREA>-NN` (regola) o `AC-FNN-NN` (criterio), non "sezione/pagina".
+  - **Niente falsi "sezione mancante"**: una canonica coperta via §6 (anche senza una sezione dedicata) NON è un gap. Verifica la §6 prima di segnalare una copertura mancante.
+  - **Check DRY**: se una regola `RB-…` risulta riscritta per esteso in più punti invece che citata per ID, segnalalo come problema di categoria "Incoerenza" (l'AFU feature-first impone fonte unica).
+- **Legacy (section-oriented)**: nessun front-matter/§6 → analisi per le 7 sezioni canoniche come da comportamento storico. Segnala in testa al CLARIFY: `NOTA: AFU legacy section-oriented — rilievi ancorati a sezione/pagina.`
+
 ### 3.1 — Analisi intra-documento
 
 Per ogni documento singolo convertito, verifica:
@@ -385,6 +395,14 @@ Lo scopo NON e' fare la gap analysis (quello lo fa `sdlc-analyzer`) ma trovare p
 
 ---
 
+### 3.4 — Baseline legale (awareness brownfield)
+
+Se il progetto è **web/public-facing** e **brownfield** (codebase esistente fornito in Domanda 3), verifica che l'AFU §3 "Requisiti obbligatori/legali" indirizzi la baseline legale. Consulta la checklist di contratto `solaria-agents/contract/legal-baseline-web-eu.md` (giurisdizione EU-IT di default) per i cluster: cookie-consent, privacy-policy, cookie-policy, tos, sitemap, accessibility-statement, gdpr-rights, minors-consent (condizionale), ai-act-transparency (condizionale — se la piattaforma usa AI: trasparenza + consenso ex Reg. UE 2024/1689).
+
+- Su brownfield Solaria (Weaver) **chiede** al funzionale (OPEN_QUESTION per cluster) se inserire o se già presenti; l'esito finisce in §3 dell'AFU.
+- Il tuo compito qui è **solo di awareness**: se §3 **non** menziona affatto la baseline e la Q&A legale risulta **non risolta**, solleva un problema **non bloccante** di categoria "Riferimento mancante": "La baseline legale (cookie/privacy/ToS/sitemap/accessibilità/GDPR/AI-Act) non risulta indirizzata né come già presente né come da inserire. Confermare lo stato per ciascun cluster."
+- **Non** fare gate NO-GO qui (il gate legale greenfield è responsabilità del Reviewer Solaria). Su brownfield nessun gate automatico.
+
 ## Fase 4 — Generazione Output
 
 ### Categorie di problemi
@@ -407,6 +425,20 @@ Per ogni problema documenta:
 - **Impatto**: cosa succede se non viene risolto
 - **Domanda per il funzionale**: domanda precisa a cui serve risposta
 - **Assunzione proposta** (solo per i non-bloccanti): cosa il team tecnico assumera' se non arriva chiarimento, con indicazione del rischio e del costo di correzione se l'assunzione si rivela errata
+
+### Registro funzionale (dual-register) — regola dura + esempi
+
+**Regola dura**: il testo primario di ogni domanda (Parte 1) è in **linguaggio business**, leggibile da un funzionale senza contesto tecnico. Il dettaglio tecnico va **solo** nel campo "Dettaglio tecnico (per il TL)" e nella Parte 2. Stesso schema condiviso con le OPEN_QUESTIONS del Weaver Solaria: `{feature, contesto_funzionale, domanda_funzionale, opzioni[], dettaglio_tecnico?}`.
+
+**Esempio CATTIVO (troppo tecnico in Parte 1):**
+> Domanda: Il campo `statoPratica` del DTO `PracticeDTO` deve accettare l'enum `SUSPENDED` oltre a `OPEN/CLOSED`, e l'endpoint `PATCH /practices/{id}` deve validarlo a boundary?
+
+**Esempio BUONO (business in Parte 1, tecnico separato):**
+> - **Contesto funzionale**: Oggi una pratica può essere Aperta o Chiusa. L'AFU introduce la possibilità di "sospendere" temporaneamente una pratica.
+> - **Domanda per il funzionale**: Una pratica sospesa può tornare Aperta, o la sospensione è definitiva?
+>   - Opzione A — la sospensione è reversibile (l'operatore può riattivarla)
+>   - Opzione B — la sospensione è definitiva (equivale a una chiusura speciale)
+> - **Dettaglio tecnico (per il TL)**: aggiungere `SUSPENDED` a `enum PracticeStatus`; validare la transizione in `PracticeService.changeStatus()`.
 
 ### Generazione del CLARIFY.md
 
@@ -445,10 +477,13 @@ nella documentazione.
 
 - **Categoria**: [Incoerenza / Gap funzionale / Ambiguita' / Riferimento mancante / Disallineamento col codice]
 - **Bloccante**: Si
-- **Dove**: [documento, sezione/pagina]
-- **Problema**: [descrizione chiara, comprensibile dal funzionale]
+- **Dove**: [ID `F-NN` / `RB-<AREA>-NN` / `AC-FNN-NN` se AFU feature-first; altrimenti documento, sezione/pagina]
+- **Contesto funzionale**: [1-2 frasi in linguaggio business che spiegano la situazione a chi non conosce il codice — zero termini tecnici/DTO/endpoint]
+- **Domanda per il funzionale**: [decisione da prendere, con conseguenze concrete; se ci sono più strade, elencale come opzioni con la loro conseguenza]
+  - Opzione A — [conseguenza in linguaggio business]
+  - Opzione B — [conseguenza]
+- **Dettaglio tecnico (per il TL)**: *(opzionale)* [qui, e SOLO qui, il dettaglio tecnico: nomi campi, endpoint, enum, vincoli implementativi]
 - **Impatto**: [perche' senza risposta non si puo' procedere]
-- **Domanda per il funzionale**: [domanda precisa a cui serve risposta]
 - **Risposta:** *(inserire qui la risposta)*
 
 #### 2. [...]
@@ -459,9 +494,10 @@ nella documentazione.
 
 - **Categoria**: [...]
 - **Bloccante**: No
-- **Dove**: [...]
-- **Problema**: [...]
-- **Domanda per il funzionale**: [domanda precisa]
+- **Dove**: [ID `F-NN` / `RB-…` / `AC-…` se feature-first; altrimenti documento, sezione/pagina]
+- **Contesto funzionale**: [1-2 frasi in linguaggio business]
+- **Domanda per il funzionale**: [domanda precisa, con opzioni/conseguenze se applicabile]
+- **Dettaglio tecnico (per il TL)**: *(opzionale)* [dettaglio implementativo, se serve]
 - **Risposta:** *(inserire qui la risposta)*
 - **Nota**: se non arriva chiarimento, il team tecnico procedera'
   con l'assunzione indicata nella Parte 2.
