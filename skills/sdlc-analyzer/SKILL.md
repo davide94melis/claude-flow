@@ -109,9 +109,9 @@ cat "$CONST_PATH/PROFILE.json"
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
 | Né `.sdlc-local.json` né `.br-local.json` (legacy) presenti | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
-| `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
+| `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
 | `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
-| Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
+| Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
 | JSON malformed | Mostra errore di parse + path | Stop |
 
 **Semantica d'uso:**
@@ -179,7 +179,7 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 | Primitiva `deep` | Fallback `classic` |
 |---|---|
 | `parallel` / `pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
-| `agent({agentType, schema})` | "leggi `~/.claude/agents/<agentType>.md` e lancia un Task" + parsing MD |
+| `agent({agentType, schema})` | "leggi `${CLAUDE_PLUGIN_ROOT}/agents/<agentType>.md` e lancia un Task" + parsing MD |
 | `adversarial-verify` / `judge-panel` | singola verifica `sdlc-verifier` inline |
 | `completeness-critic` | checklist manuale già presente nella skill |
 | `loop-until-dry` | ciclo fix/riverifica già descritto |
@@ -470,7 +470,7 @@ Genera entrambi i file nella cartella del Piano in `$BASE_PATH/todo/`. Questo e'
 
 **In `deep`** — banner e judge-panel (vedi "## Modalità di orchestrazione"):
 - Mostra il banner di modalità all'avvio del lavoro pesante. Se hai dovuto degradare a `classic` (Workflow tool assente o fallito), scrivi in testa al PLAN il banner **"COPERTURA RIDOTTA — prodotto senza completeness-critic/adversarial-verify"**: gli artefatti `classic` e `deep` non sono equivalenti, la degradazione è rumorosa.
-- Dopo aver scritto il TASKS (4.2), esegui un **judge-panel** sulle task — auto-sufficienza di ogni task, granularità 1–5 gg, correttezza delle merge task `T-MERGE-NNN` e delle dipendenze: lancia `verifier_panel` verifiche scettiche (Task con prompt da `~/.claude/agents/sdlc-verifier.md` adattato al planning) e correggi le task segnalate **prima** del commit. In `classic` questo passo non viene eseguito.
+- Dopo aver scritto il TASKS (4.2), esegui un **judge-panel** sulle task — auto-sufficienza di ogni task, granularità 1–5 gg, correttezza delle merge task `T-MERGE-NNN` e delle dipendenze: lancia `verifier_panel` verifiche scettiche (Task con prompt da `${CLAUDE_PLUGIN_ROOT}/agents/sdlc-verifier.md` adattato al planning) e correggi le task segnalate **prima** del commit. In `classic` questo passo non viene eseguito.
 
 ### 4.1 — PLAN
 
