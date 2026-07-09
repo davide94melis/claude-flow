@@ -1,14 +1,15 @@
 # Solaria ↔ SDLC Skills — Flusso End-to-End e Contratti di Interscambio
 
-**Rev. corrente:** 2026-05-21
+**Rev. corrente:** 2026-07-06
 **Stato:** Contratto attivo per integrazione Solaria-side. Allinearsi a `Fasi-New-way-of-working.md` (2 fasi composite) prima di proporre cambi.
+> Rev. 2026-07-06: aggiunta la sezione **"Layout dataset in fallback (per-progetto)"** — namespacing per-progetto degli output Solaria nel dataset condiviso quando il team funzionale non ha GitHub.
 **Scopo:** Definire come l'agente esterno **Solaria** si integra a monte del nostro processo SDLC, dalla creazione del dataset di progetto fino alla chiusura post-testing, e formalizzare i contratti d'interscambio (schema manifest, formati output, convenzioni commit).
 
 ---
 
 ## Premessa
 
-L'agente **Solaria** (in fase di progettazione presso un altro team, opera via API Anthropic — non Claude Code) assiste il **team funzionale** nella produzione e manutenzione dell'AFU (Analisi Funzionale Utente) + mockup + playbook test. Le skill `sdlc-*` di Claude Code prendono in carico il flusso dal momento in cui Solaria fa l'**handoff** del package alla repo del progetto, e producono codice, test e reportistica fino alla chiusura del plan.
+L'agente **Solaria** (in fase di progettazione presso un altro team, opera via API Anthropic — non Claude Code) assiste il **team funzionale** nella produzione e manutenzione dell'AFU (Analisi Funzionale Utente). L'**AFU e' sempre prodotta**; i **mockup** e il **playbook test** sono invece artefatti **opzionali**, generati solo se l'analista lo richiede esplicitamente a due gate distinti post-GO (GATE-1 "genero i mockup?" e GATE-2 "genero il playbook di test?", ognuno indipendente Si/No). Un package puo' quindi essere consegnato in modalita' **solo-AFU** (senza `requirements/mockups/` e senza `tests{}` nel manifest); in un secondo momento l'Orchestrator, re-invocato su un'AFU gia' GO, puo' rilevare gli artefatti mancanti e generare solo quelli (bump minor del manifest). Le skill `sdlc-*` di Claude Code prendono in carico il flusso dal momento in cui Solaria fa l'**handoff** del package alla repo del progetto, tollerano l'assenza di mockup/playbook, e producono codice, test e reportistica fino alla chiusura del plan.
 
 Il flusso end-to-end e' organizzato in **2 fasi composite** (vedi `Fasi-New-way-of-working.md`):
 
@@ -81,7 +82,7 @@ Per produrre AFU coerenti col progetto reale (non descrizioni generiche scollega
 ├── afu-manifest.schema.json                      schema v2 (copiato in F1a)
 └── plans/
     ├── draft/<YYYY-MM-DD>_<slug>/                 SOLARIA authoring F1c
-    │   ├── requirements/{AFU.docx|md, mockups/}
+    │   ├── requirements/{AFU-<slug>.md, mockups/}
     │   ├── afu-manifest.json                      (gate=GO|NO-GO, coverage, ecc.)
     │   ├── REVIEW.md                              (rilievi review/clarify post-GO)
     │   └── tests/{playbook.md, playbook.xlsx}     (output F1c)
@@ -99,6 +100,33 @@ Per produrre AFU coerenti col progetto reale (non descrizioni generiche scollega
     └── done/<plan>/                               F2c chiusura (sdlc-executor automatico)
 ```
 
+> Nota: `requirements/mockups/` e `tests/playbook.{md,xlsx}` sono **opzionali** — presenti solo se l'analista ha attivato GATE-1 (mockup) e/o GATE-2 (playbook) post-GO. Un package solo-AFU non li contiene.
+
+### Layout dataset in fallback (nessun GitHub — modalità normale del team funzionale)
+
+L'albero qui sopra è quello della **spec-repo GitHub**. Il team funzionale **non ha accesso a GitHub**, quindi gli agenti Solaria girano in **fallback**: gli artefatti prodotti dai tool di generazione (AI Ghost Writer, Generative UI, Python) **non** finiscono in una repo ma si materializzano nel **dataset Solaria**, che è **unico e condiviso tra tutti i team/progetti**. Per evitare collisioni cross-progetto, gli agenti replicano nel dataset la **stessa alberatura**, con **una cartella per progetto** al posto della repo:
+
+```
+<progetto>/                                   ← = slug della spec-repo (kebab); se non c'è repo → kebab del nome progetto
+  plans/<stato>/<YYYY-MM-DD>_<slug>/          ← <stato> ∈ {draft, todo, in-progress, done}
+    requirements/
+      AFU-<slug>.md
+      mockups/<schermata>.{html,png,svg}      (opzionale, GATE-1)
+    tests/
+      playbook.md                             (opzionale, GATE-2)
+      playbook.xlsx                           (opzionale, GATE-2)
+    afu-manifest.json                         (plan root)
+    CLARIFY.md                                (inbound: drag&drop analista, in todo/)
+```
+
+Regole (definite nel System Prompt dell'Orchestrator, sezione `DATASET LAYOUT`, e applicate dai worker 01/03/04):
+- **`<progetto>`** è derivato **una sola volta** dall'Orchestrator (slug spec-repo; se non c'è repo, kebab del nome progetto) e passato ai worker come `{project_folder, dataset_base_path}`; i worker non lo ri-derivano quando orchestrati.
+- **Doppio meccanismo (belt-and-suspenders):** se il tool di generazione espone un campo cartella/destinazione → impostarlo alla sottocartella (sovrascrive l'auto-bucket `assistant`/root di Solaria); **in ogni caso** il titolo del documento usa la forma piatta collision-safe con `__` al posto di `/` — es. `<progetto>__plans__<stato>__<YYYY-MM-DD>_<slug>__requirements__AFU-<slug>.md`. Mai un nome nudo (`AFU.md`, `playbook.md`, `playbook.xlsx`) nella root condivisa.
+- **draft→todo** in fallback: nessun rename atomico → un solo stato-target per emissione (authoring su `draft/`; all'handoff si emette su `todo/` e si cancella la copia draft).
+- **Invariante manifest:** il prefisso `<progetto>/plans/...` è **solo** collocazione nel dataset e **non entra mai** nei valori del manifest — `files[]` resta relativo a `requirements/`, `tests{}` resta relativo alla plan-root.
+
+> ⚠️ **Cleanup una-tantum:** i file già scaricati "piatti" nella root del dataset condiviso vanno riordinati **a mano** nella rispettiva cartella `<progetto>/...` (gli agenti non spostano file preesistenti).
+
 `.br-local.json` in ogni repo applicativa del developer:
 ```json
 { "project_repo": "<path-locale-del-clone>", "project_name": "<nome>", "developer": "<nome-dev>" }
@@ -110,31 +138,43 @@ Per produrre AFU coerenti col progetto reale (non descrizioni generiche scollega
 
 Il team Solaria deve produrre i seguenti agenti, tutti via API Anthropic (no Claude Code), che operano contro la project_repo via GitHub API. Le skill SDLC originali in `~/.claude/skills/` restano intatte: il team Solaria mantiene fork adattati Solaria-side.
 
+Il roster e' composto da **6 agenti**: **00** AFU Orchestrator, **01** FunctionalWeaver, **02** FunctionalReviewer, **03** Mockup Designer, **04** Playbook Generator, **05** Accessibility Assistant (sub-agente di 03, non di 00). Mockup Designer (03) e Playbook Generator (04) sono invocati solo su opt-in dell'analista ai gate post-GO (GATE-1 / GATE-2); l'Accessibility Assistant (05) e' attivato da 03 e quindi solo se GATE-1 e' attivo.
+
 ### A. FunctionalWeaver (Fase 1c — generazione AFU dal dataset)
 
 **Quando**: F1c authoring iniziale + ogni round stakeholder F2 + update mid-flight F2b
 **Input**: dataset Solaria del progetto (caricato in F1b) + `CONST.json` + `PROFILE.json` + scansione `plans/*` (read-only) + materiale offline funzionale (note, mail, mockup grezzi)
-**Output**: `plans/draft/<plan>/requirements/AFU.docx` (e/o `.md`) + `afu-manifest.json` v1.0/v1.N/v2.N
+**Output**: `plans/draft/<plan>/requirements/AFU-<slug>.md` + `afu-manifest.json` v1.0/v1.N/v2.N
 **Caratteristica chiave**: **NON conduce Q&A col funzionale**. Genera l'AFU **direttamente dal dataset**. La qualita' dell'AFU dipende dalla ricchezza del dataset. Itera con FunctionalReviewer fino a GO.
 **Implementazione**: prompt engineering con API Anthropic. System message con profilo + dataset come context.
 
 ### B. FunctionalReviewer (Fase 1c — quality gate GO/NO-GO)
 
 **Quando**: F1c dopo ogni generazione FunctionalWeaver + ogni round stakeholder F2 + ogni update F2b
-**Input**: `requirements/AFU.docx` + dataset corrispondente
+**Input**: `requirements/AFU-<slug>.md` + dataset corrispondente
 **Output**:
 - Aggiornamento `afu-manifest.json` con `coverage.{overall_percent, by_section{...}}` e `gate_outcome: "GO" | "NO-GO"`
 - Se NO-GO: log delle sezioni a bassa copertura (segnale implicito al funzionale su cosa manca nel dataset)
 **Caratteristica chiave**: quality gate **automatico**. Se NO-GO, blocca il passaggio a review/clarify Solaria-side. Il funzionale arricchisce il dataset, FunctionalWeaver rigenera, FunctionalReviewer rivaluta. Loop fino a GO.
 **Implementazione**: prompt engineering scorer (rubric per sezione AFU) con API Anthropic. Output strutturato JSON convertito in campi manifest.
 
-### C. Mockup Designer Agent (Fase 1c — generazione mockup)
+### C. Mockup Designer Agent (03) (Fase 1c — generazione mockup, **opzionale GATE-1**)
 
-**Quando**: F1c in parallelo all'authoring AFU + F2b se cambio requisiti impatta UI
+**Quando**: solo se l'analista attiva **GATE-1** post-GO ("genero i mockup?") + F2b se cambio requisiti impatta UI. Se GATE-1 = No, l'agente non viene invocato e il package resta solo-AFU.
+**Modello**: Claude 4.7 Opus, temperature 0.
 **Input**: mockup grezzi forniti dal funzionale + asset branding (`dataset/branding/`) + AFU corrente
-**Output**: file in `plans/draft/<plan>/requirements/mockups/` (PNG/JPG/SVG/Figma export)
-**Caratteristica chiave**: produce mockup "di esempio" coerenti col branding. Non sostituisce il design vero, ma da' al team tech un baseline visuale.
-**Implementazione**: image generation API + asset compositing.
+**Output**: mockup HTML **interattivi/cliccabili e modulari** in `plans/draft/<plan>/requirements/mockups/`, **accessibili by construction** (WCAG 2.1 AA)
+**Caratteristica chiave**: produce mockup HTML interattivi (navigabili, cliccabili) coerenti col branding e accessibili per costruzione. Non sostituisce il design vero, ma da' al team tech un baseline visuale e di interazione. Per garantire l'accessibilita' invoca il sub-agente **Accessibility Assistant (05)** e applica le remediation che questo restituisce.
+**Implementazione**: generazione HTML/CSS/JS modulare via API Anthropic + ciclo di assessment WCAG con l'Accessibility Assistant (05).
+
+### C-bis. Accessibility Assistant (05) (sub-agente di 03 — assessor WCAG 2.1 AA)
+
+**Quando**: invocato **dal Mockup Designer (03)** durante la generazione dei mockup (quindi solo se GATE-1 e' attivo). E' un sub-agente di 03, **non** dell'Orchestrator.
+**Modello**: Claude 4.6 Sonnet.
+**Input**: i mockup HTML prodotti da 03
+**Output**: report di remediation WCAG 2.1 AA (read-only sull'assessment: non scrive i file, restituisce a 03 le correzioni da applicare)
+**Caratteristica chiave**: assessor **read-only** di conformita' WCAG 2.1 AA. Non modifica direttamente i mockup: 03 applica le remediation restituite.
+**Implementazione**: prompt engineering scorer WCAG 2.1 AA con API Anthropic, output strutturato consumato da 03.
 
 ### D. Skill review + clarify forkate Solaria-side (Fase 1c post-GO + F2/F2b)
 
@@ -146,9 +186,9 @@ Il team Solaria deve produrre i seguenti agenti, tutti via API Anthropic (no Cla
 **Caratteristica chiave**: fork delle skill `sdlc-reviewer` + `sdlc-clarify` Claude Code, adattate per analisi dettaglio post-GO (le originali sono per review tech post-handoff). Iterazione col funzionale tramite Solaria fino a `closed`.
 **Implementazione**: prompt engineering riusando la logica di categorizzazione problemi delle skill originali.
 
-### E. Playbook Generator (Fase 1c — generazione test funzionali)
+### E. Playbook Generator (04) (Fase 1c — generazione test funzionali, **opzionale GATE-2**)
 
-**Quando**: F1c al consenso finale stakeholder (gate=GO + review_clarify=closed) + F2b se delta v2 impatta criteri accettazione
+**Quando**: solo se l'analista attiva **GATE-2** post-GO ("genero il playbook di test?"), al consenso finale stakeholder (gate=GO + review_clarify=closed) + F2b se delta v2 impatta criteri accettazione. Se GATE-2 = No, il playbook non viene generato e il manifest non contiene `tests{}`.
 **Input**: criteri di accettazione dell'AFU + flussi (happy path + eccezioni)
 **Output**:
 - `plans/<state>/<plan>/tests/playbook.md` (checklist eseguibile manualmente, formato MD per lettura)
@@ -185,7 +225,9 @@ Campi opzionali invariati: `parent_version`, `changelog`.
 | `coverage` | `{overall_percent, by_section{...}}` | FunctionalReviewer (F1c) | sdlc-reviewer / sdlc-analyzer (validazione handoff-ability) |
 | `gate_outcome` | enum `GO | NO-GO` | FunctionalReviewer (F1c) | sdlc-reviewer / sdlc-analyzer (gate handoff: solo GO procede) |
 | `review_clarify_status` | enum `open | closed` | skill review/clarify forkate (F1c post-GO) | sdlc-reviewer / sdlc-analyzer (gate handoff: solo closed procede) |
-| `tests` | `{playbook_md, playbook_xlsx}` | Playbook Generator (F1c) | sdlc-analyzer (header PLAN.md), sdlc-executor (log informativo F2c) |
+| `tests` | `{playbook_md, playbook_xlsx}` | Playbook Generator (F1c) | sdlc-analyzer (header PLAN.md), sdlc-executor (log informativo F2c) — **OPZIONALE**: presente solo se l'analista ha attivato GATE-2 e il playbook e' stato generato; altrimenti il campo e' omesso. |
+
+> Le voci `mockups/...` in `files[]` sono **opzionali** allo stesso modo: presenti solo se l'analista ha attivato GATE-1. Un package solo-AFU elenca in `files[]` la sola AFU.
 
 Esempio completo:
 
@@ -198,7 +240,7 @@ Esempio completo:
   "changelog": "Round 3 stakeholder: cambiata regola scadenza password 90->60gg.",
   "autore": "Mario Rossi <mario.rossi@example.com>",
   "data": "2026-05-21",
-  "files": ["AFU.docx", "mockups/login.png", "mockups/forgot-password.png"],
+  "files": ["AFU-login-sso.md", "mockups/login.png", "mockups/forgot-password.png"],
   "stakeholder": "Banca XYZ — Direzione Digital",
   "deadline": "2026-06-30",
   "priorita": "alta",
@@ -221,6 +263,20 @@ Esempio completo:
 ### `CLARIFY.md` con placeholder per Solaria (F2a opzionale)
 
 Quando il TL invoca `sdlc-reviewer` post-handoff in F2a (opzionale standalone), viene generato un `CLARIFY.md` con placeholder `*(inserire qui la risposta)*` sotto ogni domanda. Solaria detecta il nuovo commit `[sdlc-reviewer]` via polling Commits API o webhook, compila le risposte direttamente nel MD via Contents API e committa con prefisso `[solaria-clarify]`. `sdlc-clarify` lato Claude Code rileva il commit Solaria via `git log --grep="^\[solaria-clarify\]"` e attiva la **Modalita' C** (auto-detection). No DOCX in standalone.
+
+### Loop review/clarify bidirezionale (INCOMING CLARIFY)
+
+> ⚠️ **Vincolo tool GitHub (2026-06-15):** il tool GitHub di Solaria, allo stato attuale, crea un **branch + una PR per OGNI file** anziche' un commit atomico multi-file. Finche' e' cosi', lo scambio del `CLARIFY.md` (e dell'AFU rivista) **non** passa da GitHub Contents/polling come descritto nel paragrafo precedente, ma da **drag&drop nel dataset Solaria**. Il modello a polling/webhook resta il target quando il tool supportera' i commit atomici (coerente v3).
+
+Flusso effettivo del ciclo (step manuali, demo-friendly):
+1. Claude `sdlc-reviewer` produce `CLARIFY.md` in `plans/todo/<plan>/` (Parte 1 domande funzionale + Parte 2 assunzioni `A-XXX` / disallineamenti `D-XXX`).
+2. L'analista **carica `CLARIFY.md` nel dataset Solaria** (drag&drop).
+3. L'**Orchestrator** (branch *INCOMING CLARIFY*) legge il file via **Browse Dataset / Semantic Search**, estrae le domande (Parte 1 + i `D-XXX` che richiedono una decisione funzionale) e le passa al **FunctionalWeaver**.
+4. Il Weaver le ritorna come `OPEN_QUESTIONS`; l'Orchestrator alza il proprio **Interactive Questions Form**; le risposte dell'analista rigenerano l'**AFU v2** (`AFU-<slug>.md`, bump `versione` + `parent_version` + changelog).
+5. Re-gate FunctionalReviewer (deve restare GO). `review_clarify_status`: `open` durante il round, `closed` a convergenza.
+6. L'Orchestrator emette AFU v2 + manifest + `[solaria-update] <plan>: round chiarimenti da CLARIFY`; l'analista li ricolloca in `plans/todo/<plan>/` e Claude rilancia `sdlc-reviewer`/`sdlc-clarify`. Loop fino a CLARIFY risolto → `sdlc-analyzer`.
+
+Le **due review** restano distinte: il **gate Solaria** (FunctionalReviewer, copertura GO/NO-GO, pre-handoff) ≠ la **review Claude** (`sdlc-reviewer`, qualita' + chiarimenti vs codice, post-handoff).
 
 ### Excel bug v2 con colonna `origine`
 
@@ -267,10 +323,10 @@ Pattern unico per facilitare polling/filtering da `sdlc-*` skill:
 |---|---|---|
 | 1a (Setup tecnico) | nessuno (team tech `sdlc-profile-setup`) | `constitution/`, `references/`, `agents/`, `plans/{draft,todo,in-progress,done}/`, `dataset/` scheletro, `afu-manifest.schema.json` |
 | 1b (Setup dataset) | Orchestratore Solaria | `dataset/{branding,corporate,glossario.md,attori.md,perimetro.md}` popolati |
-| 1c (Authoring AFU) | FunctionalWeaver + FunctionalReviewer (loop) → Mockup Designer Agent → review/clarify forkate (post-GO loop) → Playbook Generator | `plans/draft/<plan>/{requirements/{AFU.*,mockups/}, afu-manifest.json, REVIEW.md, tests/playbook.{md,xlsx}}` + handoff finale `plans/todo/<plan>/...` via Git Trees API |
+| 1c (Authoring AFU) | FunctionalWeaver + FunctionalReviewer (loop) → review/clarify forkate (post-GO loop) → *[opt-in]* Mockup Designer (03) + Accessibility Assistant (05) se **GATE-1** → *[opt-in]* Playbook Generator (04) se **GATE-2** | sempre: `plans/draft/<plan>/{requirements/AFU.*, afu-manifest.json, REVIEW.md}`. Opzionali (solo su opt-in post-GO): `requirements/mockups/` (GATE-1), `tests/playbook.{md,xlsx}` + `tests{}` nel manifest (GATE-2). Handoff finale `plans/todo/<plan>/...` via Git Trees API anche in modalita' **solo-AFU** |
 | 2a (Implementazione) | nessuno (team tech: `sdlc-reviewer`/`sdlc-clarify` opzionali, poi `sdlc-analyzer`, `sdlc-executor`, `sdlc-progress-report`) | `plans/todo/<plan>/{CLARIFY.md opzionale, PLAN.md, TASKS.md}` → `plans/in-progress/<plan>/{PROGRESS.md, PROGRESS.xlsx}` |
-| 2a Q&A loop opzionale | Orchestratore Solaria (detection `[sdlc-reviewer]`/`[sdlc-clarify]` via polling/webhook) + skill clarify forkata (compila risposte) | `plans/todo/<plan>/CLARIFY.md` con commit `[solaria-clarify]` |
-| 2b (Update mid-flight) | FunctionalWeaver + FunctionalReviewer + Mockup Designer + review/clarify forkate + Playbook Generator (riuso F1c) → team tech `sdlc-updater` | `plans/in-progress/<plan>/{requirements/, afu-manifest.json v2.0, tests/playbook.* rigenerato}` |
+| 2a Q&A loop (INCOMING CLARIFY) | Orchestratore Solaria: l'analista carica `CLARIFY.md` nel dataset (drag&drop), l'Orchestrator lo legge (Browse Dataset) → Weaver ripropone le domande via IQF → AFU v2 *(futuro: detection `[sdlc-reviewer]` via polling/webhook quando GitHub supportera' commit atomici)* | `plans/todo/<plan>/CLARIFY.md` compilato + AFU v2 + manifest (bump) con `[solaria-update]` |
+| 2b (Update mid-flight) | FunctionalWeaver + FunctionalReviewer + review/clarify forkate + (Mockup Designer / Accessibility Assistant + Playbook Generator **solo se gia' presenti dai gate F1c o via RESUME**) → team tech `sdlc-updater` | `plans/in-progress/<plan>/{requirements/, afu-manifest.json v2.0}` + `tests/playbook.* rigenerato` e `requirements/mockups/` aggiornati **solo se presenti** (plan **AFU-only**: solo AFU + manifest) |
 | 2c ondata (a) test tecnici | nessuno (team tech: test automatici unit/integration/perf/security → `sdlc-debug`) | `plans/in-progress/<plan>/{bug-import-*.xlsx (origine=tecnico), BUG_REPORT.md sez. tecnici}` |
 | 2c ondata (b) test funzionali | nessuno (team funzionale autonomo su playbook md/xlsx → `sdlc-debug`) | `plans/in-progress/<plan>/{bug-import-*.xlsx (origine=funzionale), BUG_REPORT.md sez. funzionali}` |
 | 2c chiusura | nessuno (team tech `sdlc-executor` automatico) | `plans/done/<plan>/` (move automatico se task=Completata + bug_tecnici_aperti=0 + bug_funzionali_aperti=0) |
@@ -284,7 +340,8 @@ Pattern unico per facilitare polling/filtering da `sdlc-*` skill:
 | Orchestratore Solaria + autenticazione GitHub App/PAT | DA IMPLEMENTARE | Team Solaria |
 | FunctionalWeaver | DA IMPLEMENTARE | Team Solaria |
 | FunctionalReviewer | DA IMPLEMENTARE | Team Solaria |
-| Mockup Designer Agent | DA IMPLEMENTARE | Team Solaria |
+| Mockup Designer (03) — HTML interattivo/cliccabile + accessibile WCAG 2.1 AA (Claude 4.7 Opus) | DA IMPLEMENTARE | Team Solaria |
+| Accessibility Assistant (05) — assessor read-only WCAG 2.1 AA, sub-agente di 03 (Claude 4.6 Sonnet) | DA IMPLEMENTARE | Team Solaria |
 | Skill review + clarify forkate Solaria-side | DA IMPLEMENTARE | Team Solaria (fork da claude-flow/skills/sdlc-reviewer, sdlc-clarify) |
 | Playbook Generator | DA IMPLEMENTARE | Team Solaria |
 | Detection commit `[sdlc-*]` (polling on-demand default, webhook opzionale) | DA IMPLEMENTARE | Team Solaria |

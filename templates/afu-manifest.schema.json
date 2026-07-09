@@ -111,6 +111,43 @@
         }
       },
       "additionalProperties": false
+    },
+    "$schema": {
+      "type": "string",
+      "description": "Riferimento opzionale allo schema (chiave meta). Ammesso negli esempi di contratto e in eventuali manifest che lo includono; non richiesto e non usato per la validazione (il reviewer valida contro lo schema nel repo di progetto)."
+    },
+    "repos": {
+      "type": "object",
+      "description": "Provenienza/routing GitHub (v3, opzionale, back-compat). Indica dove Solaria scrive il package (single writer) e da quali repo legge il contesto (brownfield).",
+      "properties": {
+        "write_target": {
+          "type": "object",
+          "description": "Repo di destinazione per il package AFU + handoff draft->todo.",
+          "properties": {
+            "owner": { "type": "string" },
+            "repo": { "type": "string" },
+            "branch": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "read_sources": {
+          "type": "array",
+          "description": "Repo letti per grounding (brownfield).",
+          "items": {
+            "type": "object",
+            "properties": {
+              "owner": { "type": "string" },
+              "repo": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "source_of_files": {
+          "type": "string",
+          "description": "Origine dei file del package: 'in_repo' | 'uploaded' | 'mixed'."
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

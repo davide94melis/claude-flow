@@ -361,7 +361,7 @@ Da questo punto in poi, l'analisi lavora sui file MD convertiti in `requirements
 
 ### Scansione mockups/ (modalita' standalone)
 
-Se il plan e' in modalita' standalone, scansiona la cartella `requirements/mockups/` e usa i file come input visuale per la gap analysis UI/frontend:
+Se il plan e' in modalita' standalone **e** la cartella `requirements/mockups/` esiste (i mockup sono **opzionali** — vedi nota sotto), scansionala e usa i file come input visuale per la gap analysis UI/frontend:
 
 ```bash
 ls "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements/mockups"/* 2>/dev/null
@@ -369,7 +369,7 @@ ls "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements/mockups"/* 2>/dev/null
 
 Per ogni mockup (PNG/JPG/SVG generato dal Mockup Designer Agent Solaria), usa `Read` (supporto multimodale) e descrivi cosa rappresenta. Mappa ogni componente UI rilevato a una task della matrice di verifica (colonna FE o equivalente). Se un mockup mostra elementi che il codice FE non implementa ancora, e' un gap "Mancante" automatico per le task frontend.
 
-I mockup vivono in `requirements/mockups/` perche' Solaria li include in `manifest.files[]` con prefisso `mockups/`. Sono asset di prima classe per il planning UI, non riferimenti opzionali.
+I mockup, **quando presenti**, vivono in `requirements/mockups/` perche' Solaria li include in `manifest.files[]` con prefisso `mockups/`, e sono asset di prima classe per il planning UI. Sono pero' **opzionali**: l'Orchestrator Solaria li genera solo se l'analista lo conferma al gate post-GO, quindi un package puo' legittimamente non averli. Se `requirements/mockups/` e' assente o `manifest.files[]` non elenca voci `mockups/`, il comando `ls ... 2>/dev/null` sopra ritorna vuoto: salta la scansione, senza segnalarlo come anomalia.
 
 ---
 
