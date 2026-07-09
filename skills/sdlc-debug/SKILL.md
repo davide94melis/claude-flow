@@ -90,9 +90,9 @@ cat "<profiles_repo>/<profilo>/constitution/PROFILE.json"
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
 | Né `.sdlc-local.json` né `.br-local.json` (legacy) presenti | "Esegui prima `/sdlc-profile-setup`" | Stop |
-| `CONST.json` manca, `PROFILE.json` esiste | "Il profilo `<nome>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
+| `CONST.json` manca, `PROFILE.json` esiste | "Il profilo `<nome>` non ha CONST.json. Eseguire `python ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
 | `PROFILE.json` manca, `CONST.json` esiste | "Il profilo `<nome>` non ha PROFILE.json. Stato inconsistente — il profilo è incompleto. Ripristinare da git history o rifare il setup." | Stop |
-| Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
+| Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
 | JSON malformed | Mostra errore di parse + path | Stop |
 
 **Semantica d'uso:**
@@ -160,7 +160,7 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 | Primitiva `deep` | Fallback `classic` |
 |---|---|
 | `parallel` / `pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
-| `agent({agentType, schema})` | "leggi `~/.claude/agents/<agentType>.md` e lancia un Task" + parsing MD |
+| `agent({agentType, schema})` | "leggi `${CLAUDE_PLUGIN_ROOT}/agents/<agentType>.md` e lancia un Task" + parsing MD |
 | `adversarial-verify` / `judge-panel` | singola verifica `sdlc-verifier` inline |
 | `completeness-critic` | checklist manuale già presente nella skill |
 | `loop-until-dry` | ciclo fix/riverifica già descritto |
@@ -284,7 +284,7 @@ Se una colonna non viene mappata automaticamente, presentala all'utente e chiedi
 
 **Default retrocompat**: se la colonna `origine` e' **assente** nell'Excel (template v1 pre-Solaria), assumi `origine=tecnico` per tutti i bug. Comunica all'utente:
 
-> Il file Excel non ha la colonna `origine` (formato v1). Tratto tutti i bug come `tecnico`. Per il nuovo template v2 (con colonna origine = tecnico|funzionale) vedi `claude-flow/templates/BUG_EXCEL_TEMPLATE.xlsx`.
+> Il file Excel non ha la colonna `origine` (formato v1). Tratto tutti i bug come `tecnico`. Per il nuovo template v2 (con colonna origine = tecnico|funzionale) vedi `${CLAUDE_PLUGIN_ROOT}/templates/BUG_EXCEL_TEMPLATE.xlsx`.
 
 **Validazione**: se una riga ha `origine` con valore non in `{tecnico, funzionale}`, mostra errore e chiedi correzione (non default silenzioso — i valori invalidi sono probabilmente typo, meglio segnalarli).
 
@@ -477,7 +477,7 @@ Dopo la conferma, crea il branch in tutte le repo coinvolte:
 
 ### Esecuzione con sottoagenti
 
-**In `deep`** (vedi "## Modalità di orchestrazione"): per un batch di bug assegnati invoca il **Workflow tool** `name: sdlc-debug-fixwave` con `{bugs (con `stack` per il routing), repos, profile, const, depth, verifier_panel}`. Il workflow fa root-cause read-only in parallelo, poi i fix in **worktree isolati** con routing per-stack, verifica ognuno con `sdlc-verifier` (panel adversariale in `ultracode`) e il loop fix→riverifica (`loop-until-dry`). Poi **tu** (single-writer): applica il `patch` dei bug `VERIFIED` uno alla volta (`git apply`), aggiorna `BUG_REPORT.md` (append, ID/counter), suggerisci i commit (mai automatici). Se `partial: true` / bug `NEEDS_ATTENTION` (§8.2): non applicare nulla, presenta lo stato e fai decidere l'utente; banner **COPERTURA RIDOTTA** se degradi a `classic`. La **validazione funzionale (Fase 3) resta umana**.
+**In `deep`** (vedi "## Modalità di orchestrazione"): per un batch di bug assegnati invoca il **Workflow tool** con `scriptPath: ${CLAUDE_PLUGIN_ROOT}/workflows/sdlc-debug-fixwave.js` con `{bugs (con `stack` per il routing), repos, profile, const, depth, verifier_panel}`. Il workflow fa root-cause read-only in parallelo, poi i fix in **worktree isolati** con routing per-stack, verifica ognuno con `sdlc-verifier` (panel adversariale in `ultracode`) e il loop fix→riverifica (`loop-until-dry`). Poi **tu** (single-writer): applica il `patch` dei bug `VERIFIED` uno alla volta (`git apply`), aggiorna `BUG_REPORT.md` (append, ID/counter), suggerisci i commit (mai automatici). Se `partial: true` / bug `NEEDS_ATTENTION` (§8.2): non applicare nulla, presenta lo stato e fai decidere l'utente; banner **COPERTURA RIDOTTA** se degradi a `classic`. La **validazione funzionale (Fase 3) resta umana**.
 
 **In `classic`** (default): lavora i bug come descritto qui sotto (routing per-stack, verifica 3 fasi inline, una alla volta).
 
@@ -568,7 +568,7 @@ Dopo che il sottoagente completa il fix, esegui la verifica in 3 fasi:
 
 **Se il profilo progetto e' disponibile:**
 
-Delega la verifica all'agente `sdlc-verifier` (leggendo le sue istruzioni da `~/.claude/agents/sdlc-verifier.md`). Passa:
+Delega la verifica all'agente `sdlc-verifier` (leggendo le sue istruzioni da `${CLAUDE_PLUGIN_ROOT}/agents/sdlc-verifier.md`). Passa:
 - Requisiti: descrizione del bug + ipotesi di root cause
 - File modificati: lista dei file toccati dal sottoagente
 - Risultati test: output dell'esecuzione test
