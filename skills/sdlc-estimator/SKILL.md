@@ -101,9 +101,9 @@ cat "$CONST_PATH/PROFILE.json"
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
 | Né `.sdlc-local.json` né `.br-local.json` (legacy) presenti | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
-| `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
+| `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
 | `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
-| Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
+| Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
 | JSON malformed | Mostra errore di parse + path | Stop |
 
 **Semantica d'uso:**
@@ -171,7 +171,7 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 | Primitiva `deep` | Fallback `classic` |
 |---|---|
 | `parallel` / `pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
-| `agent({agentType, schema})` | "leggi `~/.claude/agents/<agentType>.md` e lancia un Task" + parsing MD |
+| `agent({agentType, schema})` | "leggi `${CLAUDE_PLUGIN_ROOT}/agents/<agentType>.md` e lancia un Task" + parsing MD |
 | `adversarial-verify` / `judge-panel` | singola verifica `sdlc-verifier` inline |
 | `completeness-critic` | checklist manuale già presente nella skill |
 | `loop-until-dry` | ciclo fix/riverifica già descritto |
@@ -266,8 +266,8 @@ Se l'utente sceglie personalizza, mostra i default in tabella e permetti di camb
 ### Modalita' Rough
 
 1. Lancia in **parallelo**:
-   - **Analista AFU** (`sdlc-estimation-analyst`): leggi le sue istruzioni da `~/.claude/agents/sdlc-estimation-analyst.md`. Passagli la documentazione AFU e il profilo progetto (se disponibile da `.sdlc-local.json`/`.br-local.json` legacy → `profiles_repo`/`profilo`).
-   - **Storico** (`sdlc-estimation-historian`): leggi le sue istruzioni da `~/.claude/agents/sdlc-estimation-historian.md`. Passagli il path a `$BASE_PATH/done/` e i parametri di default.
+   - **Analista AFU** (`sdlc-estimation-analyst`): leggi le sue istruzioni da `${CLAUDE_PLUGIN_ROOT}/agents/sdlc-estimation-analyst.md`. Passagli la documentazione AFU e il profilo progetto (se disponibile da `.sdlc-local.json`/`.br-local.json` legacy → `profiles_repo`/`profilo`).
+   - **Storico** (`sdlc-estimation-historian`): leggi le sue istruzioni da `${CLAUDE_PLUGIN_ROOT}/agents/sdlc-estimation-historian.md`. Passagli il path a `$BASE_PATH/done/` e i parametri di default.
 
 2. Ricevi i risultati:
    - Dall'analista: tabella funzionalita' con task stimate, complessita', rischio, area
@@ -285,7 +285,7 @@ Se l'utente sceglie personalizza, mostra i default in tabella e permetti di camb
 >
 > Procedo con il calcolo degli scenari?
 
-4. Dopo conferma, lancia lo **Scenarista** (`sdlc-estimation-scenario`): leggi le sue istruzioni da `~/.claude/agents/sdlc-estimation-scenario.md`. Passagli le task stimate, il team, la deadline, il fattore di calibrazione e i parametri.
+4. Dopo conferma, lancia lo **Scenarista** (`sdlc-estimation-scenario`): leggi le sue istruzioni da `${CLAUDE_PLUGIN_ROOT}/agents/sdlc-estimation-scenario.md`. Passagli le task stimate, il team, la deadline, il fattore di calibrazione e i parametri.
 
 ### Modalita' Dettagliata
 
@@ -488,6 +488,6 @@ git -C "$GIT_REPO_PATH" push origin main --quiet
 | Dipendenza | Usata per | Installazione |
 |---|---|---|
 | `openpyxl` (Python) | Generazione Excel | `pip install openpyxl` |
-| Agente `sdlc-estimation-analyst` | Stima rough | `~/.claude/agents/` |
-| Agente `sdlc-estimation-historian` | Calibrazione storica | `~/.claude/agents/` |
-| Agente `sdlc-estimation-scenario` | Calcolo scenari | `~/.claude/agents/` |
+| Agente `sdlc-estimation-analyst` | Stima rough | `${CLAUDE_PLUGIN_ROOT}/agents/` |
+| Agente `sdlc-estimation-historian` | Calibrazione storica | `${CLAUDE_PLUGIN_ROOT}/agents/` |
+| Agente `sdlc-estimation-scenario` | Calcolo scenari | `${CLAUDE_PLUGIN_ROOT}/agents/` |

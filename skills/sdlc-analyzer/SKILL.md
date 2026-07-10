@@ -109,9 +109,9 @@ cat "$CONST_PATH/PROFILE.json"
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
 | Né `.sdlc-local.json` né `.br-local.json` (legacy) presenti | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
-| `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
+| `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
 | `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
-| Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
+| Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
 | JSON malformed | Mostra errore di parse + path | Stop |
 
 **Semantica d'uso:**
@@ -179,7 +179,7 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 | Primitiva `deep` | Fallback `classic` |
 |---|---|
 | `parallel` / `pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
-| `agent({agentType, schema})` | "leggi `~/.claude/agents/<agentType>.md` e lancia un Task" + parsing MD |
+| `agent({agentType, schema})` | "leggi `${CLAUDE_PLUGIN_ROOT}/agents/<agentType>.md` e lancia un Task" + parsing MD |
 | `adversarial-verify` / `judge-panel` | singola verifica `sdlc-verifier` inline |
 | `completeness-critic` | checklist manuale già presente nella skill |
 | `loop-until-dry` | ciclo fix/riverifica già descritto |
@@ -216,7 +216,7 @@ ls "$BASE_PATH/draft"/*/afu-manifest.json 2>/dev/null
 
 > Ho trovato un plan ancora in `plans/draft/<dir>/`. Solaria non ha eseguito l'handoff (probabilmente gate=NO-GO o review/clarify Solaria-side ancora aperto). Attendi che Solaria completi la Fase 1c e promuova a `todo/`, oppure forza l'analisi sul draft (sconsigliato).
 
-Per i plan in `$BASE_PATH/todo/<dir>/`, leggi `afu-manifest.json` (se presente, modalita' standalone) ed estrai `nome`, `versione`, `coverage.overall_percent`, `gate_outcome`, `tests.playbook_md`. Cerca poi `CLARIFY.md`:
+Per i plan in `$BASE_PATH/todo/<dir>/`, leggi `afu-manifest.json` (se presente, modalita' standalone) ed estrai `nome`, `versione`, `coverage.overall_percent`, `gate_outcome`, `tests.playbook_md`, e (se presenti, schema v2) `feature_index`, `rule_index`, `legal_baseline`. Cerca poi `CLARIFY.md`:
 
 ```bash
 ls "$BASE_PATH/todo"/*/CLARIFY.md 2>/dev/null
@@ -386,6 +386,28 @@ Da ogni documento, estrai:
 
 Organizza i requisiti per **funzionalità** (es. "Dashboard", "Booking", "Monitoraggio"), non per documento o per modulo tecnico.
 
+### 3.1bis — Parsing AFU feature-first (front-matter + §6 indice di copertura)
+
+Le AFU generate da Solaria con la struttura **feature-first** espongono anchor macchina che rendono l'estrazione dei requisiti deterministica. Prima di leggere il corpo in prosa, estrai gli anchor:
+
+1. **Front-matter YAML** (in testa a `requirements/AFU-<slug>.md`): leggi `nome`, `versione`, `parent_version` (se presente), `feature_index` (ID feature `F-01, F-02, ...`), `rule_index` (ID regola `RB-<AREA>-NN`).
+
+   ```bash
+   AFU_FILE=$(ls "$BASE_PATH/todo"/<dir>/requirements/AFU-*.md 2>/dev/null | head -1)
+   # Estrai il blocco front-matter (tra i primi due '---')
+   awk '/^---$/{c++; next} c==1' "$AFU_FILE"
+   ```
+
+2. **§6 Indice di copertura canoniche** (matrice auto-generata in fondo all'AFU): mappa ognuna delle 7 chiavi canoniche (`funzionalita, attori, casi_uso, flussi, regole_business, vincoli_tecnici, criteri_accettazione`) alle `F-.. / RB-.. / AC-..` che la coprono. Usa questa matrice come **fonte di verità della copertura**: sostituisce l'euristica di scansione per sezioni.
+
+3. **Corpo §4 (feature-first)**: per ogni `## F-NN — <nome>`, estrai i sotto-blocchi: Sintesi, Attori coinvolti, Casi d'uso, Flussi (happy + alternativi + edge case), Regole di business (`RB-…`, enunciate una sola volta qui), Criteri di accettazione (`AC-FNN-NN`).
+
+**Regola DRY nel consumo**: ogni `RB-…`/`AC-…` è enunciato **una sola volta** alla sua fonte. Altrove l'AFU **cita l'ID**. Quando costruisci la matrice di verifica (§3.3), tratta ogni ID come **un solo requisito** anche se citato in più punti — non generare righe duplicate per lo stesso ID.
+
+**Baseline legale (§3 dell'AFU)**: se front-matter/manifest riportano `legal_baseline.applicable: true`, leggi gli item di §3 con il loro `status` (`included` / `already_present` / `scoped_out`). Gli item `included` sono requisiti a tutti gli effetti → una riga di matrice ciascuno. Gli item `already_present` e `scoped_out` NON generano task ma vanno elencati nell'Esito sintetico del PLAN come "coperti / fuori scope per decisione funzionale".
+
+**Fallback AFU legacy (section-oriented)**: se l'AFU **non** ha front-matter YAML **oppure** manca la §6 indice di copertura (documento pre-redesign, organizzato per le 7 sezioni canoniche), degrada all'euristica storica: scansiona le sezioni canoniche e organizza i requisiti per funzionalità inferendole dal testo. Segnala in testa al PLAN: `NOTA: AFU in formato legacy section-oriented — nessun front-matter/§6, estrazione via euristica a sezioni.`
+
 ### 3.2 — Esplorazione dei codebase
 
 Per ogni codebase fornito, analizza:
@@ -421,6 +443,7 @@ Per ogni gap, documenta:
 - **Cosa manca o è diverso** (con dettaglio sufficiente per implementare)
 - **Repository coinvolte** (usa le sigle fornite dall'utente)
 - **Complessità stimata** (Bassa / Media / Alta)
+- **ID AFU coperti**: elenca gli ID `F-NN` / `RB-…` / `AC-…` che la riga indirizza (solo AFU feature-first). Ogni riga della matrice cita l'ID stabile per tracciabilità con `sdlc-updater` (delta su ID). Se AFU legacy, lascia la colonna vuota.
 
 Il livello di dettaglio deve essere sufficiente perché un agente Claude Code, leggendo solo il gap report, possa capire esattamente cosa va fatto senza dover rileggere l'AFU originale.
 
@@ -447,7 +470,7 @@ Genera entrambi i file nella cartella del Piano in `$BASE_PATH/todo/`. Questo e'
 
 **In `deep`** — banner e judge-panel (vedi "## Modalità di orchestrazione"):
 - Mostra il banner di modalità all'avvio del lavoro pesante. Se hai dovuto degradare a `classic` (Workflow tool assente o fallito), scrivi in testa al PLAN il banner **"COPERTURA RIDOTTA — prodotto senza completeness-critic/adversarial-verify"**: gli artefatti `classic` e `deep` non sono equivalenti, la degradazione è rumorosa.
-- Dopo aver scritto il TASKS (4.2), esegui un **judge-panel** sulle task — auto-sufficienza di ogni task, granularità 1–5 gg, correttezza delle merge task `T-MERGE-NNN` e delle dipendenze: lancia `verifier_panel` verifiche scettiche (Task con prompt da `~/.claude/agents/sdlc-verifier.md` adattato al planning) e correggi le task segnalate **prima** del commit. In `classic` questo passo non viene eseguito.
+- Dopo aver scritto il TASKS (4.2), esegui un **judge-panel** sulle task — auto-sufficienza di ogni task, granularità 1–5 gg, correttezza delle merge task `T-MERGE-NNN` e delle dipendenze: lancia `verifier_panel` verifiche scettiche (Task con prompt da `${CLAUDE_PLUGIN_ROOT}/agents/sdlc-verifier.md` adattato al planning) e correggi le task segnalate **prima** del commit. In `classic` questo passo non viene eseguito.
 
 ### 4.1 — PLAN
 
@@ -509,9 +532,9 @@ Assunzioni adottate senza risposta (usate con rischio segnalato): A-002, A-004
 
 Genera dinamicamente una colonna per ogni repository coinvolta, usando le sigle fornite dall'utente.
 
-| Requisito | <SIGLA_1> | <SIGLA_2> | ... <SIGLA_N> | Stato | Evidenze | Gap |
-|---|---|---|---|---|---|---|
-| [Requisito dall'AFU] | [Implementato/Non implementato/N/A] | [Implementato/Non implementato/N/A] | ... | [Coperto/Parziale/Mancante/Discrepanza/Da chiarire] | [Path esatti a file e classi rilevanti, per ogni repo] | [Descrizione precisa del gap, o "Nessuno"] |
+| Requisito | ID AFU | <SIGLA_1> | <SIGLA_2> | ... <SIGLA_N> | Stato | Evidenze | Gap |
+|---|---|---|---|---|---|---|---|
+| [Requisito dall'AFU] | [F-NN / RB-… / AC-… o "—" se legacy] | [Implementato/Non implementato/N/A] | [Implementato/Non implementato/N/A] | ... | [Coperto/Parziale/Mancante/Discrepanza/Da chiarire] | [Path esatti a file e classi rilevanti, per ogni repo] | [Descrizione precisa del gap, o "Nessuno"] |
 
 [Una riga per ogni requisito identificato, raggruppate per funzionalità. Se il progetto ha una sola repo, la matrice avrà una sola colonna repo.]
 

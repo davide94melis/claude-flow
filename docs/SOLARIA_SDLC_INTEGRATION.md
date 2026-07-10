@@ -260,6 +260,29 @@ Esempio completo:
 }
 ```
 
+**Campi opzionali aggiunti (back-compat — i manifest legacy restano validi):**
+- `legal_baseline`: `{ "applicable": bool, "jurisdiction": "EU-IT", "items": [ { "id": "cookie-consent", "status": "included" | "already_present" | "scoped_out" } ] }`
+- `feature_index`: `["F-01", "F-02", ...]` — navigazione feature-first.
+- `rule_index`: `["RB-<AREA>-NN", ...]` — indice regole di business.
+
+`coverage.by_section` resta INVARIATO (le 7 chiavi canoniche: funzionalita, attori, casi_uso, flussi, regole_business, vincoli_tecnici, criteri_accettazione) per back-compat 1:1 col Reviewer.
+
+### Struttura AFU feature-first (v2)
+
+File AFU: `requirements/AFU-<slug>.md`. Front-matter YAML: `nome, versione, parent_version?, feature_index[], rule_index[]`.
+
+Ordine sezioni (obbligatorio):
+0. Executive summary (1 paragrafo, linguaggio piano)
+1. Glossario & Attori (tabella globale)
+2. Perimetro & Dipendenze (incl. esclusioni)
+3. Requisiti obbligatori/legali (greenfield: baseline; brownfield: esito Q&A)
+4. Funzionalità (CORPO feature-first): per feature `## F-NN — <nome>` con sotto-blocchi Sintesi / Attori coinvolti (rif. §1) / Casi d'uso / Flussi (happy + alternativi + EDGE CASE, un Mermaid per feature) / Regole di business (RB-<AREA>-NN enunciate QUI una sola volta) / Criteri di accettazione (AC-F<NN>-NN)
+5. Vincoli tecnici (funzionali, globali)
+6. Indice di copertura canoniche (AUTO-GENERATO): le 7 chiavi canoniche → quali F-.. / RB-.. / AC-.. le coprono
+
+ID: feature `F-01`... (2 cifre); regola `RB-<AREA>-NN` (AREA maiuscolo breve, NN 2 cifre); criterio `AC-F<NN>-NN`.
+Regola DRY: ogni RB/AC enunciato UNA VOLTA alla fonte; altrove si cita l'ID, mai si riscrive il testo.
+
 ### `CLARIFY.md` con placeholder per Solaria (F2a opzionale)
 
 Quando il TL invoca `sdlc-reviewer` post-handoff in F2a (opzionale standalone), viene generato un `CLARIFY.md` con placeholder `*(inserire qui la risposta)*` sotto ogni domanda. Solaria detecta il nuovo commit `[sdlc-reviewer]` via polling Commits API o webhook, compila le risposte direttamente nel MD via Contents API e committa con prefisso `[solaria-clarify]`. `sdlc-clarify` lato Claude Code rileva il commit Solaria via `git log --grep="^\[solaria-clarify\]"` e attiva la **Modalita' C** (auto-detection). No DOCX in standalone.
@@ -278,6 +301,12 @@ Flusso effettivo del ciclo (step manuali, demo-friendly):
 
 Le **due review** restano distinte: il **gate Solaria** (FunctionalReviewer, copertura GO/NO-GO, pre-handoff) ≠ la **review Claude** (`sdlc-reviewer`, qualita' + chiarimenti vs codice, post-handoff).
 
+**Clarify-both (nuovo, #1).** Dopo aver raccolto le risposte, l'Orchestrator (single writer) esegue ENTRAMBE le scritture:
+1. Ricompila `CLARIFY.md`: campi "Risposta del funzionale" + "Data risposta" in Parte 1; stato assunzioni `A-XXX` + risoluzione disallineamenti `D-XXX` in Parte 2; aggiorna "Riepilogo per sdlc-analyzer". NON modifica domande/categorie originali.
+2. Rigenera l'AFU v2 con bump `versione` + `parent_version` + `changelog`.
+Emissione: `CLARIFY.md` con commit `[solaria-clarify]`, AFU con `[solaria-update]`. Trasporto: via contesto se presente, altrimenti dataset drag&drop.
+Lato Claude: `sdlc-clarify` Modalità C (auto-detect `[solaria-clarify]`) ora acquisisce un `CLARIFY.md` DAVVERO compilato (non più solo AFU rigenerato).
+
 ### Excel bug v2 con colonna `origine`
 
 Template canonical in `claude-flow/templates/BUG_EXCEL_TEMPLATE.xlsx` v2.
@@ -294,6 +323,27 @@ In alternativa all'Excel: scrittura diretta su Jira (se progetto configurato), s
 ### Playbook test (`tests/playbook.md` + `.xlsx`)
 
 Generato da Playbook Generator Solaria-side in F1c, committato come parte del package handoff. Eseguito **manualmente in autonomia dal team funzionale** in F2c ondata (b) — Solaria non e' coinvolta nell'esecuzione. Fail confluiscono in `bug-import-YYYYMMDD.xlsx` con `origine=funzionale`.
+
+### Output FunctionalReviewer (02) esteso
+
+{ "coverage": { "overall_percent": int, "by_section": { 7 chiavi int } },
+  "quality": { "no_repetition": int, "edge_case_coverage": int, "readability": int },
+  "legal_baseline": { "applicable": bool, "missing": [ids] },
+  "gate_outcome": "GO" | "NO-GO", "low_coverage_sections": [], "notes": "..." }
+
+Gate GO se e solo se: overall_percent ≥ 85 AND ogni by_section ≥ 70 AND quality.no_repetition ≥ 85 AND (legal_baseline.applicable ? legal_baseline.missing == [] : true).
+
+### Schema domanda dual-register (Weaver ↔ sdlc-reviewer)
+{ id, feature, source, context_funzionale, domanda_funzionale, opzioni: [{ label, conseguenza }], dettaglio_tecnico?, allow_note }
+Testo primario in italiano business; il dettaglio tecnico SOLO dentro `dettaglio_tecnico` (per il TL).
+
+### Baseline legale
+File: `solaria-agents/contract/legal-baseline-web-eu.md`. Campi voce: `id, titolo, quando_si_applica, riferimento_normativo, nota_funzionale`. Voci default (EU-IT, 9): cookie-consent, privacy-policy, cookie-policy, tos, sitemap, accessibility-statement, gdpr-rights, minors-consent (condizionale: minori nel perimetro), ai-act-transparency (condizionale: la piattaforma usa AI — Reg. UE 2024/1689 art. 50, uso AI esplicitato + consenso utente, pena indisponibilità funzionalità AI).
+Greenfield + web ⇒ il Weaver propone gli item in §3 flaggandoli, e il Reviewer va in NO-GO se mancano. Brownfield ⇒ il Weaver CHIEDE al funzionale (una OPEN_QUESTION per cluster) se inserirli o se già presenti; nessun gate automatico.
+
+### Contesto: concorrenza / resume (`_state.json`)
+Path: `<progetto>/plans/<stato>/<plan>/_state.json`. Chiavi: `plan, versione, phase("authoring"|"gate"|"post-go"|"clarify"|"handoff"), gate_outcome, review_clarify_status("open"|"closed"), open_questions[], features{ "F-NN": { owner, status("todo"|"in-progress"|"done"), heartbeat(ISO8601) } }, plan_lock{ owner, heartbeat }`.
+La feature è l'unità di ownership; gli artefatti plan-level (manifest, indice §6, sezioni globali §1/§2/§3/§5) sono protetti da `plan_lock` (single-writer). Soglia heartbeat stantio = 15 min. Senza contesto: niente `_state.json`, comportamento attuale + avviso esplicito "nessun contesto".
 
 ---
 

@@ -121,9 +121,9 @@ cat "$CONST_PATH/PROFILE.json"
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
 | Né `.sdlc-local.json` né `.br-local.json` (legacy) presenti | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
-| `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
+| `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
 | `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
-| Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
+| Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
 | JSON malformed | Mostra errore di parse + path | Stop |
 
 **Semantica d'uso:**
@@ -191,7 +191,7 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 | Primitiva `deep` | Fallback `classic` |
 |---|---|
 | `parallel` / `pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
-| `agent({agentType, schema})` | "leggi `~/.claude/agents/<agentType>.md` e lancia un Task" + parsing MD |
+| `agent({agentType, schema})` | "leggi `${CLAUDE_PLUGIN_ROOT}/agents/<agentType>.md` e lancia un Task" + parsing MD |
 | `adversarial-verify` / `judge-panel` | singola verifica `sdlc-verifier` inline |
 | `completeness-critic` | checklist manuale già presente nella skill |
 | `loop-until-dry` | ciclo fix/riverifica già descritto |
@@ -299,6 +299,14 @@ Aspetta la risposta prima di procedere.
 
 ### Modalita' C — MD compilato da Solaria (SOLO standalone)
 
+> **Contesto CLARIFY-BOTH**: dal round clarify redesign, Solaria (Orchestrator, single writer) **ricompila davvero il CLARIFY.md** — non lascia più solo l'AFU rigenerato. Nello **stesso round** Solaria:
+> - riempie in Parte 1 i campi `**Risposta del funzionale**:` + `**Data risposta**:` (commit `[solaria-clarify]`);
+> - aggiorna in Parte 2 lo `Stato` delle assunzioni `A-XXX` e la risoluzione dei disallineamenti `D-XXX`;
+> - aggiorna il "Riepilogo per sdlc-analyzer";
+> - **e** rigenera l'AFU v2 con bump `versione`/`parent_version`/`changelog` (commit `[solaria-update]`).
+>
+> Le domande e le categorie originali **non** vengono toccate (contratto invariato). Il tuo compito NON è più scrivere le risposte (ci sono già): è **acquisirle con conferma**, verificarne la coerenza col bump AFU, e aggiornare i soli campi derivati non ancora scritti.
+
 1. Identifica il commit `[solaria-clarify]` piu' recente sul `CLARIFY.md`:
 
 ```bash
@@ -314,7 +322,22 @@ LAST_REVIEWER_SHA=$(git -C "$GIT_REPO_PATH" log -1 --format="%H" \
 git -C "$GIT_REPO_PATH" diff "$LAST_REVIEWER_SHA" HEAD -- "<path-a-CLARIFY.md>"
 ```
 
-3. Per ogni domanda, cerca differenze nei placeholder `*(inserire qui la risposta)*` sostituiti con testo non vuoto.
+3. Per ogni domanda, rileva le risposte scritte da Solaria cercando nel diff:
+   - righe aggiunte `**Risposta del funzionale**:` con testo non vuoto (formato CLARIFY-BOTH), **e/oppure**
+   - il placeholder `*(inserire qui la risposta)*` sostituito con testo non vuoto (formato legacy);
+   - transizioni di `Stato` nelle assunzioni `A-XXX` (es. da *In attesa* a **Confermata**/**Rigettata**) e risoluzioni dei disallineamenti `D-XXX` in Parte 2.
+
+3bis. **Cross-check bump AFU (stesso round)**: verifica che l'AFU sia stato rigenerato nello stesso round delle risposte:
+
+   ```bash
+   AFU_FILE=$(ls "$BASE_PATH"/*/<dir>/requirements/AFU-*.md 2>/dev/null | head -1)
+   git -C "$GIT_REPO_PATH" log -1 --format="%h|%s|%ai" --grep="^\[solaria-update\]" -- "$AFU_FILE"
+   # versione/parent_version dal front-matter AFU
+   awk '/^---$/{c++; next} c==1' "$AFU_FILE" | grep -E "^versione:|^parent_version:"
+   ```
+
+   - Se trovi il commit `[solaria-clarify]` sul CLARIFY **ma non** un `[solaria-update]` sull'AFU con `versione` incrementata → **avvisa l'utente**: "Round clarify incompleto lato Solaria: risposte presenti nel CLARIFY ma AFU non rigenerato/non bumpato. Acquisisco le risposte, ma segnalo il disallineamento — verifica con Solaria prima di procedere con sdlc-analyzer."
+   - Se entrambi presenti e `versione` bumpata → round CLARIFY-BOTH coerente, procedi.
 
 4. Presenta le risposte rilevate per conferma, una alla volta, indicando autore + commit:
 
@@ -324,7 +347,7 @@ git -C "$GIT_REPO_PATH" diff "$LAST_REVIEWER_SHA" HEAD -- "<path-a-CLARIFY.md>"
 >
 > Confermo questa risposta? (si / no / correggi)
 
-5. Per ogni risposta confermata, marca come acquisita e passa alla rivalutazione (Fase 4). NB: le risposte sono **gia' nel file** committato, quindi la Fase 5.1 (scrittura risposte) viene saltata in Modalita' C — la skill aggiorna solo i campi strutturati (Stato assunzione, Data risposta, sezioni di riepilogo bloccanti/aperti) in un secondo commit.
+5. Per ogni risposta confermata, marca come acquisita e passa alla rivalutazione (Fase 4). NB: le risposte sono **gia' nel file** committato, quindi la Fase 5.1 (scrittura risposte) viene saltata in Modalita' C — la skill aggiorna solo i campi strutturati (Stato assunzione, Data risposta, sezioni di riepilogo bloccanti/aperti) in un secondo commit. Se la Parte 2 (`Stato` assunzioni `A-XXX`, risoluzioni `D-XXX`) è già stata compilata da Solaria, **non riscriverla**: verificane solo la coerenza con le risposte confermate e integra unicamente i campi mancanti.
 
 6. Se sono presenti anche risposte raccolte offline non ancora nel MD, l'utente puo' aggiungere la Modalita' B come complemento.
 
@@ -340,7 +363,7 @@ git -C "$GIT_REPO_PATH" diff "$LAST_REVIEWER_SHA" HEAD -- "<path-a-CLARIFY.md>"
 pandoc -f docx -t markdown "<path-docx-compilato>" -o "<cartella-br>/CLARIFY_risposte_temp.md"
 ```
 
-3. Confronta il file convertito con il CLARIFY.md originale. Per ogni domanda, cerca differenze nel testo dopo il campo "**Risposta:**":
+3. Confronta il file convertito con il CLARIFY.md originale. Per ogni domanda, cerca differenze nel testo dopo il campo "**Risposta del funzionale**":
    - Se il placeholder `*(inserire qui la risposta)*` e' stato sostituito con testo diverso → risposta rilevata
    - Se il placeholder e' invariato o il campo e' assente → nessuna risposta
 

@@ -112,6 +112,38 @@
       },
       "additionalProperties": false
     },
+    "feature_index": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^F-\\d{2}$" },
+      "description": "Indice opzionale delle feature dichiarate nell'AFU, in forma di ID canonici 'F-NN'. Consumato da sdlc-analyzer (Fase 4) e dal Reviewer/Orchestrator per il tracciamento feature-by-feature. Retro-compatibile: assente nei manifest v2 legacy."
+    },
+    "rule_index": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Indice opzionale delle regole di business referenziate nell'AFU (es. 'RB-AUTH-01'). Consumato da sdlc-analyzer e dal Reviewer/Orchestrator per il collegamento requisito->regola. Retro-compatibile."
+    },
+    "legal_baseline": {
+      "type": "object",
+      "description": "Baseline legale/compliance opzionale prodotta Solaria-side. Elenca gli item legali applicabili al plan (cookie, privacy, GDPR, AI Act, ecc.) con il relativo stato di copertura. Consumato dal Reviewer/Orchestrator per il gate compliance. Retro-compatibile.",
+      "required": ["applicable"],
+      "properties": {
+        "applicable": { "type": "boolean" },
+        "jurisdiction": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "status"],
+            "properties": {
+              "id": { "type": "string" },
+              "status": { "type": "string", "enum": ["included", "already_present", "scoped_out"] }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "$schema": {
       "type": "string",
       "description": "Riferimento opzionale allo schema (chiave meta). Ammesso negli esempi di contratto e in eventuali manifest che lo includono; non richiesto e non usato per la validazione (il reviewer valida contro lo schema nel repo di progetto)."

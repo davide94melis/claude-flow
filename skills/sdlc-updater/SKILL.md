@@ -99,9 +99,9 @@ cat "$CONST_PATH/PROFILE.json"
 | Caso | Messaggio all'utente | Azione |
 |---|---|---|
 | Né `.sdlc-local.json` né `.br-local.json` (legacy) presenti | "Esegui prima `/sdlc-profile-setup` scegliendo modalita' standalone o legacy" | Stop |
-| `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
+| `CONST.json` manca, `PROFILE.json` esiste | "Il progetto `<PROJECT_NAME>` non ha CONST.json. Eseguire `python ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-profile-split.py --apply` per generarlo dal template, oppure crearlo a mano partendo da `const-schema.json`." | Stop |
 | `PROFILE.json` manca, `CONST.json` esiste | "Il progetto `<PROJECT_NAME>` non ha PROFILE.json. Stato inconsistente — il profilo e' incompleto. Ripristinare da git history o rifare il setup." | Stop |
-| Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python claude-flow/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
+| Entrambi mancano, esiste `profile.json` (legacy) | "Profilo in formato vecchio (pre-split CONST/PROFILE). Eseguire `python ${CLAUDE_PLUGIN_ROOT}/scripts/migrate-profile-split.py --apply` per fare lo split automaticamente." | Stop |
 | JSON malformed | Mostra errore di parse + path | Stop |
 
 **Semantica d'uso:**
@@ -169,7 +169,7 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 | Primitiva `deep` | Fallback `classic` |
 |---|---|
 | `parallel` / `pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
-| `agent({agentType, schema})` | "leggi `~/.claude/agents/<agentType>.md` e lancia un Task" + parsing MD |
+| `agent({agentType, schema})` | "leggi `${CLAUDE_PLUGIN_ROOT}/agents/<agentType>.md` e lancia un Task" + parsing MD |
 | `adversarial-verify` / `judge-panel` | singola verifica `sdlc-verifier` inline |
 | `completeness-critic` | checklist manuale già presente nella skill |
 | `loop-until-dry` | ciclo fix/riverifica già descritto |
@@ -214,6 +214,7 @@ plan_processed = $(grep -oP '^Processed AFU version:\s*`?\K[^`\n]+' "<plan>/PLAN
 | `manifest.versione == plan.processed_afu_version` | Niente da aggiornare via Solaria. Chiedi: "Manifest version invariata. Stai aggiornando manualmente?" e procedi con la pipeline standard (Domanda 2). |
 | `manifest.gate_outcome != "GO"` | Warning: "Solaria sta ancora iterando AFU v<n> (gate=<x>). Procedi solo se intenzionale o stai facendo un dry-run sulle modifiche in corso." |
 | `manifest.tests.playbook_md` (o `_xlsx`) cambiato vs versione precedente | Segnala "Il playbook test e' stato rigenerato per v2 — comunica al team funzionale di usare la nuova versione in Fase 2c ondata (b)." |
+| `manifest.feature_index` / `rule_index` cambiati vs versione precedente | Calcola il delta a **livello ID** (vedi Fase 2.2, "Delta primario su ID") invece del diff testuale — più stabile e tracciabile alle task via colonna "ID AFU coperti". |
 
 In **modalita' legacy**, salta questa domanda e procedi con la Domanda 1 standard.
 
@@ -298,6 +299,25 @@ Salva nella cartella `requirements/` dentro la cartella del Piano (es. `$BASE_PA
 ### 2.2 — Identificazione delta
 
 Confronta la documentazione aggiornata con quella referenziata nel report esistente. Identifica:
+
+**Delta primario su ID (AFU feature-first)**: se sia l'AFU precedente che quella nuova sono feature-first (front-matter con `feature_index`/`rule_index` + §6), calcola il delta **confrontando gli ID**, non il testo:
+
+```bash
+# feature_index / rule_index dai due front-matter AFU (o dai due afu-manifest.json)
+OLD_AFU=<path-afu-precedente> ; NEW_AFU=<path-afu-nuova>
+awk '/^---$/{c++; next} c==1' "$OLD_AFU" | grep -A100 '^feature_index:' > /tmp/old_ids.txt
+awk '/^---$/{c++; next} c==1' "$NEW_AFU" | grep -A100 '^feature_index:' > /tmp/new_ids.txt
+diff /tmp/old_ids.txt /tmp/new_ids.txt
+```
+
+- **NUOVO**: ID presente in `new` ma non in `old` (`F-NN`, `RB-…`, `AC-…` aggiunti).
+- **RIMOSSO**: ID presente in `old` ma non in `new`.
+- **MODIFICATO**: ID presente in entrambi ma con corpo cambiato (confronta il blocco `## F-NN` / la riga della regola tra le due versioni; per una regola, testo cambiato a parità di `RB-…` = MODIFICATO).
+- **INVARIATO**: ID presente in entrambi con corpo identico.
+
+Il `changelog` del manifest resta la **fonte narrativa primaria** del delta; il diff a parità di ID serve solo a stabilire se un ID invariato ha cambiato contenuto. Mappa ogni ID delta alle task esistenti tramite la colonna "ID AFU coperti" del PLAN (scritta da sdlc-analyzer): un `RB-…` MODIFICATO che ricade su una task **Completata** genera una task di adeguamento (`T-NNN-fix`).
+
+**Fallback AFU legacy**: se una delle due versioni non è feature-first (manca front-matter/§6), usa la detection testuale per requisito descritta sotto (comportamento storico). Segnala in testa all'aggiornamento del PLAN/report: `NOTA: AFU legacy section-oriented — delta via detection testuale (nessun front-matter/§6).`
 
 **Requisiti nuovi** — presenti nella nuova documentazione ma assenti dal report attuale.
 
