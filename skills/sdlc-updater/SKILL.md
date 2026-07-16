@@ -15,6 +15,39 @@ Il principio guida: **mai sovrascrivere il progresso**. Le task completate resta
 
 Tutte le operazioni su file plan avvengono nella **project_repo** (modalita' standalone, una repo per progetto) o nella repo `deloitte-profiles` (modalita' legacy), **non** nella repo del codice applicativo. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
+### Discovery del profilo (master-folder aware)
+
+Le skill possono partire dalla **root della repo di specifiche** (dove vive `.sdlc-local.json`) **oppure** da una **master-folder** di progetto che contiene le sottocartelle di tutte le repo (backend, frontend, `*-specs`, ...). In quest'ultimo caso il marker non e' in cwd ma in una sottocartella. Risolvi il profilo **prima** di leggere il config, impostando `SDLC_CFG` (path assoluto del file di config risolto):
+
+```bash
+SDLC_CFG=""
+if   [ -f ".sdlc-local.json" ]; then SDLC_CFG="$PWD/.sdlc-local.json"
+elif [ -f ".br-local.json"   ]; then SDLC_CFG="$PWD/.br-local.json"
+else
+  # sottocartelle immediate (maxdepth 2): marker .sdlc-local.json poi legacy .br-local.json
+  CANDS=$(find . -maxdepth 2 \( -name .sdlc-local.json -o -name .br-local.json \) 2>/dev/null)
+  # dedup per PROGETTO (chiave = project_repo | profiles_repo/profilo): molte config di un solo
+  # progetto collassano in UNA scelta; restano righe distinte solo per progetti diversi.
+  UNIQ=$(printf '%s\n' "$CANDS" | while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    key=$(grep -oP '"project_repo"\s*:\s*"\K[^"]+' "$f" 2>/dev/null)
+    [ -z "$key" ] && key="$(grep -oP '"profiles_repo"\s*:\s*"\K[^"]+' "$f" 2>/dev/null)/$(grep -oP '"profilo"\s*:\s*"\K[^"]+' "$f" 2>/dev/null)"
+    printf '%s\t%s\n' "$key" "$f"
+  done | sort -u -t"$(printf '\t')" -k1,1)
+  N=$(printf '%s\n' "$UNIQ" | grep -c .)
+  if   [ "$N" -eq 1 ]; then SDLC_CFG=$(printf '%s' "$UNIQ" | cut -f2)
+  elif [ "$N" -gt 1 ]; then echo "MULTI"; printf '%s\n' "$UNIQ" | cut -f2
+  fi
+fi
+echo "SDLC_CFG=${SDLC_CFG:-<none>}"
+```
+
+- **1 progetto** → usa `SDLC_CFG`. Prosegui col blocco di lettura sotto.
+- **`MULTI`** (piu' progetti DISTINTI) → mostra i candidati e **chiedi all'utente** quale progetto lavorare (`AskUserQuestion`), imposta `SDLC_CFG` di conseguenza, e ancora ogni operazione git ai repo di quel progetto.
+- **nessun candidato** → comportamento invariato: applica la sezione "Se ne' `.sdlc-local.json` ne' `.br-local.json` esistono" sotto.
+
+Da qui in poi, i comandi che seguono referenziano `.br-local.json` per continuita' storica: **applicali a `"$SDLC_CFG"`** (il file risolto). Il suffisso `-specs` NON e' una chiave — il marker e' la presenza del file di config; il suffisso puo' servire solo come hint di ordinamento tra candidati.
+
 ### Lettura del file di configurazione locale (`.sdlc-local.json` con fallback `.br-local.json`)
 
 **Lettura compatibile**: il file di configurazione locale può chiamarsi `.sdlc-local.json` (nuovo nome, raccomandato) oppure `.br-local.json` (nome legacy, ancora supportato). Cerca PRIMA `.sdlc-local.json`; se non esiste, fa fallback a `.br-local.json`. Se nessuno dei due esiste, ferma e chiedi all'utente di eseguire `/sdlc-profile-setup`.
@@ -29,24 +62,24 @@ All'avvio, leggi il file (priorità `.sdlc-local.json`, fallback `.br-local.json
 
 ```bash
 # Esempio con .br-local.json — equivalente per .sdlc-local.json
-cat .br-local.json 2>/dev/null
+cat "$SDLC_CFG" 2>/dev/null
 ```
 
 La presenza del campo `project_repo` o `profiles_repo` discrimina la modalita':
 
 ```bash
-if grep -q '"project_repo"' .br-local.json 2>/dev/null; then
+if grep -q '"project_repo"' "$SDLC_CFG" 2>/dev/null; then
   MODE="standalone"
-  PROJECT_REPO=$(grep -oP '"project_repo"\s*:\s*"\K[^"]+' .br-local.json)
-  PROJECT_NAME=$(grep -oP '"project_name"\s*:\s*"\K[^"]+' .br-local.json)
+  PROJECT_REPO=$(grep -oP '"project_repo"\s*:\s*"\K[^"]+' "$SDLC_CFG")
+  PROJECT_NAME=$(grep -oP '"project_name"\s*:\s*"\K[^"]+' "$SDLC_CFG")
   BASE_PATH="$PROJECT_REPO/plans"
   CONST_PATH="$PROJECT_REPO/constitution"
   DATASET_PATH="$PROJECT_REPO/dataset"        # solo standalone (popolato da Solaria-side)
   GIT_REPO_PATH="$PROJECT_REPO"
-elif grep -q '"profiles_repo"' .br-local.json 2>/dev/null; then
+elif grep -q '"profiles_repo"' "$SDLC_CFG" 2>/dev/null; then
   MODE="legacy"
-  PROFILES_REPO=$(grep -oP '"profiles_repo"\s*:\s*"\K[^"]+' .br-local.json)
-  PROFILO=$(grep -oP '"profilo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROFILES_REPO=$(grep -oP '"profiles_repo"\s*:\s*"\K[^"]+' "$SDLC_CFG")
+  PROFILO=$(grep -oP '"profilo"\s*:\s*"\K[^"]+' "$SDLC_CFG")
   PROJECT_NAME="$PROFILO"
   BASE_PATH="$PROFILES_REPO/$PROFILO/plans"
   CONST_PATH="$PROFILES_REPO/$PROFILO/constitution"
@@ -118,6 +151,29 @@ Entrambi i file restano disponibili come contesto per tutta la durata della skil
 
 ---
 
+## Lingua di interazione e degli artefatti
+
+La lingua di **interazione** (conversazione con l'utente) e' persistita in `.sdlc-local.json` (fallback `.br-local.json`) nel campo flat `interaction_language` (`it` | `en`). Risoluzione (grep-compatibile, niente `jq`):
+
+```bash
+INTERACTION_LANG=$(grep -oP '"interaction_language"\s*:\s*"\K(it|en)' "$SDLC_CFG" 2>/dev/null)
+```
+
+- Se `INTERACTION_LANG` e' vuoto (campo assente, es. profilo pre-esistente): **chiedi una volta** all'utente `it`/`en` (`AskUserQuestion`), poi **persisti** aggiungendo `"interaction_language": "<scelta>"` a `"$SDLC_CFG"` (staging con messaggio `[sdlc-config] set interaction_language`). **Nessun default silenzioso.**
+- Tutta la **comunicazione conversazionale** con l'utente segue `INTERACTION_LANG`.
+
+**Lingua degli artefatti prodotti (regola per classe, indipendente da `INTERACTION_LANG`):**
+
+| Classe | Artefatti | Lingua |
+|---|---|---|
+| Dev-facing | gap report/PLAN, TASKS, PROGRESS, bug report, codice, messaggi di commit, report estimator, report progress | **Solo inglese (EN)** |
+| Funzionale/end-user | CLARIFY (lato skill); AFU, playbook, report a11y (lato Solaria) | Lingua di interazione/prodotto **+ copia EN** (`<nome>.en.<ext>`) |
+| Mockup | copy UI (lato Solaria) | Solo lingua utente finale (nessuna copia EN) |
+
+> Questa skill produce artefatti **dev-facing → sempre in EN**, indipendentemente da `INTERACTION_LANG` (che governa solo la conversazione). *(Eccezione: `sdlc-reviewer`/`sdlc-clarify` producono anche il CLARIFY, funzionale → vedi la loro sezione dedicata.)*
+
+---
+
 ## Modalità di orchestrazione
 
 Ogni skill SDLC può girare in due modalità:
@@ -132,7 +188,7 @@ Ogni skill SDLC può girare in due modalità:
 1. **Flag persistente** in `.sdlc-local.json` (fallback `.br-local.json`) — la sorgente automatica a precedenza più alta. Campi *flat* (grep-compatibili, niente `jq`):
 
    ```bash
-   LOCAL_CFG=".sdlc-local.json"; [ -f "$LOCAL_CFG" ] || LOCAL_CFG=".br-local.json"
+   LOCAL_CFG="$SDLC_CFG"
    ORCH_MODE=$(grep -oP '"orchestration_mode"\s*:\s*"\K[^"]+' "$LOCAL_CFG" 2>/dev/null);  ORCH_MODE=${ORCH_MODE:-classic}
    ORCH_DEPTH=$(grep -oP '"orchestration_depth"\s*:\s*"\K[^"]+' "$LOCAL_CFG" 2>/dev/null); ORCH_DEPTH=${ORCH_DEPTH:-standard}
    ORCH_MAXC=$(grep -oP '"orchestration_max_concurrency"\s*:\s*\K[0-9]+' "$LOCAL_CFG" 2>/dev/null); ORCH_MAXC=${ORCH_MAXC:-10}
