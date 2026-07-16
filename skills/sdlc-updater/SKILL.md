@@ -390,6 +390,8 @@ Per ogni delta, documenta:
 - **Riferimento** al documento aggiornato (sezione/pagina)
 - **Impatto** sulle task esistenti nel piano
 
+**Delta sui contratti API (`CONTRACTS.md`)** — Se il delta dell'AFU cambia payload, flussi o errori di un'API FE↔BE con contratto congelato, tratta `CONTRACTS.md` come artefatto tracciato: aggiorna il contratto interessato (bump della sua descrizione) e propaga l'adeguamento alle task FE/BE che lo citano (`C-NN`) — analogamente al meccanismo `T-NNN-fix` sugli ID task. Se il Piano non ha `CONTRACTS.md`, salta questo passo.
+
 ### 2.3 — Verifica delta contro il codice
 
 Per ogni requisito nuovo o modificato, verifica lo stato nel codice attuale (come nella Fase 3 di `sdlc-analyzer`):

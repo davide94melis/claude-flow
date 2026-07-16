@@ -347,6 +347,28 @@ Salva i nomi, le sigle e i path forniti. Usa le sigle dell'utente in tutto il re
 >
 > Esempio: "Marco - BE senior, Luca - FE mid, Anna - BE+GW junior"
 
+### Domanda 4 — Strategia di decomposizione dei task
+
+Leggi un eventuale default persistito (grep-compatibile, niente `jq`):
+
+```bash
+DECOMP_BIAS=$(grep -oP '"decomposition_bias"\s*:\s*"\K(testability|parallelization)' "$SDLC_CFG" 2>/dev/null)
+```
+
+Chiedi comunque la scelta per QUESTO Piano con `AskUserQuestion` (pre-seleziona `$DECOMP_BIAS` se presente, altrimenti `testability`):
+
+> Come vuoi decomporre i task di questo Piano?
+> - **testability-first** (default) — ogni task porta criteri di completamento auto-verificabili dallo sviluppatore (e, dove serve, il proprio test); task più grandi (fino a 3-5 gg), meno merge task, ma parallelismo massimizzato a parità di testabilità.
+> - **parallelization-first** — split atomico aggressivo (anche <1 gg quando aumenta il fan-out), più merge task cross-stream, accettando task meno comprensibili/testabili in isolamento (con un floor minimo di verificabilità).
+
+Registra la scelta come `DECOMP_MODE` e riportala nell'header/Assunzioni del TASKS. Nessuna escalation silenziosa: la scelta è sempre esplicita.
+
+### Domanda 5 — Deadline e data di inizio (opzionale)
+
+> Esiste una **data di inizio ufficiale** del Piano e una **deadline**? (formato `YYYY-MM-DD`, oppure "nessuna")
+
+Se il manifest standalone (`requirements/afu-manifest.json`) ha già un campo `deadline`, proponilo come default. Registra `START_DATE` e `DEADLINE` (o "non fornita"). La sezione "Cadenza verso la deadline" nel TASKS richiede **entrambe** le date: se una o entrambe mancano, viene omessa. L'header del PLAN riporta comunque i due campi (con `non fornita` dove manca), così progress-report ha una fonte uniforme; con entrambe assenti non calcolerà anticipo/ritardo.
+
 ### Prima di procedere
 
 Dopo aver raccolto tutti gli input, ricapitola quello che hai ricevuto e chiedi conferma:
@@ -356,6 +378,8 @@ Dopo aver raccolto tutti gli input, ricapitola quello che hai ricevuto e chiedi 
 >   [per ognuna: Nome (SIGLA) → path]
 > - Documentazione: [lista con path]
 > - Team: [lista con ruolo e seniority]
+> - Strategia decomposizione: [testability-first | parallelization-first]
+> - Deadline / Data inizio: [vedi Domanda 5]
 >
 > Confermo e procedo con l'analisi?
 
@@ -520,13 +544,15 @@ Se la cartella del Piano non esiste ancora (sdlc-reviewer non eseguito), creala:
 mkdir -p "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements"
 ```
 
+Se il Piano richiede una o più **API di comunicazione FE↔BE** (euristica: un requisito la cui Area coinvolge sia BE sia FE, o un endpoint esposto dal BE e consumato dal FE), genera **anche** `CONTRACTS.md` nella cartella del Piano (contratto a monte, vedi §4.1/§4.2 e i Principi). Se nessuna API FE↔BE è richiesta, non creare il file.
+
 (in-progress e done sono già create da sdlc-profile-setup)
 
 Genera entrambi i file nella cartella del Piano in `$BASE_PATH/todo/`. Questo e' lo stato iniziale: la cartella intera si sposta in `in-progress/` quando uno sviluppatore avvia la lavorazione con `sdlc-executor`, e in `done/` al completamento di tutte le task.
 
 **In `deep`** — banner e judge-panel (vedi "## Modalità di orchestrazione"):
 - Mostra il banner di modalità all'avvio del lavoro pesante. Se hai dovuto degradare a `classic` (Workflow tool assente o fallito), scrivi in testa al PLAN il banner **"COPERTURA RIDOTTA — prodotto senza completeness-critic/adversarial-verify"**: gli artefatti `classic` e `deep` non sono equivalenti, la degradazione è rumorosa.
-- Dopo aver scritto il TASKS (4.2), esegui un **judge-panel** sulle task — auto-sufficienza di ogni task, granularità 1–5 gg, correttezza delle merge task `T-MERGE-NNN` e delle dipendenze: lancia `verifier_panel` verifiche scettiche (Task con prompt da `${CLAUDE_PLUGIN_ROOT}/agents/sdlc-verifier.md` adattato al planning) e correggi le task segnalate **prima** del commit. In `classic` questo passo non viene eseguito.
+- Dopo aver scritto il TASKS (4.2), esegui un **judge-panel** sulle task — auto-sufficienza di ogni task, granularità 1–5 gg, correttezza delle merge task `T-MERGE-NNN` e delle dipendenze: lancia `verifier_panel` verifiche scettiche (Task con prompt da `${CLAUDE_PLUGIN_ROOT}/agents/sdlc-verifier.md` adattato al planning) e correggi le task segnalate **prima** del commit. In `classic` questo passo non viene eseguito. In *testability-first* il panel verifica anche l'auto-testabilità di ogni task (non solo il range 1–5 gg); in *parallelization-first* verifica il floor minimo di verificabilità oltre alla correttezza delle merge task.
 
 ### 4.1 — PLAN
 
@@ -539,6 +565,8 @@ Struttura:
 
 Data verifica: `<data>`
 Modalita': `standalone` | `legacy`
+Data inizio ufficiale: `<START_DATE o "non fornita">`
+Deadline: `<DEADLINE o "non fornita">`
 Processed AFU version: `<manifest.versione>`            # SOLO standalone — letto da requirements/afu-manifest.json
 AFU manifest: `requirements/afu-manifest.json`          # SOLO standalone
 Test playbook: `tests/playbook.md` + `tests/playbook.xlsx`   # SOLO standalone se manifest.tests presente
@@ -612,6 +640,16 @@ Genera dinamicamente una colonna per ogni repository coinvolta, usando le sigle 
 [Riepilogo: cosa è coperto, cosa è mancante, cosa è da chiarire.
  Organizzato per funzionalità, con lo stato di ognuna.]
 
+## Contratti API FE↔BE
+
+[SOLO se il Piano richiede API FE↔BE; altrimenti OMETTI. Indice dei contratti definiti in `CONTRACTS.md`.]
+
+| ID Contratto | Endpoint + Metodo | Repo coinvolte | Task-contratto |
+|---|---|---|---|
+| `C-01` | `POST /api/...` | BE, FE | `T-00X` (Wave 0) |
+
+Dettaglio completo (request/response schema, codici errore, auth/headers) in `CONTRACTS.md`.
+
 ## Violazioni principi CONST rilevate
 
 Elenco dei punti in cui il codebase corrente NON rispetta i principi dichiarati in `CONST.json`. Sono finding informativi (non blocking — il piano va avanti comunque), ma vanno mostrati al team funzionale e di sviluppo perché documentano gap di conformità da chiudere nel medio termine.
@@ -643,10 +681,11 @@ Assunzioni:
 - [se sdlc-reviewer e' stato eseguito, includi qui tutte le assunzioni confermate dalla review, con riferimento al CLARIFY.md]
 - team disponibile:
   - [per ogni sviluppatore: ruolo e seniority]
+- Strategia di decomposizione: `<DECOMP_MODE>` (testability-first | parallelization-first)
 
 ## Obiettivo
 
-[1-2 frasi: massimizzare parallelismo, ridurre colli di bottiglia]
+[1-2 frasi coerenti con `DECOMP_MODE`: in *testability-first* enfatizza task auto-verificabili e parallelismo a parità di testabilità; in *parallelization-first* enfatizza il massimo parallelismo/fan-out. Cita esplicitamente la modalità scelta.]
 
 ## Strategia di esecuzione
 
@@ -709,7 +748,7 @@ Regole:
 [...]
 
 ### Wave N — Integrazione e UAT
-[...]
+[Con contratto API congelato a monte (vedi Contract-first), questa wave NON riconcilia FE/BE ex-post: diventa un **conformance-check** (verifica che FE e BE rispettino esattamente `CONTRACTS.md`: schema request/response, codici errore) **+ UAT**. Mantiene il checkpoint end-to-end ma con effort ridotto.]
 
 ## Dipendenze critiche
 
@@ -728,11 +767,22 @@ Regole:
 ### Effort
 [per ogni repository/area coinvolta:]
 - <SIGLA>: circa `N gg/uomo`
-- Integrazione e UAT: circa `N gg/uomo`
+- Integrazione e UAT: circa `N gg/uomo` (ridotto se contract-first attivo: solo conformance-check + UAT)
 
 ### Durata calendario realistica
 [Scenario realistico settimana per settimana]
 [Scenario aggressivo con rischi]
+
+### Cadenza verso la deadline
+
+[SOLO se `START_DATE` e `DEADLINE` sono presenti; altrimenti OMETTI questa sezione.]
+
+- Giorni lavorativi disponibili (weekend esclusi) tra `START_DATE` e `DEADLINE`: `N`
+- Cadenza richiesta: `<effort_totale_gg>/N` = **`X gg-effort/giorno`** (primaria) · **`Y task/giorno`** (secondaria = `<num_task>/N`)
+- Capacità del team: `<somma capacità dev>` gg-effort/giorno → confronto: `[sufficiente | insufficiente di Z gg-effort/giorno]`
+- Baseline cumulativa attesa (curva di completamento pianificata): in `classic`, lineare — `effort_atteso(d) = effort_totale * giorni_lavorativi_trascorsi(d) / N`. In `deep` o quando esiste un ESTIMATE dell'`sdlc-estimator`, usa una baseline wave/dipendenza-aware riusando la logica di `sdlc-estimation-scenario` e **indica quale baseline** è stata usata.
+
+> Questa baseline è la fonte che `sdlc-progress-report` legge per calcolare anticipo/ritardo (WS2).
 
 ## Rischi principali
 
@@ -785,9 +835,15 @@ Quando scomponi il lavoro in task, questi principi guidano le decisioni:
 
 **Granularità giusta** — Ogni task deve essere completabile in 1-5 giorni. Troppo grande: spezzala. Troppo piccola (< 2 ore): accorpala con task correlate.
 
+**Bilanciamento per modalità di decomposizione** — Pesa i principi sopra secondo `DECOMP_MODE`:
+- *testability-first* (default): la testabilità domina. Ogni task espone criteri di completamento auto-verificabili dallo sviluppatore che la lavora (e, dove ha senso, il proprio test). Preferisci task più grandi (cap verso 3-5 gg) e meno merge task quando questo le rende verificabili in isolamento; massimizza comunque il parallelismo a parità di testabilità.
+- *parallelization-first*: la parallelizzazione domina. Split atomico aggressivo (anche <1 gg) quando aumenta il fan-out, con più merge task cross-stream; è accettabile che una task sia meno comprensibile/testabile in isolamento, ma mantieni sempre un **floor minimo di verificabilità** (criteri di completamento oggettivi) — mai task non verificabili del tutto.
+
 **Branch convention** — Ogni task ha un branch specificato nella colonna **Branch** del backlog. Il naming segue il pattern `feature/<piano-name>-<slug-attivita>` (es. `feature/monitoring-enum-entities-core`). Per task multi-repo (Area = BE+FE), lo stesso nome branch viene usato in tutte le repo coinvolte. Per le merge task (T-MERGE-*), la colonna Branch e' `—` (non hanno un branch proprio). Specifica l'ordine di merge basato sulle dipendenze.
 
 **Autosufficiente per Claude Code** — Ogni task deve contenere abbastanza contesto perché un agente Claude Code possa implementarla leggendo solo la task e il gap report. Includi: file esatti da modificare/creare, pattern del progetto da seguire, criteri di completamento verificabili, e note specifiche (convenzioni, attenzioni, edge case).
+
+**Contract-first per API FE↔BE** — Quando un requisito richiede un'API tra FE e BE (Area = BE+FE sullo stesso requisito, o endpoint BE consumato dal FE), genera una **task-contratto P0** in Wave 0 / `stream-fondazioni` che scrive e **congela** il contratto in `CONTRACTS.md` (endpoint+metodo, schema request, schema response, codici errore, auth/headers, repo coinvolte, ID `C-NN`). Le task FE e BE della stessa API **dipendono** dalla task-contratto e ne **citano l'ID** (`C-NN`) nella Descrizione (nessuna nuova colonna nel backlog). Così FE e BE implementano contro la stessa reference e la wave finale è un conformance-check invece di una riconciliazione ex-post. Il contratto è single-writer (lo scrive l'analyzer in fase di plan). Se durante l'esecuzione emerge la necessità di cambiarlo, la modifica passa da `sdlc-updater` (vedi il suo tracking di `CONTRACTS.md`).
 
 ---
 
