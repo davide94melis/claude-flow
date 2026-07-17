@@ -386,9 +386,21 @@ Struttura del JSON:
   "conventions": { },
   "design_system": { },
   "domain": { },
-  "custom_agents": []
+  "custom_agents": [],
+  "progress_report_template": { "mode": "official", "path": null, "confirmed_at": null, "confirmed_by": null }
 }
 ```
+
+**`progress_report_template` (report Excel — #6):** governa quale layout usa `sdlc-progress-report`.
+
+| Campo | Default | Significato |
+|---|---|---|
+| `mode` | `"official"` | `official` (layout canonico) \| `custom` (manifest fornito dal TL). Con `custom` l'ufficiale **non** è mai consultato. |
+| `path` | `null` | Path **repo-relative** del manifest JSON custom nella repo di progetto (es. `constitution/progress-report-manifest.json`); `null` per `official`. |
+| `confirmed_at` | `null` | Data ISO di conferma del template custom. |
+| `confirmed_by` | `null` | Chi (TL) ha confermato il template custom. |
+
+Per un profilo nuovo scrivi sempre `mode:"official"`. L'ingest di un template custom avviene **on-demand** dentro `sdlc-progress-report` (non qui): quella skill analizza l'`.xlsx` del TL in un manifest e aggiorna questo campo. **Preserva** su re-run del setup un `progress_report_template` già presente con `mode:"custom"` (come per `orchestration_*` e `interaction_language`).
 
 **NOTA IMPORTANTE:** in `conventions` NON inserire più `inviolable_principles` — quei dati ora vivono in `CONST.json`.
 
@@ -569,7 +581,7 @@ Oltre ai campi di modalità, `.sdlc-local.json` contiene 4 campi **flat** che co
 | `orchestration_max_concurrency` | `10` | tetto agent concorrenti nei fan-out `deep` |
 | `orchestration_verifier_panel` | `3` | numero di verificatori nei panel adversariali `deep` |
 
-**Default conservativo**: per ogni profilo nuovo scrivi sempre `orchestration_mode: "classic"` — nessuna escalation a `deep` senza scelta esplicita dell'utente (mai spesa a sorpresa). Nello **scenario 1** (`.sdlc-local.json` già esistente) **preserva** eventuali valori `orchestration_*` presenti: non resettare a `classic` una scelta `deep` deliberata su un re-run del setup.
+**Default conservativo**: per ogni profilo nuovo scrivi sempre `orchestration_mode: "classic"` — nessuna escalation a `deep` senza scelta esplicita dell'utente (mai spesa a sorpresa). Nello **scenario 1** (`.sdlc-local.json` già esistente) **preserva** eventuali valori `orchestration_*` presenti: non resettare a `classic` una scelta `deep` deliberata su un re-run del setup. Analogamente, se in `PROFILE.json` esiste già un `progress_report_template` con `mode:"custom"`, **preservalo** (non riportarlo a `official`).
 
 **Lingua di interazione**: chiedi una volta all'utente se preferisce interagire in **italiano (`it`)** o **inglese (`en`)** con `AskUserQuestion`, e includi `"interaction_language": "<scelta>"` nel `.sdlc-local.json` scritto per ogni codebase. Nello **scenario 1** (`.sdlc-local.json` gia' esistente) **preserva** un `interaction_language` gia' presente (come per gli `orchestration_*`). Opzionalmente chiedi anche una preferenza di decomposizione (testability|parallelization) e scrivila come "decomposition_bias" (campo opzionale; se omesso, l'analyzer usa testability come default e chiede comunque per-Piano).
 

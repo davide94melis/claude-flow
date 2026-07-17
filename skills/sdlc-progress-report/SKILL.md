@@ -102,7 +102,13 @@ Ferma l'esecuzione e avvisa:
 ### Sincronizzazione prima della lettura
 
 ```bash
-git -C "$GIT_REPO_PATH" pull origin main --quiet
+# Sync verificata (fail-loud): aggiorna i ref remoti SENZA toccare il working tree.
+git -C "$GIT_REPO_PATH" fetch origin main || { echo "STOP: 'git fetch origin main' fallito su $GIT_REPO_PATH — sync non riuscita. Non genero il report per non rischiare dati stale o azzerati."; exit 1; }
+
+# Helper condivisi per questa skill: path repo-relative + lettura di un file da origin/main
+# (immune a branch/working-tree drift — modello centralizzato).
+relpath()  { printf '%s' "${1#$GIT_REPO_PATH/}"; }
+show_main() { git -C "$GIT_REPO_PATH" show "origin/main:$(relpath "$1")" 2>/dev/null; }
 ```
 
 ### Commit e push dopo la scrittura
@@ -120,9 +126,9 @@ git -C "$GIT_REPO_PATH" push origin main --quiet
 Dopo aver risolto i path con l'helper di detection sopra, prima di eseguire qualsiasi altra fase carica i due file di costituzione del progetto:
 
 ```bash
-git -C "$GIT_REPO_PATH" pull origin main --quiet
-cat "$CONST_PATH/CONST.json"
-cat "$CONST_PATH/PROFILE.json"
+git -C "$GIT_REPO_PATH" fetch origin main || { echo "STOP: 'git fetch origin main' fallito — sync non riuscita."; exit 1; }
+show_main "$CONST_PATH/CONST.json"
+show_main "$CONST_PATH/PROFILE.json"
 ```
 
 **Errori di loading (uniformi per tutte le skill SDLC):**
@@ -246,13 +252,16 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 Cerca cartelle dei Piani nella struttura `plans/` centralizzata in `deloitte-profiles`, in ordine di priorita':
 
 ```bash
-git -C "$GIT_REPO_PATH" pull origin main --quiet
-ls -d "$BASE_PATH/in-progress"/*/ "$BASE_PATH/todo"/*/ "$BASE_PATH/done"/*/ 2>/dev/null
+git -C "$GIT_REPO_PATH" fetch origin main || { echo "STOP: 'git fetch origin main' fallito — sync non riuscita."; exit 1; }
+# Cartelle Piano da origin/main: quelle che contengono un TASKS.md (path repo-relative)
+git -C "$GIT_REPO_PATH" ls-tree -r --name-only origin/main \
+  | grep -E "(^|/)plans/(todo|in-progress|done)/[^/]+/TASKS\.md$" \
+  | sed -E 's#/TASKS\.md$##'
 ```
 
 Serve trovare:
 - **TASKS** (`TASKS.md`) — obbligatorio
-- **File di Progresso** (`PROGRESS.md`) — opzionale, se non esiste le task partono tutte da 0%
+- **File di Progresso** (`PROGRESS.md`) — opzionale; se non esiste **e** non c'è un `PROGRESS.xlsx` pre-esistente, le task partono da 0% (piano non iniziato). Se un `PROGRESS.xlsx` con progresso non-nullo esiste già, la guardia anti-azzeramento (Fase 3) impedisce l'azzeramento.
 - **PLAN** (`PLAN.md`) — opzionale, usato per arricchire le descrizioni
 
 **Se trovi cartelle dei Piani**, proponile:
@@ -294,10 +303,16 @@ oppure
 Sincronizza la repo profili prima di leggere:
 
 ```bash
-git -C "$GIT_REPO_PATH" pull origin main --quiet
+git -C "$GIT_REPO_PATH" fetch origin main || { echo "STOP: 'git fetch origin main' fallito — sync non riuscita."; exit 1; }
 ```
 
-Leggi il PROGRESS.md dalla cartella del Piano in `$BASE_PATH/<stato>/<data>_<nome>/PROGRESS.md`. Il file e' sempre aggiornato dopo il pull perche' tutti gli sviluppatori scrivono nella repo centralizzata.
+Leggi il PROGRESS.md **da `origin/main`** (non dal working tree — immune a branch/working-tree drift), usando l'helper `show_main`:
+
+```bash
+show_main "$BASE_PATH/<stato>/<data>_<nome>/PROGRESS.md"
+```
+
+Se l'output è **vuoto**, il file non esiste su `origin/main`: NON dedurre automaticamente "tutto 0%" — applica la **guardia anti-azzeramento** (Fase 3). Il renderer riceve i contenuti di TASKS/PROGRESS letti qui da `origin/main` (vedi Fase 3/4).
 
 ### Estrazione campi
 
@@ -319,7 +334,7 @@ Dal PROGRESS.md e dal piano, estrai per ogni task:
 | Stato | PROGRESS.md — colonna Stato (Da iniziare / In corso / Completata / Bloccata / Annullata / Sospesa) |
 | Note | PROGRESS.md — colonna Note |
 
-Se il file di progresso non esiste, imposta progresso a 0% e stato a "Da iniziare" per tutte le task.
+Se il PROGRESS.md **non esiste su `origin/main`**: NON impostare automaticamente 0% a tutte le task se esiste già un `PROGRESS.xlsx` con progresso non-nullo → vedi la **guardia anti-azzeramento** (Fase 3). Solo per un piano **genuinamente non iniziato** (nessun `PROGRESS.xlsx` pre-esistente, tipicamente piano in `todo/`) le task partono legittimamente da 0% / "Da iniziare".
 
 ---
 
@@ -327,7 +342,54 @@ Se il file di progresso non esiste, imposta progresso a 0% e stato a "Da iniziar
 
 **In `deep`** (cerchio *light*, vedi "## Modalità di orchestrazione"): nessun workflow pesante. Dopo aver generato i 3 fogli e prima del salvataggio, esegui UN solo sub-step di **completeness-critic di coerenza-dati** (un Task o `sdlc-verifier` scettico): ogni riga del TASKS è mappata in "Task"? gli stati di PROGRESS sono riconciliati col foglio? le somme per-wave/per-sviluppatore sono coerenti tra i 3 fogli? Correggi le incoerenze prima di salvare. Banner **COPERTURA RIDOTTA** se degradi a `classic`.
 
-Usa Python con `openpyxl` per generare il file. L'Excel deve contenere 3 fogli:
+### Risoluzione del template (official | custom — #6)
+
+Leggi `progress_report_template` da `PROFILE.json` (grep-compatibile):
+
+```bash
+TPL_MODE=$(grep -oP '"progress_report_template"\s*:\s*\{[^}]*"mode"\s*:\s*"\K(official|custom)' "$CONST_PATH/PROFILE.json" 2>/dev/null); TPL_MODE=${TPL_MODE:-official}
+TPL_PATH=$(grep -oP '"progress_report_template"\s*:\s*\{[^}]*"path"\s*:\s*"\K[^"]+' "$CONST_PATH/PROFILE.json" 2>/dev/null)
+```
+
+- `official` (default) → il renderer usa il manifest di default embedded (`--manifest official`).
+- `custom` → `--manifest "$GIT_REPO_PATH/$TPL_PATH"` (path repo-relative del manifest custom). **In `custom` l'ufficiale non è mai consultato.**
+
+### Ingest di un template custom fornito dal TL (#6, on-demand)
+
+Se il TL fornisce un file `.xlsx` di template (o chiede di configurarne uno) e `PROFILE.json` non ha ancora un `progress_report_template` con `mode:"custom"` confermato:
+
+1. **Analizza** l'`.xlsx` in un manifest draft:
+   ```bash
+   python ${CLAUDE_PLUGIN_ROOT}/scripts/generate-progress-xlsx.py analyze --xlsx "<xlsx-del-TL>" --out "/tmp/manifest-draft.json"
+   ```
+2. **Mostra** l'interpretazione (fogli, colonne, binding ai campi task; i binding `null` = colonna lasciata vuota) e permetti **modifica interattiva** (rinominare header, correggere/aggiungere i `field`, larghezze). Contratto campi disponibili: `id, stream, activity, description, owner, area, priority, wave, dependencies, effort, branch, progress, status, note`. Colonne senza `field` restano vuote (comportamento documentato).
+3. **Conferma esplicita** del TL.
+4. **Persisti**: scrivi il manifest confermato in `$CONST_PATH/progress-report-manifest.json`, archivia l'`.xlsx` originale come riferimento stile in `$CONST_PATH/progress-report-template.xlsx`, e aggiorna `PROFILE.json.progress_report_template` a `{ "mode": "custom", "path": "constitution/progress-report-manifest.json", "confirmed_at": "<oggi ISO>", "confirmed_by": "<TL>" }`. Committa/pusha su main come gli altri artefatti profilo (single-writer).
+
+### Generazione (renderer committato — official + custom, stesso script)
+
+**In `deep`** (cerchio *light*): dopo aver generato i fogli e prima del salvataggio, esegui UN solo sub-step di **completeness-critic di coerenza-dati** (ogni riga TASKS mappata? stati PROGRESS riconciliati? somme per-wave/per-sviluppatore coerenti tra i fogli?). Banner **COPERTURA RIDOTTA** se degradi a `classic`.
+
+Il report è generato dallo **script committato** `generate-progress-xlsx.py` (renderer deterministico, manifest-driven; NON più uno script usa-e-getta). La skill:
+
+1. materializza in file temporanei i contenuti letti da `origin/main` (TASKS/PROGRESS/PLAN) con `show_main`;
+2. invoca il renderer.
+
+```bash
+PLAN_DIR="$BASE_PATH/<stato>/<YYYY-MM-DD>_<nome>"
+show_main "$PLAN_DIR/TASKS.md"    > /tmp/pr_tasks.md
+show_main "$PLAN_DIR/PROGRESS.md" > /tmp/pr_progress.md   # può essere vuoto se assente su origin/main
+show_main "$PLAN_DIR/PLAN.md"     > /tmp/pr_plan.md       # header date (#3-consumo)
+python ${CLAUDE_PLUGIN_ROOT}/scripts/generate-progress-xlsx.py render \
+  --tasks /tmp/pr_tasks.md --progress /tmp/pr_progress.md --plan /tmp/pr_plan.md \
+  --manifest "${TPL_MODE:+$( [ "$TPL_MODE" = custom ] && echo "$GIT_REPO_PATH/$TPL_PATH" || echo official )}" \
+  --out "$PLAN_DIR/PROGRESS.xlsx"
+RC=$?
+```
+
+**Guardia anti-azzeramento (#4, code-enforced):** se il renderer esce con **codice 3**, il dataset è vuoto/tutto-0% ma esiste già un `PROGRESS.xlsx` con progresso non-nullo → **NON forzare**. È il sintomo di una sync fallita o di un `PROGRESS.md` non trovato/parsato: fermati e avvisa l'utente (probabile problema di sync/path). Passa `--allow-zero` **solo** se l'utente conferma che il piano è genuinamente non iniziato.
+
+I 3 fogli prodotti restano: **Task** (tabella), **Per Sviluppatore** (riepilogo per owner), **Riepilogo** (dashboard). Con manifest custom, fogli/colonne seguono il manifest confermato.
 
 ### Foglio 1 — "Task"
 
@@ -424,6 +486,10 @@ Wave 2: xx% completata (N/M task)
 
 Formatta questa sezione come testo leggibile, non come tabella. Usa merge di celle per i titoli.
 
+### Blocco ANTICIPO/RITARDO nel Foglio Riepilogo (#3-consumo)
+
+Se l'header del `PLAN.md` contiene `Data inizio ufficiale` e `Deadline` (prodotti dall'analyzer, WS1), il renderer aggiunge automaticamente al Foglio "Riepilogo" un blocco **CADENZA VERSO LA DEADLINE** con: giorni lavorativi (totali/trascorsi/rimanenti, weekend esclusi), cadenza richiesta (**gg-effort/giorno** primaria + **task/giorno** secondaria), effort atteso a oggi (baseline lineare) vs effort effettivo, **ANTICIPO o RITARDO** (delta gg-effort), **data-fine proiettata** e **scarto vs deadline** (giorni lavorativi). Baseline **lineare** (classic); se non ci sono date, il blocco è omesso. La baseline wave-aware eventualmente descritta nel TASKS ("Cadenza verso la deadline", WS1) resta un riferimento prosa: il numerico ANTICIPO/RITARDO usa la baseline lineare e lo dichiara.
+
 ---
 
 ## Fase 4 — Salvataggio e Comunicazione
@@ -443,21 +509,18 @@ Se il file esiste già, non ricrearlo da zero. Aggiorna solo:
 - Il foglio "Per Sviluppatore" e "Riepilogo" ricalcolati
 - Preserva eventuali note manuali aggiunte dall'utente nelle celle Note
 
-### Script Python
+### Renderer (committato)
 
-Genera ed esegui uno script Python con `openpyxl`. Se `openpyxl` non è installato:
+La generazione/aggiornamento dell'Excel è delegata allo script committato `generate-progress-xlsx.py` (vedi Fase 3), che:
 
-```bash
-pip install openpyxl
-```
+1. parsa TASKS.md (tabella task) e PROGRESS.md (stato/percentuale/branch/note), materializzati da `origin/main`;
+2. applica il manifest risolto (official di default o custom da `PROFILE.json`);
+3. se l'Excel esiste, **preserva le note manuali** (colonna Note) mappate per ID;
+4. applica la **guardia anti-azzeramento** (exit 3) — vedi Fase 3;
+5. calcola il blocco ANTICIPO/RITARDO dall'header PLAN (#3-consumo);
+6. salva il file.
 
-Lo script deve:
-1. Parsare il piano MD per estrarre le task
-2. Parsare il progresso MD per estrarre stati e percentuali
-3. Se l'Excel esiste, leggerlo e preservare le note manuali
-4. Generare/aggiornare i 3 fogli
-5. Applicare formattazione e formattazione condizionale
-6. Salvare il file
+Dipendenza: `openpyxl` (`pip install openpyxl` se assente).
 
 ### Commit e push su deloitte-profiles
 
@@ -483,3 +546,5 @@ git -C "$GIT_REPO_PATH" push origin main --quiet
 ## Dipendenze
 
 - **`openpyxl`** — libreria Python per generazione Excel (`pip install openpyxl`)
+- **`generate-progress-xlsx.py`** (`${CLAUDE_PLUGIN_ROOT}/scripts/`) — renderer committato manifest-driven (official + custom).
+- **`progress-manifest.default.json`** (`${CLAUDE_PLUGIN_ROOT}/templates/`) — manifest ufficiale di default (riferimento; il renderer ha anche un default embedded).
