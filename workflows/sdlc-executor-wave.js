@@ -13,6 +13,7 @@ export const meta = {
 //   subjobs:  [{id, tipo, descrizione, depends_on:[id], repo_sigla, file_riferimento:[path]}]
 //   repos:    [{nome, sigla, path}]
 //   gap_excerpt: string  (estratto del gap report rilevante alla task)
+//   contract_excerpt: string  (estratto di CONTRACTS.md per i C-NN citati dalla task, opzionale)
 //   profile, const: oggetti | null
 //   depth: 'standard'|'ultracode'   verifier_panel: number   max_fix_iter: number (default 2)
 // ---------------------------------------------------------------------------
@@ -20,6 +21,7 @@ const task = (args && args.task) || { id: '?', descrizione: '', area: '', branch
 const subjobs = (args && Array.isArray(args.subjobs)) ? args.subjobs : []
 const repos = (args && Array.isArray(args.repos)) ? args.repos : []
 const gapExcerpt = (args && args.gap_excerpt) || ''
+const contractExcerpt = (args && args.contract_excerpt) || ''
 const profile = args ? (args.profile || null) : null
 const constJson = args ? (args.const || null) : null
 const depth = (args && args.depth) ? args.depth : 'standard'
@@ -75,8 +77,8 @@ File di riferimento (leggi per le convenzioni): ${(sj.file_riferimento || []).jo
 
 ${ctxBlock()}Estratto gap report rilevante:
 ${gapExcerpt.slice(0, 8000)}
-
-Requisiti: implementa il sotto-lavoro completo (niente placeholder/TODO), scrivi test (happy path + edge + errori), poi ESEGUI i test e riporta l'output reale. In \`diff_summary\` un riassunto leggibile; in \`patch\` il diff unificato applicabile delle tue modifiche nel worktree corrente (\`git add -A && git diff --cached\`) — dev'essere sufficiente a una verifica indipendente. NON committare.`
+${contractExcerpt ? `\nCONTRATTO API (riferimento OBBLIGATORIO — implementa ESATTAMENTE schema request/response e codici errore, e scrivi test di conformità):\n${contractExcerpt.slice(0, 6000)}\n` : ''}
+Requisiti: implementa il sotto-lavoro completo (niente placeholder/TODO), scrivi test (happy path + edge + errori${contractExcerpt ? ' + conformità al contratto API' : ''}), poi ESEGUI i test e riporta l'output reale. In \`diff_summary\` un riassunto leggibile; in \`patch\` il diff unificato applicabile delle tue modifiche nel worktree corrente (\`git add -A && git diff --cached\`) — dev'essere sufficiente a una verifica indipendente. NON committare.`
 }
 
 function buildVerifyPrompt(sj, impl, k) {
@@ -89,7 +91,7 @@ File modificati: ${(impl.files || []).join(', ')}
 Patch (diff unificato delle modifiche):
 ${(impl.patch || impl.diff_summary || '').slice(0, 16000)}
 Output test riportato: ${(impl.test_output || '').slice(0, 6000)}
-
+${contractExcerpt ? `Contratto API da rispettare (verifica in Fase B la conformità esatta di schema + codici errore):\n${contractExcerpt.slice(0, 4000)}\n` : ''}
 Applica le 3 fasi (A tecnica/test, B coerenza requisito, C riesame) basandoti SUL PATCH e sull'output test forniti: l'implementazione vive in un worktree isolato NON accessibile da qui — NON rileggere il repo base (sarebbe lo stato pre-modifica). Default scettico: se manca una categoria di test, o un requisito non è implementato/testato, o ci sono hardcoded/assunzioni nascoste, o il payload è insufficiente a concludere → FAIL. Verdetto binario PASS/FAIL.`
 }
 

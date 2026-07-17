@@ -453,6 +453,61 @@ Se una dipendenza non e' soddisfatta, avvisa e blocca:
 > 1. Passare a un'altra task senza dipendenze bloccanti?
 > 2. Attendere? (ti chiedero' di controllare il progresso piu' tardi)
 
+### Preflight workspace sync (cross-repo)
+
+Prima di creare i branch della task e prima di lanciare sotto-agenti/workflow, allinea i **repo di codice** allo stato corretto. Serve quando il progetto ha **più repo** e la task **consuma** il lavoro di una dipendenza **Completata** che vive su un branch di un *altro* repo (es. una task BE che consuma un endpoint/contratto prodotto da una task FE, o viceversa). **No-op** per progetti single-repo (un solo repo di codice) — salta l'intera sezione.
+
+> **Mai `--force`, mai auto-commit sui repo di codice.** Ogni checkout è **annunciato e confermato** dall'utente.
+
+1. **Costruisci la mappa `repo → branch target`:**
+   - **Repo lavorati dalla task** (sigle nella colonna `Area` della task): branch = quello della task (colonna `Branch` del piano, o `feature/<task-name>` in retrocompat). Vengono **creati** nella sezione "Creazione branch" (sotto); qui il preflight ne garantisce solo working tree pulito + fetch.
+   - **Repo solo-consumati** (repo che compaiono nell'`Area` di una **dipendenza Completata** della task ma NON nell'`Area` della task). Per ogni dipendenza in stato **Completata** (dal PROGRESS, dopo il pull):
+     - `dep.Area` → sigle repo coinvolte (dal TASKS/piano);
+     - `dep.Branch` → nome branch della dipendenza (colonna Branch del PROGRESS; fallback: colonna Branch del TASKS).
+   - Se un repo è sia lavorato sia consumato, **prevale il branch della task** (ci lavori sopra).
+   - **Conflitto multi-branch:** se lo stesso repo solo-consumato risulterebbe mappato a **due o più branch di dipendenza distinti e non ancora mergiati nella base** (es. due dipendenze Completata su `feature/x` e `feature/y` dello stesso repo), NON scegliere silenziosamente: **avvisa l'utente** elencando i branch in conflitto e fai decidere quale allineare (o attendi la merge task che li integra nella base). Non lasciare mai una dipendenza silenziosamente assente.
+
+2. **Precedenza base-mergeata vs branch-dipendenza:** se nel piano esiste una **merge task** (`T-MERGE-*`) che integra la dipendenza nel **branch base** ed è **Completata**, il codice della dipendenza è già nella base → per il repo consumato fai checkout della **base** (es. `main` o il branch base del piano), NON del branch della dipendenza. Altrimenti fai checkout del **branch della dipendenza**.
+
+3. **Guardia clean-tree + `fetch` su OGNI repo della mappa; checkout allineato SOLO sui repo consumati.** Per i **repo lavorati dalla task** applica qui la guardia clean-tree + `git fetch` (il branch della task viene poi **creato** in "Creazione branch") — così la garanzia del punto 1 è reale. Per i **repo solo-consumati** fai anche il checkout allineato. `<path-repo>` = path locale fornito in Fase 1:
+
+   ```bash
+   # a) guardia clean-tree — mai toccare un working tree sporco, mai force (vale per OGNI repo della mappa)
+   if [ -n "$(git -C "<path-repo>" status --porcelain)" ]; then
+     echo "STOP: working tree sporco in <path-repo>. Committa o stasha prima; non faccio checkout forzato."
+     # avvisa l'utente e fai decidere — NON procedere su questo repo
+   else
+     # b) fetch VERIFICATO: se fallisce, NON proseguire col checkout su questo repo (evita stato stale)
+     if ! git -C "<path-repo>" fetch origin --quiet; then
+       echo "STOP: 'git fetch' fallito su <path-repo> — salto il checkout su questo repo."
+     else
+       # c) SOLO per i repo solo-consumati: allinea al branch target (dipendenza o base-mergeata)
+       TARGET="<branch-dipendenza-o-base>"   # da mappa (punto 1) + precedenza (punto 2)
+       if   git -C "<path-repo>" show-ref --verify --quiet "refs/heads/$TARGET"; then
+         # branch locale già presente → checkout + fast-forward all'origin (mai force; se diverge, fermati e avvisa)
+         if git -C "<path-repo>" checkout "$TARGET" && git -C "<path-repo>" merge --ff-only "origin/$TARGET"; then
+           :   # allineato a origin/$TARGET
+         else
+           echo "ATTENZIONE: '$TARGET' locale diverge da origin/$TARGET (no fast-forward). NON forzo: allinea a mano (merge/rebase) prima di consumare la dipendenza."
+         fi
+       elif git -C "<path-repo>" show-ref --verify --quiet "refs/remotes/origin/$TARGET"; then
+         git -C "<path-repo>" checkout -t "origin/$TARGET"   # remote-only → crea il locale che traccia origin
+       else
+         echo "ATTENZIONE: branch '$TARGET' non trovato (né locale né origin) in <path-repo>."
+       fi
+     fi
+   fi
+   ```
+
+   **Annuncia e conferma** ogni checkout PRIMA di eseguirlo:
+
+   > Per la task **T-0XX** serve il codice della dipendenza **T-0YY** (Completata) nel repo **<Nome> (<SIGLA>)**.
+   > Faccio `checkout` di `<branch target>` in `<path-repo>` (working tree pulito, fetch fatto, no force). Procedo?
+
+4. **Registra i branch per-repo** allineati nel PROGRESS (colonna Branch / note della task), così lo stato del workspace resta tracciato e visibile agli altri sviluppatori.
+
+> **Deep path:** questo preflight (clean-tree + fetch + checkout dei repo consumati, con conferma) avviene **nella prosa dell'agente principale PRIMA** di invocare il Workflow `sdlc-executor-wave` — l'isolamento worktree del workflow copre solo il repo della task, non i repo consumati.
+
 ### Creazione branch
 
 Quando la task e' confermata e le dipendenze sono soddisfatte, crea i branch in TUTTE le repo di codice coinvolte. (La repo profili non riceve mai feature branch — lavora sempre su `main`.)
@@ -481,7 +536,7 @@ Quando la task e' confermata e le dipendenze sono soddisfatte, crea i branch in 
 
 Per ogni task, l'agente principale (tu) fai da coordinatore. Delega il lavoro concreto a sottoagenti Claude, ognuno con un compito specifico e ben delimitato.
 
-**In `deep`** (vedi "## Modalità di orchestrazione"): per la fase implementazione+verifica dei sotto-lavori *dentro questa task* invoca il **Workflow tool** `name: sdlc-executor-wave` con `{task, subjobs (la tua scomposizione), repos, gap_excerpt, profile, const, depth, verifier_panel}`. Il workflow implementa i sotto-lavori indipendenti in **parallelo in worktree isolati** per wave di dipendenza, verifica ognuno con `sdlc-verifier` (panel adversariale in `ultracode`) e fa il loop fix→riverifica (`loop-until-dry`). Poi **tu** (single-writer): per ogni sotto-lavoro `VERIFIED` **applica il suo `patch` al branch della task una alla volta** (`git apply`; merge controllato a valle, §8.4), con i gate utente e i commit **serializzati** (mai parallelizzare commit su più aree, §8.1). Se `partial: true` / sotto-lavori `NEEDS_ATTENTION` (§8.2): NON applicare nulla, presenta lo stato come *proposta non applicata* e fai decidere l'utente; banner **COPERTURA RIDOTTA** se degradi a `classic`. Gate di conferma, branch-prima-di-impl, commit (mai automatici) e PROGRESS restano serializzati, una task alla volta.
+**In `deep`** (vedi "## Modalità di orchestrazione"): per la fase implementazione+verifica dei sotto-lavori *dentro questa task* invoca il **Workflow tool** `name: sdlc-executor-wave` con `{task, subjobs (la tua scomposizione), repos, gap_excerpt, contract_excerpt (estratto di CONTRACTS.md per i C-NN citati dalla task, se presenti), profile, const, depth, verifier_panel}`. Il workflow implementa i sotto-lavori indipendenti in **parallelo in worktree isolati** per wave di dipendenza, verifica ognuno con `sdlc-verifier` (panel adversariale in `ultracode`) e fa il loop fix→riverifica (`loop-until-dry`). Poi **tu** (single-writer): per ogni sotto-lavoro `VERIFIED` **applica il suo `patch` al branch della task una alla volta** (`git apply`; merge controllato a valle, §8.4), con i gate utente e i commit **serializzati** (mai parallelizzare commit su più aree, §8.1). Se `partial: true` / sotto-lavori `NEEDS_ATTENTION` (§8.2): NON applicare nulla, presenta lo stato come *proposta non applicata* e fai decidere l'utente; banner **COPERTURA RIDOTTA** se degradi a `classic`. Gate di conferma, branch-prima-di-impl, commit (mai automatici) e PROGRESS restano serializzati, una task alla volta.
 
 **In `classic`** (default): scomponi e dispatcha i sottoagenti come descritto qui sotto (parallelizzazione opportunistica, verifica 3 fasi inline).
 
@@ -507,6 +562,23 @@ Ogni sottoagente deve ricevere un prompt autosufficiente che include:
 5. **Vincoli** — cosa NON fare, limiti di scope, attenzioni specifiche dalla task
 6. **Output atteso** — file da creare/modificare, test da scrivere, documentazione da aggiungere
 7. **Test richiesti** — specifica esplicitamente che il sottoagente deve scrivere test per il suo lavoro, compresi edge case. Elenca gli scenari di test attesi: happy path, input vuoti/null, boundary values, casi di errore. Il sottoagente non puo' dichiarare il lavoro completo senza test.
+
+**Contratto API (se la task cita un `C-NN`)** — Se la Descrizione della task cita un ID contratto (`C-NN`, prodotto contract-first da `sdlc-analyzer` in `CONTRACTS.md`, vedi #8), l'estratto del contratto è un **riferimento OBBLIGATORIO** nel prompt del sottoagente FE/BE. Ricava l'estratto del contratto citato dalla cartella del Piano:
+
+```bash
+CONTRACTS="$BASE_PATH/<stato>/<plan>/CONTRACTS.md"
+# Estrai il blocco del contratto citato: parti dalla sua INTESTAZIONE markdown (header che
+# contiene l'ID, es. "### C-01 ...") e fermati alla successiva intestazione di contratto o a fine
+# file (robusto a `---` e blocchi di codice interni). Adatta il pattern al formato reale di
+# CONTRACTS.md prodotto da sdlc-analyzer (WS1) — es. se gli ID sono in grassetto anziché header.
+awk -v id="C-01" '
+  $0 ~ ("^#+[[:space:]].*" id) { if (started) exit; started=1; print; next }
+  started && /^#+[[:space:]]/ { exit }
+  started { print }
+' "$CONTRACTS"
+```
+
+Includi quell'estratto nel prompt del sottoagente con l'istruzione esplicita: **implementa ESATTAMENTE** lo schema request/response e i **codici errore** del contratto (nessuna deviazione), e **scrivi test di conformità** che verifichino schema e codici errore. FE e BE della stessa API implementano contro lo **stesso** `C-NN` → l'integrazione finale (PLAN, Wave Integrazione) è un **conformance-check**, non una riconciliazione ex-post.
 
 Esempio di dispatch a un sottoagente:
 
