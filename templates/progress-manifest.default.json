@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "name": "official-default",
+  "sheets": [
+    {
+      "name": "Task",
+      "type": "table",
+      "columns": [
+        { "header": "ID", "width": 10, "field": "id" },
+        { "header": "Stream", "width": 18, "field": "stream" },
+        { "header": "Attività", "width": 30, "field": "activity" },
+        { "header": "Descrizione", "width": 60, "field": "description", "wrap": true },
+        { "header": "Owner", "width": 18, "field": "owner" },
+        { "header": "Area", "width": 8, "field": "area" },
+        { "header": "Priorità", "width": 10, "field": "priority" },
+        { "header": "Wave", "width": 10, "field": "wave" },
+        { "header": "Dipendenze", "width": 15, "field": "dependencies" },
+        { "header": "Effort", "width": 10, "field": "effort" },
+        { "header": "Branch", "width": 25, "field": "branch" },
+        { "header": "Progresso", "width": 12, "field": "progress", "format": "progress_bands" },
+        { "header": "Stato", "width": 15, "field": "status", "format": "status_colors" },
+        { "header": "Note", "width": 40, "field": "note", "wrap": true, "preserve_manual": true }
+      ]
+    },
+    { "name": "Per Sviluppatore", "type": "by_developer" },
+    { "name": "Riepilogo", "type": "summary" }
+  ]
+}

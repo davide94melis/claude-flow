@@ -1,4 +1,10 @@
-"""Aggregate PROGRESS.md files across branches using "highest progress wins"."""
+"""[DEPRECATED] Aggregate PROGRESS.md files across branches ("highest progress wins").
+
+DEPRECATED (SDLC feedback round #4): the progress model is CENTRALIZED — PROGRESS.md and
+PROGRESS.xlsx live on 'main' of the specs/profiles repo and are read directly via
+`git show origin/main:...` by sdlc-progress-report. Cross-branch aggregation contradicts
+that model and is disabled. Kept for reference only; running it exits non-zero.
+"""
 import os
 import re
 import sys
@@ -147,6 +153,16 @@ def aggregate(files: list[Path]) -> str:
 
 
 if __name__ == "__main__":
+    print(
+        "[DEPRECATED] aggregate-progress.py is no longer part of the SDLC progress flow.\n"
+        "The progress model is centralized: PROGRESS.md/PROGRESS.xlsx live on 'main' of the\n"
+        "specs/profiles repo and are read directly (git show origin/main:...). Cross-branch\n"
+        "'highest-progress-wins' aggregation contradicts that model and is disabled.\n"
+        "See skills/sdlc-progress-report/SKILL.md.",
+        file=sys.stderr,
+    )
+    sys.exit(2)
+    # --- legacy implementation retained below for reference (unreachable) ---
     if len(sys.argv) < 3:
         print("Usage: aggregate-progress.py <input-dir> <output-file>", file=sys.stderr)
         sys.exit(1)

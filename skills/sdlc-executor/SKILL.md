@@ -15,6 +15,39 @@ L'agente principale coordina il lavoro, delega l'implementazione a sottoagenti, 
 
 Tutte le operazioni su file plan avvengono nella **project_repo** (modalita' standalone, una repo per progetto) o nella repo `deloitte-profiles` (modalita' legacy), **non** nella repo del codice applicativo. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
+### Discovery del profilo (master-folder aware)
+
+Le skill possono partire dalla **root della repo di specifiche** (dove vive `.sdlc-local.json`) **oppure** da una **master-folder** di progetto che contiene le sottocartelle di tutte le repo (backend, frontend, `*-specs`, ...). In quest'ultimo caso il marker non e' in cwd ma in una sottocartella. Risolvi il profilo **prima** di leggere il config, impostando `SDLC_CFG` (path assoluto del file di config risolto):
+
+```bash
+SDLC_CFG=""
+if   [ -f ".sdlc-local.json" ]; then SDLC_CFG="$PWD/.sdlc-local.json"
+elif [ -f ".br-local.json"   ]; then SDLC_CFG="$PWD/.br-local.json"
+else
+  # sottocartelle immediate (maxdepth 2): marker .sdlc-local.json poi legacy .br-local.json
+  CANDS=$(find . -maxdepth 2 \( -name .sdlc-local.json -o -name .br-local.json \) 2>/dev/null)
+  # dedup per PROGETTO (chiave = project_repo | profiles_repo/profilo): molte config di un solo
+  # progetto collassano in UNA scelta; restano righe distinte solo per progetti diversi.
+  UNIQ=$(printf '%s\n' "$CANDS" | while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    key=$(grep -oP '"project_repo"\s*:\s*"\K[^"]+' "$f" 2>/dev/null)
+    [ -z "$key" ] && key="$(grep -oP '"profiles_repo"\s*:\s*"\K[^"]+' "$f" 2>/dev/null)/$(grep -oP '"profilo"\s*:\s*"\K[^"]+' "$f" 2>/dev/null)"
+    printf '%s\t%s\n' "$key" "$f"
+  done | sort -u -t"$(printf '\t')" -k1,1)
+  N=$(printf '%s\n' "$UNIQ" | grep -c .)
+  if   [ "$N" -eq 1 ]; then SDLC_CFG=$(printf '%s' "$UNIQ" | cut -f2)
+  elif [ "$N" -gt 1 ]; then echo "MULTI"; printf '%s\n' "$UNIQ" | cut -f2
+  fi
+fi
+echo "SDLC_CFG=${SDLC_CFG:-<none>}"
+```
+
+- **1 progetto** → usa `SDLC_CFG`. Prosegui col blocco di lettura sotto.
+- **`MULTI`** (piu' progetti DISTINTI) → mostra i candidati e **chiedi all'utente** quale progetto lavorare (`AskUserQuestion`), imposta `SDLC_CFG` di conseguenza, e ancora ogni operazione git ai repo di quel progetto.
+- **nessun candidato** → comportamento invariato: applica la sezione "Se ne' `.sdlc-local.json` ne' `.br-local.json` esistono" sotto.
+
+Da qui in poi, i comandi che seguono referenziano `.br-local.json` per continuita' storica: **applicali a `"$SDLC_CFG"`** (il file risolto). Il suffisso `-specs` NON e' una chiave — il marker e' la presenza del file di config; il suffisso puo' servire solo come hint di ordinamento tra candidati.
+
 ### Lettura del file di configurazione locale (`.sdlc-local.json` con fallback `.br-local.json`)
 
 **Lettura compatibile**: il file di configurazione locale può chiamarsi `.sdlc-local.json` (nuovo nome, raccomandato) oppure `.br-local.json` (nome legacy, ancora supportato). Cerca PRIMA `.sdlc-local.json`; se non esiste, fa fallback a `.br-local.json`. Se nessuno dei due esiste, ferma e chiedi all'utente di eseguire `/sdlc-profile-setup`.
@@ -29,24 +62,24 @@ All'avvio, leggi il file (priorità `.sdlc-local.json`, fallback `.br-local.json
 
 ```bash
 # Esempio con .br-local.json — equivalente per .sdlc-local.json
-cat .br-local.json 2>/dev/null
+cat "$SDLC_CFG" 2>/dev/null
 ```
 
 La presenza del campo `project_repo` o `profiles_repo` discrimina la modalita':
 
 ```bash
-if grep -q '"project_repo"' .br-local.json 2>/dev/null; then
+if grep -q '"project_repo"' "$SDLC_CFG" 2>/dev/null; then
   MODE="standalone"
-  PROJECT_REPO=$(grep -oP '"project_repo"\s*:\s*"\K[^"]+' .br-local.json)
-  PROJECT_NAME=$(grep -oP '"project_name"\s*:\s*"\K[^"]+' .br-local.json)
+  PROJECT_REPO=$(grep -oP '"project_repo"\s*:\s*"\K[^"]+' "$SDLC_CFG")
+  PROJECT_NAME=$(grep -oP '"project_name"\s*:\s*"\K[^"]+' "$SDLC_CFG")
   BASE_PATH="$PROJECT_REPO/plans"
   CONST_PATH="$PROJECT_REPO/constitution"
   DATASET_PATH="$PROJECT_REPO/dataset"        # solo standalone (popolato da Solaria-side)
   GIT_REPO_PATH="$PROJECT_REPO"
-elif grep -q '"profiles_repo"' .br-local.json 2>/dev/null; then
+elif grep -q '"profiles_repo"' "$SDLC_CFG" 2>/dev/null; then
   MODE="legacy"
-  PROFILES_REPO=$(grep -oP '"profiles_repo"\s*:\s*"\K[^"]+' .br-local.json)
-  PROFILO=$(grep -oP '"profilo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROFILES_REPO=$(grep -oP '"profiles_repo"\s*:\s*"\K[^"]+' "$SDLC_CFG")
+  PROFILO=$(grep -oP '"profilo"\s*:\s*"\K[^"]+' "$SDLC_CFG")
   PROJECT_NAME="$PROFILO"
   BASE_PATH="$PROFILES_REPO/$PROFILO/plans"
   CONST_PATH="$PROFILES_REPO/$PROFILO/constitution"
@@ -118,6 +151,29 @@ Entrambi i file restano disponibili come contesto per tutta la durata della skil
 
 ---
 
+## Lingua di interazione e degli artefatti
+
+La lingua di **interazione** (conversazione con l'utente) e' persistita in `.sdlc-local.json` (fallback `.br-local.json`) nel campo flat `interaction_language` (`it` | `en`). Risoluzione (grep-compatibile, niente `jq`):
+
+```bash
+INTERACTION_LANG=$(grep -oP '"interaction_language"\s*:\s*"\K(it|en)' "$SDLC_CFG" 2>/dev/null)
+```
+
+- Se `INTERACTION_LANG` e' vuoto (campo assente, es. profilo pre-esistente): **chiedi una volta** all'utente `it`/`en` (`AskUserQuestion`), poi **persisti** aggiungendo `"interaction_language": "<scelta>"` a `"$SDLC_CFG"` (staging con messaggio `[sdlc-config] set interaction_language`). **Nessun default silenzioso.**
+- Tutta la **comunicazione conversazionale** con l'utente segue `INTERACTION_LANG`.
+
+**Lingua degli artefatti prodotti (regola per classe, indipendente da `INTERACTION_LANG`):**
+
+| Classe | Artefatti | Lingua |
+|---|---|---|
+| Dev-facing | gap report/PLAN, TASKS, PROGRESS, bug report, codice, messaggi di commit, report estimator, report progress | **Solo inglese (EN)** |
+| Funzionale/end-user | CLARIFY (lato skill); AFU, playbook, report a11y (lato Solaria) | Lingua di interazione/prodotto **+ copia EN** (`<nome>.en.<ext>`) |
+| Mockup | copy UI (lato Solaria) | Solo lingua utente finale (nessuna copia EN) |
+
+> Questa skill produce artefatti **dev-facing → sempre in EN**, indipendentemente da `INTERACTION_LANG` (che governa solo la conversazione). *(Eccezione: `sdlc-reviewer`/`sdlc-clarify` producono anche il CLARIFY, funzionale → vedi la loro sezione dedicata.)*
+
+---
+
 ## Modalità di orchestrazione
 
 Ogni skill SDLC può girare in due modalità:
@@ -132,7 +188,7 @@ Ogni skill SDLC può girare in due modalità:
 1. **Flag persistente** in `.sdlc-local.json` (fallback `.br-local.json`) — la sorgente automatica a precedenza più alta. Campi *flat* (grep-compatibili, niente `jq`):
 
    ```bash
-   LOCAL_CFG=".sdlc-local.json"; [ -f "$LOCAL_CFG" ] || LOCAL_CFG=".br-local.json"
+   LOCAL_CFG="$SDLC_CFG"
    ORCH_MODE=$(grep -oP '"orchestration_mode"\s*:\s*"\K[^"]+' "$LOCAL_CFG" 2>/dev/null);  ORCH_MODE=${ORCH_MODE:-classic}
    ORCH_DEPTH=$(grep -oP '"orchestration_depth"\s*:\s*"\K[^"]+' "$LOCAL_CFG" 2>/dev/null); ORCH_DEPTH=${ORCH_DEPTH:-standard}
    ORCH_MAXC=$(grep -oP '"orchestration_max_concurrency"\s*:\s*\K[0-9]+' "$LOCAL_CFG" 2>/dev/null); ORCH_MAXC=${ORCH_MAXC:-10}
@@ -397,6 +453,61 @@ Se una dipendenza non e' soddisfatta, avvisa e blocca:
 > 1. Passare a un'altra task senza dipendenze bloccanti?
 > 2. Attendere? (ti chiedero' di controllare il progresso piu' tardi)
 
+### Preflight workspace sync (cross-repo)
+
+Prima di creare i branch della task e prima di lanciare sotto-agenti/workflow, allinea i **repo di codice** allo stato corretto. Serve quando il progetto ha **più repo** e la task **consuma** il lavoro di una dipendenza **Completata** che vive su un branch di un *altro* repo (es. una task BE che consuma un endpoint/contratto prodotto da una task FE, o viceversa). **No-op** per progetti single-repo (un solo repo di codice) — salta l'intera sezione.
+
+> **Mai `--force`, mai auto-commit sui repo di codice.** Ogni checkout è **annunciato e confermato** dall'utente.
+
+1. **Costruisci la mappa `repo → branch target`:**
+   - **Repo lavorati dalla task** (sigle nella colonna `Area` della task): branch = quello della task (colonna `Branch` del piano, o `feature/<task-name>` in retrocompat). Vengono **creati** nella sezione "Creazione branch" (sotto); qui il preflight ne garantisce solo working tree pulito + fetch.
+   - **Repo solo-consumati** (repo che compaiono nell'`Area` di una **dipendenza Completata** della task ma NON nell'`Area` della task). Per ogni dipendenza in stato **Completata** (dal PROGRESS, dopo il pull):
+     - `dep.Area` → sigle repo coinvolte (dal TASKS/piano);
+     - `dep.Branch` → nome branch della dipendenza (colonna Branch del PROGRESS; fallback: colonna Branch del TASKS).
+   - Se un repo è sia lavorato sia consumato, **prevale il branch della task** (ci lavori sopra).
+   - **Conflitto multi-branch:** se lo stesso repo solo-consumato risulterebbe mappato a **due o più branch di dipendenza distinti e non ancora mergiati nella base** (es. due dipendenze Completata su `feature/x` e `feature/y` dello stesso repo), NON scegliere silenziosamente: **avvisa l'utente** elencando i branch in conflitto e fai decidere quale allineare (o attendi la merge task che li integra nella base). Non lasciare mai una dipendenza silenziosamente assente.
+
+2. **Precedenza base-mergeata vs branch-dipendenza:** se nel piano esiste una **merge task** (`T-MERGE-*`) che integra la dipendenza nel **branch base** ed è **Completata**, il codice della dipendenza è già nella base → per il repo consumato fai checkout della **base** (es. `main` o il branch base del piano), NON del branch della dipendenza. Altrimenti fai checkout del **branch della dipendenza**.
+
+3. **Guardia clean-tree + `fetch` su OGNI repo della mappa; checkout allineato SOLO sui repo consumati.** Per i **repo lavorati dalla task** applica qui la guardia clean-tree + `git fetch` (il branch della task viene poi **creato** in "Creazione branch") — così la garanzia del punto 1 è reale. Per i **repo solo-consumati** fai anche il checkout allineato. `<path-repo>` = path locale fornito in Fase 1:
+
+   ```bash
+   # a) guardia clean-tree — mai toccare un working tree sporco, mai force (vale per OGNI repo della mappa)
+   if [ -n "$(git -C "<path-repo>" status --porcelain)" ]; then
+     echo "STOP: working tree sporco in <path-repo>. Committa o stasha prima; non faccio checkout forzato."
+     # avvisa l'utente e fai decidere — NON procedere su questo repo
+   else
+     # b) fetch VERIFICATO: se fallisce, NON proseguire col checkout su questo repo (evita stato stale)
+     if ! git -C "<path-repo>" fetch origin --quiet; then
+       echo "STOP: 'git fetch' fallito su <path-repo> — salto il checkout su questo repo."
+     else
+       # c) SOLO per i repo solo-consumati: allinea al branch target (dipendenza o base-mergeata)
+       TARGET="<branch-dipendenza-o-base>"   # da mappa (punto 1) + precedenza (punto 2)
+       if   git -C "<path-repo>" show-ref --verify --quiet "refs/heads/$TARGET"; then
+         # branch locale già presente → checkout + fast-forward all'origin (mai force; se diverge, fermati e avvisa)
+         if git -C "<path-repo>" checkout "$TARGET" && git -C "<path-repo>" merge --ff-only "origin/$TARGET"; then
+           :   # allineato a origin/$TARGET
+         else
+           echo "ATTENZIONE: '$TARGET' locale diverge da origin/$TARGET (no fast-forward). NON forzo: allinea a mano (merge/rebase) prima di consumare la dipendenza."
+         fi
+       elif git -C "<path-repo>" show-ref --verify --quiet "refs/remotes/origin/$TARGET"; then
+         git -C "<path-repo>" checkout -t "origin/$TARGET"   # remote-only → crea il locale che traccia origin
+       else
+         echo "ATTENZIONE: branch '$TARGET' non trovato (né locale né origin) in <path-repo>."
+       fi
+     fi
+   fi
+   ```
+
+   **Annuncia e conferma** ogni checkout PRIMA di eseguirlo:
+
+   > Per la task **T-0XX** serve il codice della dipendenza **T-0YY** (Completata) nel repo **<Nome> (<SIGLA>)**.
+   > Faccio `checkout` di `<branch target>` in `<path-repo>` (working tree pulito, fetch fatto, no force). Procedo?
+
+4. **Registra i branch per-repo** allineati nel PROGRESS (colonna Branch / note della task), così lo stato del workspace resta tracciato e visibile agli altri sviluppatori.
+
+> **Deep path:** questo preflight (clean-tree + fetch + checkout dei repo consumati, con conferma) avviene **nella prosa dell'agente principale PRIMA** di invocare il Workflow `sdlc-executor-wave` — l'isolamento worktree del workflow copre solo il repo della task, non i repo consumati.
+
 ### Creazione branch
 
 Quando la task e' confermata e le dipendenze sono soddisfatte, crea i branch in TUTTE le repo di codice coinvolte. (La repo profili non riceve mai feature branch — lavora sempre su `main`.)
@@ -425,7 +536,7 @@ Quando la task e' confermata e le dipendenze sono soddisfatte, crea i branch in 
 
 Per ogni task, l'agente principale (tu) fai da coordinatore. Delega il lavoro concreto a sottoagenti Claude, ognuno con un compito specifico e ben delimitato.
 
-**In `deep`** (vedi "## Modalità di orchestrazione"): per la fase implementazione+verifica dei sotto-lavori *dentro questa task* invoca il **Workflow tool** `name: sdlc-executor-wave` con `{task, subjobs (la tua scomposizione), repos, gap_excerpt, profile, const, depth, verifier_panel}`. Il workflow implementa i sotto-lavori indipendenti in **parallelo in worktree isolati** per wave di dipendenza, verifica ognuno con `sdlc-verifier` (panel adversariale in `ultracode`) e fa il loop fix→riverifica (`loop-until-dry`). Poi **tu** (single-writer): per ogni sotto-lavoro `VERIFIED` **applica il suo `patch` al branch della task una alla volta** (`git apply`; merge controllato a valle, §8.4), con i gate utente e i commit **serializzati** (mai parallelizzare commit su più aree, §8.1). Se `partial: true` / sotto-lavori `NEEDS_ATTENTION` (§8.2): NON applicare nulla, presenta lo stato come *proposta non applicata* e fai decidere l'utente; banner **COPERTURA RIDOTTA** se degradi a `classic`. Gate di conferma, branch-prima-di-impl, commit (mai automatici) e PROGRESS restano serializzati, una task alla volta.
+**In `deep`** (vedi "## Modalità di orchestrazione"): per la fase implementazione+verifica dei sotto-lavori *dentro questa task* invoca il **Workflow tool** `name: sdlc-executor-wave` con `{task, subjobs (la tua scomposizione), repos, gap_excerpt, contract_excerpt (estratto di CONTRACTS.md per i C-NN citati dalla task, se presenti), profile, const, depth, verifier_panel}`. Il workflow implementa i sotto-lavori indipendenti in **parallelo in worktree isolati** per wave di dipendenza, verifica ognuno con `sdlc-verifier` (panel adversariale in `ultracode`) e fa il loop fix→riverifica (`loop-until-dry`). Poi **tu** (single-writer): per ogni sotto-lavoro `VERIFIED` **applica il suo `patch` al branch della task una alla volta** (`git apply`; merge controllato a valle, §8.4), con i gate utente e i commit **serializzati** (mai parallelizzare commit su più aree, §8.1). Se `partial: true` / sotto-lavori `NEEDS_ATTENTION` (§8.2): NON applicare nulla, presenta lo stato come *proposta non applicata* e fai decidere l'utente; banner **COPERTURA RIDOTTA** se degradi a `classic`. Gate di conferma, branch-prima-di-impl, commit (mai automatici) e PROGRESS restano serializzati, una task alla volta.
 
 **In `classic`** (default): scomponi e dispatcha i sottoagenti come descritto qui sotto (parallelizzazione opportunistica, verifica 3 fasi inline).
 
@@ -451,6 +562,23 @@ Ogni sottoagente deve ricevere un prompt autosufficiente che include:
 5. **Vincoli** — cosa NON fare, limiti di scope, attenzioni specifiche dalla task
 6. **Output atteso** — file da creare/modificare, test da scrivere, documentazione da aggiungere
 7. **Test richiesti** — specifica esplicitamente che il sottoagente deve scrivere test per il suo lavoro, compresi edge case. Elenca gli scenari di test attesi: happy path, input vuoti/null, boundary values, casi di errore. Il sottoagente non puo' dichiarare il lavoro completo senza test.
+
+**Contratto API (se la task cita un `C-NN`)** — Se la Descrizione della task cita un ID contratto (`C-NN`, prodotto contract-first da `sdlc-analyzer` in `CONTRACTS.md`, vedi #8), l'estratto del contratto è un **riferimento OBBLIGATORIO** nel prompt del sottoagente FE/BE. Ricava l'estratto del contratto citato dalla cartella del Piano:
+
+```bash
+CONTRACTS="$BASE_PATH/<stato>/<plan>/CONTRACTS.md"
+# Estrai il blocco del contratto citato: parti dalla sua INTESTAZIONE markdown (header che
+# contiene l'ID, es. "### C-01 ...") e fermati alla successiva intestazione di contratto o a fine
+# file (robusto a `---` e blocchi di codice interni). Adatta il pattern al formato reale di
+# CONTRACTS.md prodotto da sdlc-analyzer (WS1) — es. se gli ID sono in grassetto anziché header.
+awk -v id="C-01" '
+  $0 ~ ("^#+[[:space:]].*" id) { if (started) exit; started=1; print; next }
+  started && /^#+[[:space:]]/ { exit }
+  started { print }
+' "$CONTRACTS"
+```
+
+Includi quell'estratto nel prompt del sottoagente con l'istruzione esplicita: **implementa ESATTAMENTE** lo schema request/response e i **codici errore** del contratto (nessuna deviazione), e **scrivi test di conformità** che verifichino schema e codici errore. FE e BE della stessa API implementano contro lo **stesso** `C-NN` → l'integrazione finale (PLAN, Wave Integrazione) è un **conformance-check**, non una riconciliazione ex-post.
 
 Esempio di dispatch a un sottoagente:
 

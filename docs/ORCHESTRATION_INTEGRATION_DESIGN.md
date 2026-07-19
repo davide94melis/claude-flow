@@ -72,7 +72,7 @@ I 5 agent in [`agents/`](../agents) sono prompt-di-sistema riusabili, **read-onl
 
 ### 2.3 Tooling deterministico a parte
 
-Gli script in [`scripts/`](../scripts) (`aggregate-progress.py`, `bug-template-v2.py`, i migrator, `sync-installed.sh`) sono utility di manutenzione/aggregazione, **non** orchestrazione runtime. **Restano invariati** in entrambe le modalità: cambia solo l'orchestratore che li chiama.
+Gli script in [`scripts/`](../scripts) (`aggregate-progress.py` (**deprecato**, vedi #4), `bug-template-v2.py`, i migrator, `sync-installed.sh`) sono utility di manutenzione/aggregazione, **non** orchestrazione runtime. **Restano invariati** in entrambe le modalità: cambia solo l'orchestratore che li chiama.
 
 ---
 

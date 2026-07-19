@@ -25,6 +25,39 @@ Il processo si compone di 4 fasi:
 
 Tutte le operazioni su file plan avvengono nella **project_repo** (modalita' standalone, una repo per progetto) o nella repo `deloitte-profiles` (modalita' legacy), **non** nella repo del codice applicativo. Il codice del progetto continua a essere scritto nelle repo del progetto.
 
+### Discovery del profilo (master-folder aware)
+
+Le skill possono partire dalla **root della repo di specifiche** (dove vive `.sdlc-local.json`) **oppure** da una **master-folder** di progetto che contiene le sottocartelle di tutte le repo (backend, frontend, `*-specs`, ...). In quest'ultimo caso il marker non e' in cwd ma in una sottocartella. Risolvi il profilo **prima** di leggere il config, impostando `SDLC_CFG` (path assoluto del file di config risolto):
+
+```bash
+SDLC_CFG=""
+if   [ -f ".sdlc-local.json" ]; then SDLC_CFG="$PWD/.sdlc-local.json"
+elif [ -f ".br-local.json"   ]; then SDLC_CFG="$PWD/.br-local.json"
+else
+  # sottocartelle immediate (maxdepth 2): marker .sdlc-local.json poi legacy .br-local.json
+  CANDS=$(find . -maxdepth 2 \( -name .sdlc-local.json -o -name .br-local.json \) 2>/dev/null)
+  # dedup per PROGETTO (chiave = project_repo | profiles_repo/profilo): molte config di un solo
+  # progetto collassano in UNA scelta; restano righe distinte solo per progetti diversi.
+  UNIQ=$(printf '%s\n' "$CANDS" | while IFS= read -r f; do
+    [ -z "$f" ] && continue
+    key=$(grep -oP '"project_repo"\s*:\s*"\K[^"]+' "$f" 2>/dev/null)
+    [ -z "$key" ] && key="$(grep -oP '"profiles_repo"\s*:\s*"\K[^"]+' "$f" 2>/dev/null)/$(grep -oP '"profilo"\s*:\s*"\K[^"]+' "$f" 2>/dev/null)"
+    printf '%s\t%s\n' "$key" "$f"
+  done | sort -u -t"$(printf '\t')" -k1,1)
+  N=$(printf '%s\n' "$UNIQ" | grep -c .)
+  if   [ "$N" -eq 1 ]; then SDLC_CFG=$(printf '%s' "$UNIQ" | cut -f2)
+  elif [ "$N" -gt 1 ]; then echo "MULTI"; printf '%s\n' "$UNIQ" | cut -f2
+  fi
+fi
+echo "SDLC_CFG=${SDLC_CFG:-<none>}"
+```
+
+- **1 progetto** → usa `SDLC_CFG`. Prosegui col blocco di lettura sotto.
+- **`MULTI`** (piu' progetti DISTINTI) → mostra i candidati e **chiedi all'utente** quale progetto lavorare (`AskUserQuestion`), imposta `SDLC_CFG` di conseguenza, e ancora ogni operazione git ai repo di quel progetto.
+- **nessun candidato** → comportamento invariato: applica la sezione "Se ne' `.sdlc-local.json` ne' `.br-local.json` esistono" sotto.
+
+Da qui in poi, i comandi che seguono referenziano `.br-local.json` per continuita' storica: **applicali a `"$SDLC_CFG"`** (il file risolto). Il suffisso `-specs` NON e' una chiave — il marker e' la presenza del file di config; il suffisso puo' servire solo come hint di ordinamento tra candidati.
+
 ### Lettura del file di configurazione locale (`.sdlc-local.json` con fallback `.br-local.json`)
 
 **Lettura compatibile**: il file di configurazione locale può chiamarsi `.sdlc-local.json` (nuovo nome, raccomandato) oppure `.br-local.json` (nome legacy, ancora supportato). Cerca PRIMA `.sdlc-local.json`; se non esiste, fa fallback a `.br-local.json`. Se nessuno dei due esiste, ferma e chiedi all'utente di eseguire `/sdlc-profile-setup`.
@@ -39,24 +72,24 @@ All'avvio, leggi il file (priorità `.sdlc-local.json`, fallback `.br-local.json
 
 ```bash
 # Esempio con .br-local.json — equivalente per .sdlc-local.json
-cat .br-local.json 2>/dev/null
+cat "$SDLC_CFG" 2>/dev/null
 ```
 
 La presenza del campo `project_repo` o `profiles_repo` discrimina la modalita':
 
 ```bash
-if grep -q '"project_repo"' .br-local.json 2>/dev/null; then
+if grep -q '"project_repo"' "$SDLC_CFG" 2>/dev/null; then
   MODE="standalone"
-  PROJECT_REPO=$(grep -oP '"project_repo"\s*:\s*"\K[^"]+' .br-local.json)
-  PROJECT_NAME=$(grep -oP '"project_name"\s*:\s*"\K[^"]+' .br-local.json)
+  PROJECT_REPO=$(grep -oP '"project_repo"\s*:\s*"\K[^"]+' "$SDLC_CFG")
+  PROJECT_NAME=$(grep -oP '"project_name"\s*:\s*"\K[^"]+' "$SDLC_CFG")
   BASE_PATH="$PROJECT_REPO/plans"
   CONST_PATH="$PROJECT_REPO/constitution"
   DATASET_PATH="$PROJECT_REPO/dataset"        # solo standalone (popolato da Solaria-side)
   GIT_REPO_PATH="$PROJECT_REPO"
-elif grep -q '"profiles_repo"' .br-local.json 2>/dev/null; then
+elif grep -q '"profiles_repo"' "$SDLC_CFG" 2>/dev/null; then
   MODE="legacy"
-  PROFILES_REPO=$(grep -oP '"profiles_repo"\s*:\s*"\K[^"]+' .br-local.json)
-  PROFILO=$(grep -oP '"profilo"\s*:\s*"\K[^"]+' .br-local.json)
+  PROFILES_REPO=$(grep -oP '"profiles_repo"\s*:\s*"\K[^"]+' "$SDLC_CFG")
+  PROFILO=$(grep -oP '"profilo"\s*:\s*"\K[^"]+' "$SDLC_CFG")
   PROJECT_NAME="$PROFILO"
   BASE_PATH="$PROFILES_REPO/$PROFILO/plans"
   CONST_PATH="$PROFILES_REPO/$PROFILO/constitution"
@@ -128,6 +161,29 @@ Entrambi i file restano disponibili come contesto per tutta la durata della skil
 
 ---
 
+## Lingua di interazione e degli artefatti
+
+La lingua di **interazione** (conversazione con l'utente) e' persistita in `.sdlc-local.json` (fallback `.br-local.json`) nel campo flat `interaction_language` (`it` | `en`). Risoluzione (grep-compatibile, niente `jq`):
+
+```bash
+INTERACTION_LANG=$(grep -oP '"interaction_language"\s*:\s*"\K(it|en)' "$SDLC_CFG" 2>/dev/null)
+```
+
+- Se `INTERACTION_LANG` e' vuoto (campo assente, es. profilo pre-esistente): **chiedi una volta** all'utente `it`/`en` (`AskUserQuestion`), poi **persisti** aggiungendo `"interaction_language": "<scelta>"` a `"$SDLC_CFG"` (staging con messaggio `[sdlc-config] set interaction_language`). **Nessun default silenzioso.**
+- Tutta la **comunicazione conversazionale** con l'utente segue `INTERACTION_LANG`.
+
+**Lingua degli artefatti prodotti (regola per classe, indipendente da `INTERACTION_LANG`):**
+
+| Classe | Artefatti | Lingua |
+|---|---|---|
+| Dev-facing | gap report/PLAN, TASKS, PROGRESS, bug report, codice, messaggi di commit, report estimator, report progress | **Solo inglese (EN)** |
+| Funzionale/end-user | CLARIFY (lato skill); AFU, playbook, report a11y (lato Solaria) | Lingua di interazione/prodotto **+ copia EN** (`<nome>.en.<ext>`) |
+| Mockup | copy UI (lato Solaria) | Solo lingua utente finale (nessuna copia EN) |
+
+> Questa skill produce artefatti **dev-facing → sempre in EN**, indipendentemente da `INTERACTION_LANG` (che governa solo la conversazione). *(Eccezione: `sdlc-reviewer`/`sdlc-clarify` producono anche il CLARIFY, funzionale → vedi la loro sezione dedicata.)*
+
+---
+
 ## Modalità di orchestrazione
 
 Ogni skill SDLC può girare in due modalità:
@@ -142,7 +198,7 @@ Ogni skill SDLC può girare in due modalità:
 1. **Flag persistente** in `.sdlc-local.json` (fallback `.br-local.json`) — la sorgente automatica a precedenza più alta. Campi *flat* (grep-compatibili, niente `jq`):
 
    ```bash
-   LOCAL_CFG=".sdlc-local.json"; [ -f "$LOCAL_CFG" ] || LOCAL_CFG=".br-local.json"
+   LOCAL_CFG="$SDLC_CFG"
    ORCH_MODE=$(grep -oP '"orchestration_mode"\s*:\s*"\K[^"]+' "$LOCAL_CFG" 2>/dev/null);  ORCH_MODE=${ORCH_MODE:-classic}
    ORCH_DEPTH=$(grep -oP '"orchestration_depth"\s*:\s*"\K[^"]+' "$LOCAL_CFG" 2>/dev/null); ORCH_DEPTH=${ORCH_DEPTH:-standard}
    ORCH_MAXC=$(grep -oP '"orchestration_max_concurrency"\s*:\s*\K[0-9]+' "$LOCAL_CFG" 2>/dev/null); ORCH_MAXC=${ORCH_MAXC:-10}
@@ -291,6 +347,28 @@ Salva i nomi, le sigle e i path forniti. Usa le sigle dell'utente in tutto il re
 >
 > Esempio: "Marco - BE senior, Luca - FE mid, Anna - BE+GW junior"
 
+### Domanda 4 — Strategia di decomposizione dei task
+
+Leggi un eventuale default persistito (grep-compatibile, niente `jq`):
+
+```bash
+DECOMP_BIAS=$(grep -oP '"decomposition_bias"\s*:\s*"\K(testability|parallelization)' "$SDLC_CFG" 2>/dev/null)
+```
+
+Chiedi comunque la scelta per QUESTO Piano con `AskUserQuestion` (pre-seleziona `$DECOMP_BIAS` se presente, altrimenti `testability`):
+
+> Come vuoi decomporre i task di questo Piano?
+> - **testability-first** (default) — ogni task porta criteri di completamento auto-verificabili dallo sviluppatore (e, dove serve, il proprio test); task più grandi (fino a 3-5 gg), meno merge task, ma parallelismo massimizzato a parità di testabilità.
+> - **parallelization-first** — split atomico aggressivo (anche <1 gg quando aumenta il fan-out), più merge task cross-stream, accettando task meno comprensibili/testabili in isolamento (con un floor minimo di verificabilità).
+
+Registra la scelta come `DECOMP_MODE` e riportala nell'header/Assunzioni del TASKS. Nessuna escalation silenziosa: la scelta è sempre esplicita.
+
+### Domanda 5 — Deadline e data di inizio (opzionale)
+
+> Esiste una **data di inizio ufficiale** del Piano e una **deadline**? (formato `YYYY-MM-DD`, oppure "nessuna")
+
+Se il manifest standalone (`requirements/afu-manifest.json`) ha già un campo `deadline`, proponilo come default. Registra `START_DATE` e `DEADLINE` (o "non fornita"). La sezione "Cadenza verso la deadline" nel TASKS richiede **entrambe** le date: se una o entrambe mancano, viene omessa. L'header del PLAN riporta comunque i due campi (con `non fornita` dove manca), così progress-report ha una fonte uniforme; con entrambe assenti non calcolerà anticipo/ritardo.
+
 ### Prima di procedere
 
 Dopo aver raccolto tutti gli input, ricapitola quello che hai ricevuto e chiedi conferma:
@@ -300,6 +378,8 @@ Dopo aver raccolto tutti gli input, ricapitola quello che hai ricevuto e chiedi 
 >   [per ognuna: Nome (SIGLA) → path]
 > - Documentazione: [lista con path]
 > - Team: [lista con ruolo e seniority]
+> - Strategia decomposizione: [testability-first | parallelization-first]
+> - Deadline / Data inizio: [vedi Domanda 5]
 >
 > Confermo e procedo con l'analisi?
 
@@ -464,13 +544,15 @@ Se la cartella del Piano non esiste ancora (sdlc-reviewer non eseguito), creala:
 mkdir -p "$BASE_PATH/todo/<YYYY-MM-DD>_<nome>/requirements"
 ```
 
+Se il Piano richiede una o più **API di comunicazione FE↔BE** (euristica: un requisito la cui Area coinvolge sia BE sia FE, o un endpoint esposto dal BE e consumato dal FE), genera **anche** `CONTRACTS.md` nella cartella del Piano (contratto a monte, vedi §4.1/§4.2 e i Principi). Se nessuna API FE↔BE è richiesta, non creare il file.
+
 (in-progress e done sono già create da sdlc-profile-setup)
 
 Genera entrambi i file nella cartella del Piano in `$BASE_PATH/todo/`. Questo e' lo stato iniziale: la cartella intera si sposta in `in-progress/` quando uno sviluppatore avvia la lavorazione con `sdlc-executor`, e in `done/` al completamento di tutte le task.
 
 **In `deep`** — banner e judge-panel (vedi "## Modalità di orchestrazione"):
 - Mostra il banner di modalità all'avvio del lavoro pesante. Se hai dovuto degradare a `classic` (Workflow tool assente o fallito), scrivi in testa al PLAN il banner **"COPERTURA RIDOTTA — prodotto senza completeness-critic/adversarial-verify"**: gli artefatti `classic` e `deep` non sono equivalenti, la degradazione è rumorosa.
-- Dopo aver scritto il TASKS (4.2), esegui un **judge-panel** sulle task — auto-sufficienza di ogni task, granularità 1–5 gg, correttezza delle merge task `T-MERGE-NNN` e delle dipendenze: lancia `verifier_panel` verifiche scettiche (Task con prompt da `${CLAUDE_PLUGIN_ROOT}/agents/sdlc-verifier.md` adattato al planning) e correggi le task segnalate **prima** del commit. In `classic` questo passo non viene eseguito.
+- Dopo aver scritto il TASKS (4.2), esegui un **judge-panel** sulle task — auto-sufficienza di ogni task, granularità 1–5 gg, correttezza delle merge task `T-MERGE-NNN` e delle dipendenze: lancia `verifier_panel` verifiche scettiche (Task con prompt da `${CLAUDE_PLUGIN_ROOT}/agents/sdlc-verifier.md` adattato al planning) e correggi le task segnalate **prima** del commit. In `classic` questo passo non viene eseguito. In *testability-first* il panel verifica anche l'auto-testabilità di ogni task (non solo il range 1–5 gg); in *parallelization-first* verifica il floor minimo di verificabilità oltre alla correttezza delle merge task.
 
 ### 4.1 — PLAN
 
@@ -483,6 +565,8 @@ Struttura:
 
 Data verifica: `<data>`
 Modalita': `standalone` | `legacy`
+Data inizio ufficiale: `<START_DATE o "non fornita">`
+Deadline: `<DEADLINE o "non fornita">`
 Processed AFU version: `<manifest.versione>`            # SOLO standalone — letto da requirements/afu-manifest.json
 AFU manifest: `requirements/afu-manifest.json`          # SOLO standalone
 Test playbook: `tests/playbook.md` + `tests/playbook.xlsx`   # SOLO standalone se manifest.tests presente
@@ -556,6 +640,16 @@ Genera dinamicamente una colonna per ogni repository coinvolta, usando le sigle 
 [Riepilogo: cosa è coperto, cosa è mancante, cosa è da chiarire.
  Organizzato per funzionalità, con lo stato di ognuna.]
 
+## Contratti API FE↔BE
+
+[SOLO se il Piano richiede API FE↔BE; altrimenti OMETTI. Indice dei contratti definiti in `CONTRACTS.md`.]
+
+| ID Contratto | Endpoint + Metodo | Repo coinvolte | Task-contratto |
+|---|---|---|---|
+| `C-01` | `POST /api/...` | BE, FE | `T-00X` (Wave 0) |
+
+Dettaglio completo (request/response schema, codici errore, auth/headers) in `CONTRACTS.md`.
+
 ## Violazioni principi CONST rilevate
 
 Elenco dei punti in cui il codebase corrente NON rispetta i principi dichiarati in `CONST.json`. Sono finding informativi (non blocking — il piano va avanti comunque), ma vanno mostrati al team funzionale e di sviluppo perché documentano gap di conformità da chiudere nel medio termine.
@@ -587,10 +681,11 @@ Assunzioni:
 - [se sdlc-reviewer e' stato eseguito, includi qui tutte le assunzioni confermate dalla review, con riferimento al CLARIFY.md]
 - team disponibile:
   - [per ogni sviluppatore: ruolo e seniority]
+- Strategia di decomposizione: `<DECOMP_MODE>` (testability-first | parallelization-first)
 
 ## Obiettivo
 
-[1-2 frasi: massimizzare parallelismo, ridurre colli di bottiglia]
+[1-2 frasi coerenti con `DECOMP_MODE`: in *testability-first* enfatizza task auto-verificabili e parallelismo a parità di testabilità; in *parallelization-first* enfatizza il massimo parallelismo/fan-out. Cita esplicitamente la modalità scelta.]
 
 ## Strategia di esecuzione
 
@@ -653,7 +748,7 @@ Regole:
 [...]
 
 ### Wave N — Integrazione e UAT
-[...]
+[Con contratto API congelato a monte (vedi Contract-first), questa wave NON riconcilia FE/BE ex-post: diventa un **conformance-check** (verifica che FE e BE rispettino esattamente `CONTRACTS.md`: schema request/response, codici errore) **+ UAT**. Mantiene il checkpoint end-to-end ma con effort ridotto.]
 
 ## Dipendenze critiche
 
@@ -672,11 +767,22 @@ Regole:
 ### Effort
 [per ogni repository/area coinvolta:]
 - <SIGLA>: circa `N gg/uomo`
-- Integrazione e UAT: circa `N gg/uomo`
+- Integrazione e UAT: circa `N gg/uomo` (ridotto se contract-first attivo: solo conformance-check + UAT)
 
 ### Durata calendario realistica
 [Scenario realistico settimana per settimana]
 [Scenario aggressivo con rischi]
+
+### Cadenza verso la deadline
+
+[SOLO se `START_DATE` e `DEADLINE` sono presenti; altrimenti OMETTI questa sezione.]
+
+- Giorni lavorativi disponibili (weekend esclusi) tra `START_DATE` e `DEADLINE`: `N`
+- Cadenza richiesta: `<effort_totale_gg>/N` = **`X gg-effort/giorno`** (primaria) · **`Y task/giorno`** (secondaria = `<num_task>/N`)
+- Capacità del team: `<somma capacità dev>` gg-effort/giorno → confronto: `[sufficiente | insufficiente di Z gg-effort/giorno]`
+- Baseline cumulativa attesa (curva di completamento pianificata): in `classic`, lineare — `effort_atteso(d) = effort_totale * giorni_lavorativi_trascorsi(d) / N`. In `deep` o quando esiste un ESTIMATE dell'`sdlc-estimator`, usa una baseline wave/dipendenza-aware riusando la logica di `sdlc-estimation-scenario` e **indica quale baseline** è stata usata.
+
+> Questa baseline è la fonte che `sdlc-progress-report` legge per calcolare anticipo/ritardo (WS2).
 
 ## Rischi principali
 
@@ -729,9 +835,15 @@ Quando scomponi il lavoro in task, questi principi guidano le decisioni:
 
 **Granularità giusta** — Ogni task deve essere completabile in 1-5 giorni. Troppo grande: spezzala. Troppo piccola (< 2 ore): accorpala con task correlate.
 
+**Bilanciamento per modalità di decomposizione** — Pesa i principi sopra secondo `DECOMP_MODE`:
+- *testability-first* (default): la testabilità domina. Ogni task espone criteri di completamento auto-verificabili dallo sviluppatore che la lavora (e, dove ha senso, il proprio test). Preferisci task più grandi (cap verso 3-5 gg) e meno merge task quando questo le rende verificabili in isolamento; massimizza comunque il parallelismo a parità di testabilità.
+- *parallelization-first*: la parallelizzazione domina. Split atomico aggressivo (anche <1 gg) quando aumenta il fan-out, con più merge task cross-stream; è accettabile che una task sia meno comprensibile/testabile in isolamento, ma mantieni sempre un **floor minimo di verificabilità** (criteri di completamento oggettivi) — mai task non verificabili del tutto.
+
 **Branch convention** — Ogni task ha un branch specificato nella colonna **Branch** del backlog. Il naming segue il pattern `feature/<piano-name>-<slug-attivita>` (es. `feature/monitoring-enum-entities-core`). Per task multi-repo (Area = BE+FE), lo stesso nome branch viene usato in tutte le repo coinvolte. Per le merge task (T-MERGE-*), la colonna Branch e' `—` (non hanno un branch proprio). Specifica l'ordine di merge basato sulle dipendenze.
 
 **Autosufficiente per Claude Code** — Ogni task deve contenere abbastanza contesto perché un agente Claude Code possa implementarla leggendo solo la task e il gap report. Includi: file esatti da modificare/creare, pattern del progetto da seguire, criteri di completamento verificabili, e note specifiche (convenzioni, attenzioni, edge case).
+
+**Contract-first per API FE↔BE** — Quando un requisito richiede un'API tra FE e BE (Area = BE+FE sullo stesso requisito, o endpoint BE consumato dal FE), genera una **task-contratto P0** in Wave 0 / `stream-fondazioni` che scrive e **congela** il contratto in `CONTRACTS.md` (endpoint+metodo, schema request, schema response, codici errore, auth/headers, repo coinvolte, ID `C-NN`). Le task FE e BE della stessa API **dipendono** dalla task-contratto e ne **citano l'ID** (`C-NN`) nella Descrizione (nessuna nuova colonna nel backlog). Così FE e BE implementano contro la stessa reference e la wave finale è un conformance-check invece di una riconciliazione ex-post. Il contratto è single-writer (lo scrive l'analyzer in fase di plan). Se durante l'esecuzione emerge la necessità di cambiarlo, la modifica passa da `sdlc-updater` (vedi il suo tracking di `CONTRACTS.md`).
 
 ---
 

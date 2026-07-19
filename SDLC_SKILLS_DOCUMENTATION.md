@@ -767,7 +767,7 @@ Riga "TOTALE" in fondo con le somme.
 
 #### Fase 4 — Salvataggio
 
-Salva `PROGRESS.xlsx` nella stessa cartella del piano (`<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/`). In modalita aggiornamento preserva eventuali note manuali aggiunte dall'utente. Comunica riepilogo: task totali, completate, in corso, progresso complessivo, eventuali task bloccate.
+Salva `PROGRESS.xlsx` nella stessa cartella del piano (`<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/`). In modalita aggiornamento preserva eventuali note manuali aggiunte dall'utente. Dalla feedback-round #6/#3/#4 il report è generato dallo script committato `scripts/generate-progress-xlsx.py` (manifest-driven: layout ufficiale di default o template custom per-progetto persistito in `PROFILE.json.progress_report_template`), con lettura da `origin/main`, guardia anti-azzeramento e blocco ANTICIPO/RITARDO se il PLAN ha le date. Comunica riepilogo: task totali, completate, in corso, progresso complessivo, eventuali task bloccate.
 
 ### Dipendenze
 
