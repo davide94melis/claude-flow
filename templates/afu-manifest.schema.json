@@ -108,6 +108,29 @@
         "playbook_xlsx": {
           "type": "string",
           "description": "Path relativo (alla root del plan) del playbook in formato Excel, importabile in Jira/TestRail/foglio. Es. 'tests/playbook.xlsx'."
+        },
+        "playbook_en_md": {
+          "type": "string",
+          "description": "Path relativo (alla root del plan) della copia inglese del playbook Markdown (dual). Es. 'tests/playbook.en.md'."
+        },
+        "playbook_en_xlsx": {
+          "type": "string",
+          "description": "Path relativo (alla root del plan) della copia inglese del playbook Excel (dual). Es. 'tests/playbook.en.xlsx'."
+        }
+      },
+      "additionalProperties": false
+    },
+    "a11y": {
+      "type": "object",
+      "description": "Riferimenti al report di accessibilità (WCAG 2.1 AA) prodotto dall'Accessibility Assistant Solaria-side, presente SOLO se persistito come deliverable al GATE-1 (persist_a11y; nel flusso base è effimero, non committato). Path relativi a requirements/.",
+      "properties": {
+        "report_md": {
+          "type": "string",
+          "description": "Path relativo (a requirements/) del report a11y nella lingua di interazione/prodotto. Es. 'a11y-report.md'."
+        },
+        "report_en_md": {
+          "type": "string",
+          "description": "Path relativo (a requirements/) della copia inglese del report a11y (dual). Es. 'a11y-report.en.md'."
         }
       },
       "additionalProperties": false

@@ -460,10 +460,11 @@ Prima di creare i branch della task e prima di lanciare sotto-agenti/workflow, a
 > **Mai `--force`, mai auto-commit sui repo di codice.** Ogni checkout è **annunciato e confermato** dall'utente.
 
 1. **Costruisci la mappa `repo → branch target`:**
-   - **Repo lavorati dalla task** (sigle nella colonna `Area` della task): branch = quello della task (colonna `Branch` del piano, o `feature/<task-name>` in retrocompat). Vengono **creati** nella sezione "Creazione branch" (sotto); qui il preflight ne garantisce solo working tree pulito + fetch.
+   - **Formato colonna `Branch`:** di norma un **nome singolo** che vale per tutte le repo dell'`Area`. Se il progetto usa **nomi branch diversi per repo**, la cella contiene coppie `<SIGLA>:<branch>` separate da `;` (es. `BE:feature/x-be; FE:feature/x-fe`): risolvi il branch **per singola repo** dalla coppia con la sua sigla; un nome nudo (senza `<SIGLA>:`) resta il default per ogni repo dell'`Area` priva di coppia esplicita. Vale sia per il `Branch` della task sia per il `dep.Branch` delle dipendenze.
+   - **Repo lavorati dalla task** (sigle nella colonna `Area` della task): branch = quello della task per quella repo (colonna `Branch` del piano — vedi *Formato colonna Branch* sopra —, o `feature/<task-name>` in retrocompat). Vengono **creati** nella sezione "Creazione branch" (sotto); qui il preflight ne garantisce solo working tree pulito + fetch.
    - **Repo solo-consumati** (repo che compaiono nell'`Area` di una **dipendenza Completata** della task ma NON nell'`Area` della task). Per ogni dipendenza in stato **Completata** (dal PROGRESS, dopo il pull):
      - `dep.Area` → sigle repo coinvolte (dal TASKS/piano);
-     - `dep.Branch` → nome branch della dipendenza (colonna Branch del PROGRESS; fallback: colonna Branch del TASKS).
+     - `dep.Branch` → branch della dipendenza per quella repo (colonna Branch del PROGRESS; fallback: colonna Branch del TASKS — vedi *Formato colonna Branch* sopra).
    - Se un repo è sia lavorato sia consumato, **prevale il branch della task** (ci lavori sopra).
    - **Conflitto multi-branch:** se lo stesso repo solo-consumato risulterebbe mappato a **due o più branch di dipendenza distinti e non ancora mergiati nella base** (es. due dipendenze Completata su `feature/x` e `feature/y` dello stesso repo), NON scegliere silenziosamente: **avvisa l'utente** elencando i branch in conflitto e fai decidere quale allineare (o attendi la merge task che li integra nella base). Non lasciare mai una dipendenza silenziosamente assente.
 
@@ -513,21 +514,21 @@ Prima di creare i branch della task e prima di lanciare sotto-agenti/workflow, a
 Quando la task e' confermata e le dipendenze sono soddisfatte, crea i branch in TUTTE le repo di codice coinvolte. (La repo profili non riceve mai feature branch — lavora sempre su `main`.)
 
 1. Identifica le repo di codice coinvolte dalla colonna **Area** del piano (es. BE, FE, BE+FE, EM, DM) e i loro path locali forniti in Fase 1.
-2. **Determina il nome del branch:**
-   - Se il piano ha una colonna **Branch** con un valore per questa task → usa quel nome esatto
-   - Se il piano NON ha colonna Branch (retrocompatibilita') → genera il nome: `feature/<task-name>`
+2. **Determina il branch per ogni repo:**
+   - Se il piano ha una colonna **Branch** con un valore per questa task → usa quel nome. Se la cella usa il formato per-repo `<SIGLA>:<branch>` (vedi *Formato colonna Branch* nel preflight workspace-sync), risolvi il branch **per singola repo**; un nome nudo (senza `<SIGLA>:`) vale per tutte le repo dell'Area.
+   - Se il piano NON ha colonna Branch (retrocompatibilita') → genera il nome: `feature/<task-name>` (uguale per tutte le repo)
 3. **Per ogni repo di codice coinvolta**:
    - Verifica il branch corrente nella repo:
      ```bash
      git -C <path-repo-codice> branch --show-current
      ```
-   - Crea il feature branch dal base branch del piano:
+   - Crea il feature branch (risolto per questa repo, vedi punto 2) dal base branch del piano:
      ```bash
-     git -C <path-repo-codice> checkout -b <nome-branch>
+     git -C <path-repo-codice> checkout -b <nome-branch-della-repo>
      ```
    - Comunica al developer:
      > Branch creato nella repo **<Nome> (<SIGLA>)**:
-     > `<nome-branch>` da `<branch-corrente>`
+     > `<nome-branch-della-repo>` da `<branch-corrente>`
      > Path: `<path-repo-codice>`
 
 4. Aggiorna il file di progresso (nella repo profili) con il nome del branch e lo stato "In corso", poi committa e pusha la repo profili come da template della sezione "Aggiornamento del progresso".
@@ -704,10 +705,10 @@ L'agente non deve mai committare autonomamente. Quando il lavoro di un sotto-ste
 > git commit -m "feat(<area>): <descrizione concisa>"
 > ```
 >
-> Dopo i commit, pusha entrambi i branch:
+> Dopo i commit, pusha il branch di OGNI repo (usa il nome risolto per-repo, vedi "Creazione branch"):
 > ```
-> cd <path-repo-1> && git push origin <nome-branch>
-> cd <path-repo-2> && git push origin <nome-branch>
+> cd <path-repo-1> && git push origin <nome-branch-repo-1>
+> cd <path-repo-2> && git push origin <nome-branch-repo-2>
 > ```
 >
 > **Repo profili** — il progresso e' gia' stato aggiornato e pushato automaticamente.
