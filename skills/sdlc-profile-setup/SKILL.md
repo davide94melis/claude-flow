@@ -655,6 +655,21 @@ Dopo aver completato tutti i codebase, conferma:
 
 ---
 
+## Step 11 — (Opzionale) Genera il brand.md deep per i mockup
+
+Se è stato rilevato un codebase **frontend** (Step 4.2), proponi:
+
+> Ho rilevato un frontend (`<framework>`). Vuoi generare anche il **brand.md** ad alta fedeltà
+> per i mockup (skill `sdlc-brandkit`)? Serve al Mockup Designer per produrre mockup
+> quasi-pixel-perfect. (Sì / No)
+
+- **Sì** → invoca `sdlc-brandkit` passando i path dei repo frontend già raccolti (Step 3) e,
+  se disponibile, un URL/POC per gli screenshot. L'output va nel **contesto** (SPEC/project repo),
+  mai nel `dataset/`.
+- **No** → salta (default). Il brand.md potrà essere generato in seguito con `/sdlc-brandkit`.
+
+---
+
 ## Regole
 
 1. **Una domanda alla volta** — Non anticipare domande. Aspetta la risposta prima di procedere.
