@@ -96,6 +96,12 @@ Orchestratore unico per il ciclo di vita dei BR. Legge lo stato dal `manifest.js
 
 **Trigger**: `sdlc-pipeline`, `pipeline br`, `le mie task`, `stato dei br`
 
+### sdlc-brandkit
+
+Genera il `brand.md` ad alta fedeltà (design contract agnostico) per i mockup del Mockup Designer: ispeziona un frontend qualsiasi (token, componenti, pagine), cattura screenshot golden da una POC se disponibile, ed emette `brand.md` + `tokens.css` + `assets/{screenshots,snippets}`. Standalone o via hook da `sdlc-profile-setup`. Output nel **contesto** (SPEC/project repo), mai nel `dataset/` di Solaria. Include il componente riutilizzabile [`scripts/fidelity-diff`](scripts/fidelity-diff/) (render + PNG-diff, zero dipendenze immagine: decode/diff in-browser via canvas) invocato in `deep` e on-demand in `classic`.
+
+**Trigger**: `genera il brand kit`, `genera il design spec`, `brand.md per i mockup`, `specifiche di stile per i mockup`, `design contract`
+
 ## Agenti Generici
 
 ### sdlc-codebase-explorer

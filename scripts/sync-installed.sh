@@ -83,6 +83,17 @@ else
 fi
 
 echo ""
+echo "Install reusable scripts (fidelity-diff):"
+if [[ -d "$REPO_ROOT/scripts/fidelity-diff" ]]; then
+  echo "  mkdir -p $CLAUDE_HOME/scripts/fidelity-diff"
+  $RUN mkdir -p "$CLAUDE_HOME/scripts/fidelity-diff"
+  echo "  cp -r $REPO_ROOT/scripts/fidelity-diff/. -> $CLAUDE_HOME/scripts/fidelity-diff/"
+  $RUN cp -r "$REPO_ROOT/scripts/fidelity-diff/." "$CLAUDE_HOME/scripts/fidelity-diff/"
+else
+  echo "  (scripts/fidelity-diff assente — skip)"
+fi
+
+echo ""
 echo "Install documentation reference:"
 if [[ -f "$REPO_ROOT/SDLC_SKILLS_DOCUMENTATION.md" ]]; then
   echo "  cp $REPO_ROOT/SDLC_SKILLS_DOCUMENTATION.md -> $CLAUDE_HOME/skills/SDLC_SKILLS_DOCUMENTATION.md"
