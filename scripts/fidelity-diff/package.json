@@ -1,0 +1,8 @@
+{
+  "name": "fidelity-diff",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reusable render + PNG-diff fidelity scorer for the sdlc-brandkit skill. No image deps: decoding/diffing happen in-browser via canvas. Requires a resolvable playwright-core (pass --pw <path> or set PLAYWRIGHT_CORE).",
+  "bin": { "fidelity-diff": "./fidelity-diff.js" },
+  "scripts": { "test": "node test/diff-core.test.js" }
+}

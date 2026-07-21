@@ -176,10 +176,10 @@ const assunzioni = (synth && synth.assunzioni) || []
 phase('Verify')
 log(`Verify: completeness + adversarial(mancati, ${panel} lenti) + judge-panel su ${assunzioni.length} assunzioni.`)
 const [completeness, missedRounds, judged] = await Promise.all([
-  agent(buildCompletenessPrompt(synth), { label: 'verify:completeness', phase: 'Verify', agentType: 'sdlc-verifier', schema: COMPLETENESS_SCHEMA }),
-  parallel(Array.from({ length: panel }, (_u, k) => () => agent(buildMissedPrompt(k), { label: `verify:missed#${k + 1}`, phase: 'Verify', agentType: 'sdlc-verifier', schema: MISSED_SCHEMA }))),
+  agent(buildCompletenessPrompt(synth), { label: 'verify:completeness', phase: 'Verify', agentType: 'sdlc-work-verifier', schema: COMPLETENESS_SCHEMA }),
+  parallel(Array.from({ length: panel }, (_u, k) => () => agent(buildMissedPrompt(k), { label: `verify:missed#${k + 1}`, phase: 'Verify', agentType: 'sdlc-work-verifier', schema: MISSED_SCHEMA }))),
   parallel(assunzioni.map(a => () =>
-    parallel(Array.from({ length: panel }, (_u, k) => () => agent(buildJudgePrompt(a, k), { label: `judge:${a.ref}#${k + 1}`, phase: 'Verify', agentType: 'sdlc-verifier', schema: JUDGE_SCHEMA })))
+    parallel(Array.from({ length: panel }, (_u, k) => () => agent(buildJudgePrompt(a, k), { label: `judge:${a.ref}#${k + 1}`, phase: 'Verify', agentType: 'sdlc-work-verifier', schema: JUDGE_SCHEMA })))
       .then(votes => {
         const v = votes.filter(Boolean)
         const nonBlock = v.filter(x => x.davvero_non_bloccante).length

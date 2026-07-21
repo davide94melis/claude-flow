@@ -98,6 +98,18 @@ Crea `.sdlc-local.json` (nuovo nome raccomandato) con:
 git -C "<profiles_repo>" pull origin main --quiet
 ```
 
+### Read-first — changelog globale (#3)
+
+Dopo il pull e **prima** di aprire i file per-piano, consulta `CHANGELOG.md` (root della repo specifiche/profilo, sibling di `plans/`) per il **contesto sulle modifiche recenti** al piano su cui stai lavorando i bug (contratto: [`../sdlc-executor/references/CHANGELOG-contract.md`](../sdlc-executor/references/CHANGELOG-contract.md)). Alla chiusura di un bug, appendi la voce `[BUG] <id> fixed` secondo il write-contract:
+
+```bash
+CHANGELOG_PATH="<profiles_repo>/<profilo>/CHANGELOG.md"
+[ -f "$CHANGELOG_PATH" ] && grep -A5 '^## Attività' "$CHANGELOG_PATH"   # modifiche recenti
+# alla chiusura bug (stessa disciplina single-writer: pull → helper → add → commit [sdlc-changelog] → push):
+# python "${SCRIPTS}/changelog.py" add-activity --file "$CHANGELOG_PATH" --date "<YYYY-MM-DD>" \
+#   --line "[BUG] <id> fixed — *plan: <plan>* — commit: \`<SIGLA@sha>\` — → PROGRESS"
+```
+
 ### Commit e push dopo la scrittura
 
 ```bash
@@ -217,7 +229,7 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 |---|---|
 | `parallel` / `pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
 | `agent({agentType, schema})` | "leggi `${CLAUDE_PLUGIN_ROOT}/agents/<agentType>.md` e lancia un Task" + parsing MD |
-| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-verifier` inline |
+| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-work-verifier` inline |
 | `completeness-critic` | checklist manuale già presente nella skill |
 | `loop-until-dry` | ciclo fix/riverifica già descritto |
 
@@ -242,7 +254,7 @@ Dopo aver risolto i path (vedi sezione "Risoluzione Path"), se il profilo è dis
 
 Quando il profilo è disponibile:
 - Nella Fase 2, instrada i sottoagenti al subagent_type corretto in base allo stack del codebase coinvolto
-- Nella Fase 2, usa sdlc-verifier per la verifica al posto della verifica inline
+- Nella Fase 2, usa sdlc-work-verifier per la verifica al posto della verifica inline
 - Inietta convenzioni e dominio dal profilo nei prompt dei sottoagenti
 
 ---
@@ -533,7 +545,7 @@ Dopo la conferma, crea il branch in tutte le repo coinvolte:
 
 ### Esecuzione con sottoagenti
 
-**In `deep`** (vedi "## Modalità di orchestrazione"): per un batch di bug assegnati invoca il **Workflow tool** con `scriptPath: ${CLAUDE_PLUGIN_ROOT}/workflows/sdlc-debug-fixwave.js` con `{bugs (con `stack` per il routing), repos, profile, const, depth, verifier_panel}`. Il workflow fa root-cause read-only in parallelo, poi i fix in **worktree isolati** con routing per-stack, verifica ognuno con `sdlc-verifier` (panel adversariale in `ultracode`) e il loop fix→riverifica (`loop-until-dry`). Poi **tu** (single-writer): applica il `patch` dei bug `VERIFIED` uno alla volta (`git apply`), aggiorna `BUG_REPORT.md` (append, ID/counter), suggerisci i commit (mai automatici). Se `partial: true` / bug `NEEDS_ATTENTION` (§8.2): non applicare nulla, presenta lo stato e fai decidere l'utente; banner **COPERTURA RIDOTTA** se degradi a `classic`. La **validazione funzionale (Fase 3) resta umana**.
+**In `deep`** (vedi "## Modalità di orchestrazione"): per un batch di bug assegnati invoca il **Workflow tool** con `scriptPath: ${CLAUDE_PLUGIN_ROOT}/workflows/sdlc-debug-fixwave.js` con `{bugs (con `stack` per il routing), repos, profile, const, depth, verifier_panel}`. Il workflow fa root-cause read-only in parallelo, poi i fix in **worktree isolati** con routing per-stack, verifica ognuno con `sdlc-work-verifier` (panel adversariale in `ultracode`) e il loop fix→riverifica (`loop-until-dry`). Poi **tu** (single-writer): applica il `patch` dei bug `VERIFIED` uno alla volta (`git apply`), aggiorna `BUG_REPORT.md` (append, ID/counter), suggerisci i commit (mai automatici). Se `partial: true` / bug `NEEDS_ATTENTION` (§8.2): non applicare nulla, presenta lo stato e fai decidere l'utente; banner **COPERTURA RIDOTTA** se degradi a `classic`. La **validazione funzionale (Fase 3) resta umana**.
 
 **In `classic`** (default): lavora i bug come descritto qui sotto (routing per-stack, verifica 3 fasi inline, una alla volta).
 
@@ -624,7 +636,7 @@ Dopo che il sottoagente completa il fix, esegui la verifica in 3 fasi:
 
 **Se il profilo progetto e' disponibile:**
 
-Delega la verifica all'agente `sdlc-verifier` (leggendo le sue istruzioni da `${CLAUDE_PLUGIN_ROOT}/agents/sdlc-verifier.md`). Passa:
+Delega la verifica all'agente `sdlc-work-verifier` (leggendo le sue istruzioni da `${CLAUDE_PLUGIN_ROOT}/agents/sdlc-work-verifier.md`). Passa:
 - Requisiti: descrizione del bug + ipotesi di root cause
 - File modificati: lista dei file toccati dal sottoagente
 - Risultati test: output dell'esecuzione test

@@ -94,7 +94,7 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 |---|---|
 | `parallel` / `pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
 | `agent({agentType, schema})` | "leggi `${CLAUDE_PLUGIN_ROOT}/agents/<agentType>.md` e lancia un Task" + parsing MD |
-| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-verifier` inline |
+| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-work-verifier` inline |
 | `completeness-critic` | checklist manuale già presente nella skill |
 | `loop-until-dry` | ciclo fix/riverifica già descritto |
 
@@ -652,6 +652,21 @@ Dopo aver completato tutti i codebase, conferma:
 > Il profilo e' un documento vivente: `sdlc-analyzer` lo aggiornera' automaticamente quando rileva nuove convenzioni durante l'analisi.
 
 > **Master-folder:** se piu' codebase di uno stesso progetto vivono come sottocartelle di una master-folder, ogni codebase riceve il proprio `.sdlc-local.json` che punta allo stesso `project_repo`/`profilo`. E' atteso e corretto: le skill fanno **dedup per progetto** in fase di discovery (molte config = un progetto → una sola scelta).
+
+---
+
+## Step 11 — (Opzionale) Genera il brand.md deep per i mockup
+
+Se è stato rilevato un codebase **frontend** (Step 4.2), proponi:
+
+> Ho rilevato un frontend (`<framework>`). Vuoi generare anche il **brand.md** ad alta fedeltà
+> per i mockup (skill `sdlc-brandkit`)? Serve al Mockup Designer per produrre mockup
+> quasi-pixel-perfect. (Sì / No)
+
+- **Sì** → invoca `sdlc-brandkit` passando i path dei repo frontend già raccolti (Step 3) e,
+  se disponibile, un URL/POC per gli screenshot. L'output va nel **contesto** (SPEC/project repo),
+  mai nel `dataset/`.
+- **No** → salta (default). Il brand.md potrà essere generato in seguito con `/sdlc-brandkit`.
 
 ---
 

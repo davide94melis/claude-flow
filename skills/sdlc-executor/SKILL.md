@@ -117,6 +117,39 @@ git -C "$GIT_REPO_PATH" push origin main --quiet
 
 ---
 
+## Changelog globale del progetto (#3)
+
+L'executor è il **writer primario** del changelog globale `CHANGELOG.md` (storia append-only cross-piano, sintetica, con puntatori a commit + PROGRESS). Contratto completo (formato, write-contract condiviso, read-first): **[`references/CHANGELOG-contract.md`](references/CHANGELOG-contract.md)** — rispettalo alla lettera. Helper: `python "${SCRIPTS}/changelog.py"` (stdlib, **niente jq**), dove `${SCRIPTS}` = `${CLAUDE_PLUGIN_ROOT}/scripts` (plugin) o `<claude-flow>/scripts` (SoT).
+
+**Risoluzione path:** `PROJECT_ROOT="$(dirname "$BASE_PATH")"` → `CHANGELOG_PATH="$PROJECT_ROOT/CHANGELOG.md"` (root della repo specifiche/profilo, sibling di `plans/`; un changelog per progetto).
+
+**Bootstrap + backfill (una tantum, all'avvio, dopo il pull):**
+
+```bash
+python "${SCRIPTS}/changelog.py" init --file "$CHANGELOG_PATH" --project "<PROJECT_NAME>"   # no-op se esiste
+# backfill opzionale dell'indice dai piani già presenti (nessun feed retroattivo per-task):
+#   per ogni piano in in-progress/ e done/ → upsert-plan con status/period/tasks/PROGRESS
+```
+
+**Read-first (dopo il pull, prima di lavorare):** consulta il changelog per capire cosa è già stato fatto (evita di rilavorare piani/task done, consapevolezza impatto):
+
+```bash
+[ -f "$CHANGELOG_PATH" ] && sed -n '/^## Piani/,/^## Attività/p' "$CHANGELOG_PATH"
+```
+
+**Cattura commit-ref (read-only, mai commit sul codice):** dopo che il dev ha committato+pushato e confermato (vedi "Suggerimento commit"), leggi gli short-SHA nuovi dalla base al branch della task, per repo:
+
+```bash
+for R in <repo-codice della task>; do
+  SIGLA=<sigla della repo R>
+  git -C "$R" log --pretty=%h "<branch-base>..<branch-task-repo-R>" | head -1   # SHA del commit del sotto-step
+done   # componi "SIGLA@sha" (uno per repo), es. "BE@1a2b3c4,FE@9a8b7c6"
+```
+
+Le scritture sul changelog seguono la **stessa disciplina single-writer** del PROGRESS (pull → `changelog.py` → add → commit `[sdlc-changelog] <evento>` → push) sulla repo specifiche/profilo. **Mai** auto-commit sul codice. L'helper è idempotente (doppio append = no-op).
+
+---
+
 ## Caricamento contesto progetto (CONST + PROFILE)
 
 Dopo aver risolto i path con l'helper di detection sopra, prima di eseguire qualsiasi altra fase carica i due file di costituzione del progetto:
@@ -226,7 +259,7 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 |---|---|
 | `parallel` / `pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
 | `agent({agentType, schema})` | "leggi `${CLAUDE_PLUGIN_ROOT}/agents/<agentType>.md` e lancia un Task" + parsing MD |
-| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-verifier` inline |
+| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-work-verifier` inline |
 | `completeness-critic` | checklist manuale già presente nella skill |
 | `loop-until-dry` | ciclo fix/riverifica già descritto |
 
@@ -537,7 +570,7 @@ Quando la task e' confermata e le dipendenze sono soddisfatte, crea i branch in 
 
 Per ogni task, l'agente principale (tu) fai da coordinatore. Delega il lavoro concreto a sottoagenti Claude, ognuno con un compito specifico e ben delimitato.
 
-**In `deep`** (vedi "## Modalità di orchestrazione"): per la fase implementazione+verifica dei sotto-lavori *dentro questa task* invoca il **Workflow tool** `name: sdlc-executor-wave` con `{task, subjobs (la tua scomposizione), repos, gap_excerpt, contract_excerpt (estratto di CONTRACTS.md per i C-NN citati dalla task, se presenti), profile, const, depth, verifier_panel}`. Il workflow implementa i sotto-lavori indipendenti in **parallelo in worktree isolati** per wave di dipendenza, verifica ognuno con `sdlc-verifier` (panel adversariale in `ultracode`) e fa il loop fix→riverifica (`loop-until-dry`). Poi **tu** (single-writer): per ogni sotto-lavoro `VERIFIED` **applica il suo `patch` al branch della task una alla volta** (`git apply`; merge controllato a valle, §8.4), con i gate utente e i commit **serializzati** (mai parallelizzare commit su più aree, §8.1). Se `partial: true` / sotto-lavori `NEEDS_ATTENTION` (§8.2): NON applicare nulla, presenta lo stato come *proposta non applicata* e fai decidere l'utente; banner **COPERTURA RIDOTTA** se degradi a `classic`. Gate di conferma, branch-prima-di-impl, commit (mai automatici) e PROGRESS restano serializzati, una task alla volta.
+**In `deep`** (vedi "## Modalità di orchestrazione"): per la fase implementazione+verifica dei sotto-lavori *dentro questa task* invoca il **Workflow tool** `name: sdlc-executor-wave` con `{task, subjobs (la tua scomposizione), repos, gap_excerpt, contract_excerpt (estratto di CONTRACTS.md per i C-NN citati dalla task, se presenti), profile, const, depth, verifier_panel}`. Il workflow implementa i sotto-lavori indipendenti in **parallelo in worktree isolati** per wave di dipendenza, verifica ognuno con `sdlc-work-verifier` (panel adversariale in `ultracode`) e fa il loop fix→riverifica (`loop-until-dry`). Poi **tu** (single-writer): per ogni sotto-lavoro `VERIFIED` **applica il suo `patch` al branch della task una alla volta** (`git apply`; merge controllato a valle, §8.4), con i gate utente e i commit **serializzati** (mai parallelizzare commit su più aree, §8.1). Se `partial: true` / sotto-lavori `NEEDS_ATTENTION` (§8.2): NON applicare nulla, presenta lo stato come *proposta non applicata* e fai decidere l'utente; banner **COPERTURA RIDOTTA** se degradi a `classic`. Gate di conferma, branch-prima-di-impl, commit (mai automatici) e PROGRESS restano serializzati, una task alla volta.
 
 **In `classic`** (default): scomponi e dispatcha i sottoagenti come descritto qui sotto (parallelizzazione opportunistica, verifica 3 fasi inline).
 
@@ -767,6 +800,18 @@ Se l'esito e' COMPLETA:
 
 Aggiorna il file di progresso: stato "Completata", progresso 100%, note con riepilogo del lavoro svolto, log attività aggiornato.
 
+**Aggiorna il changelog globale** (vedi "Changelog globale del progetto"): appendi la voce-task e fai upsert della riga indice del piano (short-SHA catturati read-only dai branch di codice della task):
+
+```bash
+python "${SCRIPTS}/changelog.py" task --file "$CHANGELOG_PATH" --date "<YYYY-MM-DD>" \
+  --id "<T-ID>" --area "<SIGLA>" --summary "<sintesi 1-riga>" --plan "<plan>" \
+  --commits "<SIGLA@sha,...>" --progress "<progress-rel-path>"
+python "${SCRIPTS}/changelog.py" upsert-plan --file "$CHANGELOG_PATH" --plan "<plan>" \
+  --status in-progress --period "<start→>" --tasks "<done>/<tot>" \
+  --progress "<progress-rel-path>" --summary "<1 line>"
+# poi: pull → add "$CHANGELOG_PATH" → commit "[sdlc-changelog] <T-ID> done" → push (single-writer, repo specifiche/profilo)
+```
+
 **Gate smoke test** — prima di proporre la prossima task, offri allo sviluppatore degli smoke test mirati a QUESTA task appena completata. È un gate utente (mai procedere senza conferma) ed è indipendente dalla modalità di orchestrazione (`classic`/`deep`): vive qui nella prosa, a valle della verifica, e **non** va inserito nel workflow `sdlc-executor-wave` (quel workflow termina al confine "sotto-lavoro verificato" e delega applicazione patch/commit/PROGRESS all'agente principale — lo smoke gate gira dopo, qui).
 
 > La task **T-XXX** è completata e verificata.
@@ -792,6 +837,17 @@ Dopo aver aggiornato il progresso, proponi la prossima task disponibile:
 
 > Vuoi procedere con la prossima task **T-005 — [nome]**?
 
+### Suggerimento verifica di conformità (skill `sdlc-verifier` #4)
+
+Ai checkpoint di completamento, valuta un'euristica e **proponi** (mai auto-run) di lanciare la verifica di conformità **scoped** con la skill `sdlc-verifier` (conformità AFU↔implementazione, statica + dinamica — distinta dall'agente `sdlc-work-verifier`):
+
+- tutte le task di una **feature `F-NN`** completate → suggerisci la verifica di quella feature;
+- una **wave** completata → suggerisci la verifica della wave.
+
+> Le task della feature **F-02** sono tutte completate. Vuoi lanciare la **verifica di conformità AFU↔implementazione** (`/sdlc-verifier`, scope: F-02) prima di proseguire? Rileva requisiti orfani/drift e propone eventuali task `T-VER-NN`. (Sì / No)
+
+Se l'utente accetta, invoca `sdlc-verifier` con lo scope indicato. Non lanciarla mai automaticamente. Il caso "piano tutto-done" attiva comunque il **gate pre-chiusura** (sotto).
+
 ### Completamento di tutte le task — Spostamento in `plans/done/`
 
 Dopo aver completato una task, verifica nel file di progresso se **tutte** le task sono in stato "Completata" **E** se tutti i bug sono chiusi.
@@ -816,13 +872,29 @@ if [ -f "$BUG_REPORT" ]; then
 fi
 ```
 
-Se tutte le condizioni sono soddisfatte:
+**Gate pre-chiusura — conformità AFU↔implementazione (skill `sdlc-verifier` #4):** quando tutte le condizioni sopra sono soddisfatte, **PRIMA** di spostare il Piano in `done/`, proponi la verifica di conformità sull'**intero Piano** (gate di default della skill `sdlc-verifier`). Se l'utente la lancia e la skill inietta task `T-VER-NN` (requisiti orfani / drift / AC senza test / divergenze dinamiche), il Piano **resta `in-progress`** finché non chiude pulito — **non** spostarlo in `done/`. Procedi allo spostamento solo se la conformità è `CONFORME`/`CONFORME-CON-RISERVE` (o se l'utente salta esplicitamente il gate).
+
+> Tutte le task sono `Completata` e i bug sono chiusi. Prima di chiudere il Piano, vuoi lanciare il **gate di conformità AFU↔implementazione** (`/sdlc-verifier`, scope: intero Piano)? (Sì — consigliato / No — chiudi comunque)
+
+Se tutte le condizioni sono soddisfatte (e il gate di conformità è passato o è stato saltato):
 
 ```bash
 git -C "$GIT_REPO_PATH" mv "$BASE_PATH/in-progress/<YYYY-MM-DD>_<nome>/" "$BASE_PATH/done/"
 git -C "$GIT_REPO_PATH" add .
 git -C "$GIT_REPO_PATH" commit -m "[sdlc-executor] <nome>: tutte le task completate + tutti i bug chiusi, spostato in done"
 git -C "$GIT_REPO_PATH" push origin main --quiet
+```
+
+**Aggiorna il changelog globale** (piano completato): appendi la entry `✔ PLAN DONE` con il range commit per repo (read-only) e fai upsert della riga indice a `done` col nuovo path del PROGRESS:
+
+```bash
+# range commit per repo = short-SHA base..head sul branch della task, per ogni repo di codice
+python "${SCRIPTS}/changelog.py" plan-done --file "$CHANGELOG_PATH" --date "<YYYY-MM-DD>" \
+  --plan "<plan>" --done "<N>" --tot "<M>" --bugs "<open-bugs>" \
+  --range "<SIGLA@base..head,...>" --progress "plans/done/<plan>/PROGRESS.md"
+python "${SCRIPTS}/changelog.py" upsert-plan --file "$CHANGELOG_PATH" --plan "<plan>" \
+  --status done --tasks "<M>/<M>" --progress "plans/done/<plan>/PROGRESS.md" --summary "<1 line>"
+# poi: pull → add "$CHANGELOG_PATH" → commit "[sdlc-changelog] <plan> PLAN DONE" → push
 ```
 
 Comunica:

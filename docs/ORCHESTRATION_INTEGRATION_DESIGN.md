@@ -60,7 +60,7 @@ I 5 agent in [`agents/`](../agents) sono prompt-di-sistema riusabili, **read-onl
 | Agent | Ruolo | Unità di… |
 |---|---|---|
 | [`sdlc-codebase-explorer`](../agents/sdlc-codebase-explorer.md) (`subagent_type: Explore`) | gap analysis doc-vs-codice, 1 per codebase; 3 tabelle (Struttura, Gap per Funzionalità, Discrepanze Terminologiche) | `parallel()` per repo |
-| [`sdlc-verifier`](../agents/sdlc-verifier.md) | verifica 3 fasi (A tecnica / B coerenza requisito / C riesame) → verdetto binario PASS/FAIL; non corregge mai | stage *verify* / `adversarial-verify` |
+| [`sdlc-work-verifier`](../agents/sdlc-work-verifier.md) | verifica 3 fasi (A tecnica / B coerenza requisito / C riesame) → verdetto binario PASS/FAIL; non corregge mai | stage *verify* / `adversarial-verify` |
 | [`sdlc-estimation-analyst`](../agents/sdlc-estimation-analyst.md) | stima rough dalla doc (pre-analisi) | fan-out finder |
 | [`sdlc-estimation-historian`](../agents/sdlc-estimation-historian.md) | calibrazione storica dai plan in `done/` | fan-out per cartella |
 | [`sdlc-estimation-scenario`](../agents/sdlc-estimation-scenario.md) | 3 scenari deterministici, invocato iterativamente | loop what-if (deterministico) |
@@ -190,13 +190,13 @@ Per ogni skill: dove si applica il fan-out, dove resta sequenziale/stateful, e d
 
 ### 7.2 `sdlc-executor` — heavy
 
-- **Fan-out:** *dentro una task*, `parallel(thunks)` per i sotto-lavori indipendenti (entità + FE) in **worktree isolati**; `agent()` concatenati per i dipendenti (entità→repository). Verifica → `agent(agentType:'sdlc-verifier')`, potenziata in `deep` ad `adversarial-verify` (panel scettico su Fase B/C: assunzioni nascoste, hardcoded, test che non asseriscono). Loop fix→riverifica = `loop-until-dry`.
+- **Fan-out:** *dentro una task*, `parallel(thunks)` per i sotto-lavori indipendenti (entità + FE) in **worktree isolati**; `agent()` concatenati per i dipendenti (entità→repository). Verifica → `agent(agentType:'sdlc-work-verifier')`, potenziata in `deep` ad `adversarial-verify` (panel scettico su Fase B/C: assunzioni nascoste, hardcoded, test che non asseriscono). Loop fix→riverifica = `loop-until-dry`.
 - **Stateful:** PROGRESS.md (pull→edit→commit→push serializzato), spostamenti todo/in-progress/done, merge task, branch-prima-di-impl, **tutti i gate di conferma** (vedi §8.1 per la risoluzione gate vs barriera).
 
 ### 7.3 `sdlc-debug` — heavy
 
 - **Fan-out:** Fase 1 import → `pipeline(bugs, classify, link-to-task, suggest-owner)`; Fase 2 root-cause → `parallel` di explorer read-only per bug; Fase 2 fix → `parallel` di fix su **file/aree disgiunte** con routing per-stack e **`isolation:'worktree'`**, gating su conflitti.
-- **Verifica (ultracode):** `adversarial-verify`/`judge-panel` su `sdlc-verifier` (prezioso per bug `critico`). Loop fix→verifica = `loop-until-dry`.
+- **Verifica (ultracode):** `adversarial-verify`/`judge-panel` su `sdlc-work-verifier` (prezioso per bug `critico`). Loop fix→verifica = `loop-until-dry`.
 - **Stateful:** BUG_REPORT.md (source of truth, append non replace), commit/push, ID sequenziali al re-import, dedup per `id_originale`, counter chiusura `bug_tecnici`/`bug_funzionali`. Validazione funzionale (Fase 3) resta **umana**.
 
 ### 7.4 `sdlc-updater` — heavy
@@ -248,7 +248,7 @@ L'output `deep` è **additivo e segnalato** (banner copertura), non sostituisce 
 |---|---|
 | `parallel`/`pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
 | `agent({agentType,schema})` | "leggi `~/.claude/agents/<agentType>.md` e lancia un Task" + parsing MD |
-| `adversarial-verify`/`judge-panel` | singola verifica `sdlc-verifier` inline |
+| `adversarial-verify`/`judge-panel` | singola verifica `sdlc-work-verifier` inline |
 | `completeness-critic` | checklist manuale già presente |
 | `loop-until-dry` | ciclo fix/riverifica già descritto |
 
@@ -260,7 +260,7 @@ L'output `deep` è **additivo e segnalato** (banner copertura), non sostituisce 
 5. Gli agent di verifica/esplorazione restano read-only.
 6. Barriere obbligatorie dove la fase a valle richiede lo stato completo (prima della gap-synthesis, tra wave, prima della presentazione unica dell'auto-detect).
 
-**Note di naming:** gli `agentType` coincidono con i 5 file in `agents/`. I "ruoli" di verifica (`completeness-critic`, `adversarial-verifier`, `judge`) sono **alias/parametri** di `sdlc-verifier` istanziato N volte con prompt scettici, **non** nuovi file `.md` (no moltiplicazione dei prompt). Gli schema JSON vivono **negli script `workflows/*.js`**, non nel frontmatter degli agent (lì sarebbero ignorati dal tool Task).
+**Note di naming:** gli `agentType` coincidono con i 5 file in `agents/`. I "ruoli" di verifica (`completeness-critic`, `adversarial-verifier`, `judge`) sono **alias/parametri** di `sdlc-work-verifier` istanziato N volte con prompt scettici, **non** nuovi file `.md` (no moltiplicazione dei prompt). Gli schema JSON vivono **negli script `workflows/*.js`**, non nel frontmatter degli agent (lì sarebbero ignorati dal tool Task).
 
 ---
 
@@ -293,7 +293,7 @@ Nonostante D2 ("tutte e 9"), il rollout **valida prima su una skill** per accorg
 1. ✅ **`sdlc-profile-setup`** *(fatto 2026-05-30)*: estendere `.sdlc-local.json` col flag + default `classic` → posto canonico da cui le altre leggono.
 2. ✅ **`inject-orchestration.py`** + aggiornare `sync-installed.sh` *(fatto 2026-05-30)*: blocco opt-in in tutte e 9 (coerenza by-construction) + mapping di degrado uniforme. Lo script supporta `--replace` per ri-sincronizzare il blocco senza divergenza fonte/artefatti (V5).
 3. 🔧 **Pilota `sdlc-analyzer`** *(strumenti pronti 2026-05-30; golden-test run SALTATO per decisione utente)*: `workflows/sdlc-analyzer-gap.js`, ramo `deep` in §3.2/§3.3/Fase 4, comparatore `scripts/golden-compare-gap.py`. Il **golden-test `classic` vs `deep`** resta facoltativo (vedi [`GOLDEN_TEST_ANALYZER.md`](./GOLDEN_TEST_ANALYZER.md)).
-4. ✅ **`sdlc-executor` + `sdlc-debug`** *(fatto 2026-05-30)*: `workflows/sdlc-executor-wave.js` + `sdlc-debug-fixwave.js` (worktree + sdlc-verifier panel; contratto patch→git apply).
+4. ✅ **`sdlc-executor` + `sdlc-debug`** *(fatto 2026-05-30)*: `workflows/sdlc-executor-wave.js` + `sdlc-debug-fixwave.js` (worktree + sdlc-work-verifier panel; contratto patch→git apply).
 5. ✅ **`sdlc-updater` + `sdlc-reviewer`** *(fatto 2026-05-30)*: `workflows/sdlc-updater-delta.js` + `sdlc-reviewer-quality.js` (gap/delta + judge-panel).
 6. ✅ **Cerchio light** *(fatto 2026-05-30)*: estimator/clarify/progress-report/profile-setup — solo coherence-critic, nessun JS.
 

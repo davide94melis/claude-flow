@@ -111,6 +111,15 @@ relpath()  { printf '%s' "${1#$GIT_REPO_PATH/}"; }
 show_main() { git -C "$GIT_REPO_PATH" show "origin/main:$(relpath "$1")" 2>/dev/null; }
 ```
 
+### Read-first — changelog globale (#3)
+
+Dopo la sync e **prima** di aggregare, consulta `CHANGELOG.md` (root della repo specifiche/profilo) come **cross-check storico** dei piani/attività — non sostituisce l'aggregazione, la contestualizza (contratto: [`../sdlc-executor/references/CHANGELOG-contract.md`](../sdlc-executor/references/CHANGELOG-contract.md)). Leggi dal ref remoto (coerente col modello fail-loud):
+
+```bash
+CHANGELOG_PATH="$(dirname "$BASE_PATH")/CHANGELOG.md"
+show_main "$CHANGELOG_PATH" | sed -n '/^## Piani/,/^## Attività/p'   # indice piani (da origin/main)
+```
+
 ### Commit e push dopo la scrittura
 
 ```bash
@@ -230,7 +239,7 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 |---|---|
 | `parallel` / `pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
 | `agent({agentType, schema})` | "leggi `${CLAUDE_PLUGIN_ROOT}/agents/<agentType>.md` e lancia un Task" + parsing MD |
-| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-verifier` inline |
+| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-work-verifier` inline |
 | `completeness-critic` | checklist manuale già presente nella skill |
 | `loop-until-dry` | ciclo fix/riverifica già descritto |
 
@@ -340,7 +349,7 @@ Se il PROGRESS.md **non esiste su `origin/main`**: NON impostare automaticamente
 
 ## Fase 3 — Generazione / Aggiornamento Excel
 
-**In `deep`** (cerchio *light*, vedi "## Modalità di orchestrazione"): nessun workflow pesante. Dopo aver generato i 3 fogli e prima del salvataggio, esegui UN solo sub-step di **completeness-critic di coerenza-dati** (un Task o `sdlc-verifier` scettico): ogni riga del TASKS è mappata in "Task"? gli stati di PROGRESS sono riconciliati col foglio? le somme per-wave/per-sviluppatore sono coerenti tra i 3 fogli? Correggi le incoerenze prima di salvare. Banner **COPERTURA RIDOTTA** se degradi a `classic`.
+**In `deep`** (cerchio *light*, vedi "## Modalità di orchestrazione"): nessun workflow pesante. Dopo aver generato i 3 fogli e prima del salvataggio, esegui UN solo sub-step di **completeness-critic di coerenza-dati** (un Task o `sdlc-work-verifier` scettico): ogni riga del TASKS è mappata in "Task"? gli stati di PROGRESS sono riconciliati col foglio? le somme per-wave/per-sviluppatore sono coerenti tra i 3 fogli? Correggi le incoerenze prima di salvare. Banner **COPERTURA RIDOTTA** se degradi a `classic`.
 
 ### Risoluzione del template (official | custom — #6)
 

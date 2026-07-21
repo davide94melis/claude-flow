@@ -107,6 +107,15 @@ Ferma l'esecuzione e avvisa:
 git -C "$GIT_REPO_PATH" pull origin main --quiet
 ```
 
+### Read-first — changelog globale (#3)
+
+Dopo il pull e **prima** di aprire i file per-piano, consulta `CHANGELOG.md` (root della repo specifiche/profilo, sibling di `plans/`) per il **contesto delta** — cosa è cambiato di recente sui piani (contratto: [`../sdlc-executor/references/CHANGELOG-contract.md`](../sdlc-executor/references/CHANGELOG-contract.md)):
+
+```bash
+CHANGELOG_PATH="$(dirname "$BASE_PATH")/CHANGELOG.md"
+[ -f "$CHANGELOG_PATH" ] && grep -A5 '^## Attività' "$CHANGELOG_PATH"   # attività recenti (contesto delta)
+```
+
 ### Commit e push dopo la scrittura
 
 ```bash
@@ -226,7 +235,7 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 |---|---|
 | `parallel` / `pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
 | `agent({agentType, schema})` | "leggi `${CLAUDE_PLUGIN_ROOT}/agents/<agentType>.md` e lancia un Task" + parsing MD |
-| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-verifier` inline |
+| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-work-verifier` inline |
 | `completeness-critic` | checklist manuale già presente nella skill |
 | `loop-until-dry` | ciclo fix/riverifica già descritto |
 

@@ -1,0 +1,36 @@
+/* tokens.css — agnostic design-token model. Fill every value from the RESOLVED
+   source design system. Names are STABLE/neutral (independent of the source UI lib)
+   so the mockup pipeline consumes them identically across projects. */
+:root {
+  /* Color — primary ramp */
+  --color-primary-50: ; --color-primary-100: ; --color-primary-200: ; --color-primary-300: ;
+  --color-primary-400: ; --color-primary-500: ; --color-primary-600: ; --color-primary-700: ;
+  --color-primary-800: ; --color-primary-900: ; --color-primary-950: ;
+  --color-primary-hover: ; --color-primary-active: ; --color-primary-contrast: ;
+  /* Color — surface ramp */
+  --color-surface-0: ; --color-surface-50: ; --color-surface-100: ; --color-surface-200: ;
+  --color-surface-300: ; --color-surface-400: ; --color-surface-500: ; --color-surface-600: ;
+  --color-surface-700: ; --color-surface-800: ; --color-surface-900: ; --color-surface-950: ;
+  /* Color — text, border, semantic */
+  --color-text: ; --color-text-muted: ;
+  --color-border: ;
+  --color-success: ; --color-warning: ; --color-danger: ; --color-info: ;
+  /* Focus */
+  --focus-ring-color: ; --focus-ring-width: ; --focus-ring-offset: ;
+  /* Typography */
+  --font-family-base: ; --font-size-root: ; --line-height-base: ;
+  --font-size-h1: ; --font-size-h2: ; --font-size-h3: ; --font-size-h4: ; --font-size-h5: ; --font-size-h6: ;
+  --font-size-sm: ; --font-size-xs: ;
+  --font-weight-regular: 400; --font-weight-medium: 500; --font-weight-semibold: 600; --font-weight-bold: 700;
+  /* Spacing scale / radius / shadow / z */
+  --space-1: ; --space-2: ; --space-3: ; --space-4: ; --space-5: ; --space-6: ;
+  --radius-sm: ; --radius-md: ; --radius-lg: ;
+  --shadow-sm: ; --shadow-md: ; --shadow-lg: ;
+  --z-dropdown: ; --z-sticky: ; --z-modal: ; --z-toast: ;
+  /* Breakpoints */
+  --bp-sm: ; --bp-md: ; --bp-lg: ; --bp-xl: ;
+  /* Layout dimensions */
+  --layout-navbar-h: ; --layout-header-h: ; --layout-footer-h: ;
+  --layout-sidebar-open-w: ; --layout-sidebar-closed-w: ;
+  --gap-xs: ; --gap-md: ; --gap-lg: ;
+}

@@ -840,6 +840,40 @@ Genera in `<profiles_repo>/<profilo>/plans/todo/<data>_<nome>/`:
 
 ---
 
+## 10. Brand Kit
+
+**Skill**: `sdlc-brandkit`
+**Path**: `~/.claude/skills/sdlc-brandkit/SKILL.md`
+**Trigger**: "genera il brand kit", "genera il design spec", "brand.md per i mockup", "specifiche di stile per i mockup", "design contract"
+
+### Scopo
+
+Generare un `brand.md` ad alta fedeltà (design contract **agnostico**) per il Mockup Designer, così da ottenere mockup **quasi-pixel-perfect** e integrabili nella piattaforma reale. È lo strumento "deep" complementare all'auto-detect shallow di `sdlc-profile-setup`. Standalone o invocabile via hook a fine profile-setup (Step 11).
+
+### Input e Output
+
+- **Input**: path del/i repo frontend; URL/POC opzionale per gli screenshot; `PROFILE.json` esistente (riusa `design_system`).
+- **Output** (sempre nel **contesto**, mai nel `dataset/` di Solaria): `<context-repo>/branding/{brand.md, tokens.css, brand.export.md, assets/{screenshots,snippets}}`. Il `brand.md` è la fonte a precedenza massima del Mockup Designer.
+
+### Pipeline
+
+1. **Detect** stack + sorgenti del design system (agnostico: Angular/React/Vue/Svelte + qualsiasi UI library o CSS custom).
+2. **Estrai token** → modello neutro (`tokens.css`): palette/ramp, tipografia, spacing, radius, shadow, z, breakpoint, dimensioni layout.
+3. **Estrai componenti** (core + più usati) → snippet HTML+CSS con tutti gli stati.
+4. **Estrai pagine/layout** → snippet delle shell ricorrenti.
+5. **Screenshot** (se POC disponibile) via ladder verificata: `channel:chrome → bundled → CDP → path manuali → skip`.
+6. **Assembla** `brand.md` (8 sezioni) + `brand.export.md` self-contained.
+7. **Verifica** (deep automatico / classic on-demand) col componente riutilizzabile `scripts/fidelity-diff`.
+
+### Componente riutilizzabile: fidelity-diff
+
+`scripts/fidelity-diff/` (installato in `~/.claude/scripts/fidelity-diff/`): render headless + PNG-diff che produce uno **score di fedeltà** per componente. **Zero dipendenze immagine**: decode/diff avvengono in-browser via canvas; richiede un `playwright-core` risolvibile (`--pw <path>` o env `PLAYWRIGHT_CORE`). CLI: `fidelity-diff.js` (`--snippet/--image --golden [--region x,y,w,h] [--out diff.png] [--pw] [--json]`) e `screenshot.js` (`--url --out [--pw --cdp --storage]`).
+
+### Modalità
+
+- **classic**: pipeline sequenziale; fidelity-diff invocabile on-demand.
+- **deep**: fan-out estrazione componenti per-area + `completeness-critic` + fidelity-diff automatico.
+
 ## Ciclo di Vita delle Task
 
 ```

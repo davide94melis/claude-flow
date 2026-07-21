@@ -135,6 +135,21 @@
       },
       "additionalProperties": false
     },
+    "coherence": {
+      "type": "object",
+      "description": "Riferimenti al report di coerenza mockup<->AFU (Contratto UI) prodotto dal Coherence Assessor Solaria-side via il Mockup Designer, presente OGNI VOLTA che i mockup sono generati al GATE-1 (il report e' sempre prodotto, non opt-in a differenza di a11y). Path relativi a requirements/.",
+      "properties": {
+        "report_md": {
+          "type": "string",
+          "description": "Path relativo (a requirements/) del report di coerenza nella lingua di interazione/prodotto. Es. 'mockup-coherence-report.md'."
+        },
+        "report_en_md": {
+          "type": "string",
+          "description": "Path relativo (a requirements/) della copia inglese del report di coerenza (dual). Es. 'mockup-coherence-report.en.md'."
+        }
+      },
+      "additionalProperties": false
+    },
     "feature_index": {
       "type": "array",
       "items": { "type": "string", "pattern": "^F-\\d{2}$" },
@@ -144,6 +159,11 @@
       "type": "array",
       "items": { "type": "string" },
       "description": "Indice opzionale delle regole di business referenziate nell'AFU (es. 'RB-AUTH-01'). Consumato da sdlc-analyzer e dal Reviewer/Orchestrator per il collegamento requisito->regola. Retro-compatibile."
+    },
+    "screen_index": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^SC-F\\d{2}-\\d{2}$" },
+      "description": "Indice opzionale delle schermate del Contratto UI dichiarate nell'AFU, in forma di ID canonici 'SC-FNN-NN'. Prodotto dal FunctionalWeaver (### Schermate & Interazioni) e consumato dal Mockup Designer, dal Coherence Assessor e dalla verifica di conformita' (sdlc-verifier). Retro-compatibile: assente nelle AFU legacy senza Contratto UI."
     },
     "legal_baseline": {
       "type": "object",

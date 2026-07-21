@@ -1,9 +1,9 @@
 export const meta = {
   name: 'sdlc-executor-wave',
-  description: 'Esecuzione deep di UNA task di sdlc-executor: implementazione dei sotto-lavori indipendenti in parallelo (worktree isolati) per wave di dipendenza, verifica adversariale via sdlc-verifier, loop fix→riverifica (loop-until-dry). Ritorna proposte + verdetti + PATCH per sotto-lavoro; l\'applicazione dei patch (git apply), i commit e PROGRESS restano all\'agente principale, una task alla volta, con i gate utente (§8.1).',
+  description: 'Esecuzione deep di UNA task di sdlc-executor: implementazione dei sotto-lavori indipendenti in parallelo (worktree isolati) per wave di dipendenza, verifica adversariale via sdlc-work-verifier, loop fix→riverifica (loop-until-dry). Ritorna proposte + verdetti + PATCH per sotto-lavoro; l\'applicazione dei patch (git apply), i commit e PROGRESS restano all\'agente principale, una task alla volta, con i gate utente (§8.1).',
   phases: [
     { title: 'Implement', detail: 'sotto-lavori per wave di dipendenza, worktree isolati' },
-    { title: 'Verify', detail: 'sdlc-verifier (panel adversariale in ultracode) + loop fix→riverifica' },
+    { title: 'Verify', detail: 'sdlc-work-verifier (panel adversariale in ultracode) + loop fix→riverifica' },
   ],
 }
 
@@ -83,7 +83,7 @@ Requisiti: implementa il sotto-lavoro completo (niente placeholder/TODO), scrivi
 
 function buildVerifyPrompt(sj, impl, k) {
   const lens = ['correttezza tecnica + test', 'coerenza col requisito (Fase B)', 'riesame: assunzioni nascoste/hardcoded/asserzioni (Fase C)'][k % 3]
-  return `Sei sdlc-verifier (istanza scettica #${k + 1}, lente: ${lens}). Verifica in SOLA LETTURA il lavoro di un sottoagente sul sotto-lavoro [${sj.id}] della task ${task.id}. NON correggere.
+  return `Sei sdlc-work-verifier (istanza scettica #${k + 1}, lente: ${lens}). Verifica in SOLA LETTURA il lavoro di un sottoagente sul sotto-lavoro [${sj.id}] della task ${task.id}. NON correggere.
 
 Requisito: ${sj.descrizione}
 Repo: ${sj.repo_sigla} (${repoPath(sj.repo_sigla)})
@@ -98,7 +98,7 @@ Applica le 3 fasi (A tecnica/test, B coerenza requisito, C riesame) basandoti SU
 // Verifica con panel: PASS solo se la maggioranza (>1/2) dà PASS; altrimenti FAIL.
 async function verifySubjob(sj, impl) {
   const votes = (await parallel(Array.from({ length: panel }, (_u, k) => () =>
-    agent(buildVerifyPrompt(sj, impl, k), { label: `verify:${sj.id}#${k + 1}`, phase: 'Verify', agentType: 'sdlc-verifier', schema: VERDICT_SCHEMA })
+    agent(buildVerifyPrompt(sj, impl, k), { label: `verify:${sj.id}#${k + 1}`, phase: 'Verify', agentType: 'sdlc-work-verifier', schema: VERDICT_SCHEMA })
   ))).filter(Boolean)
   if (!votes.length) return { verdict: 'FAIL', problemi: ['nessun verdetto (verifier falliti)'], votes: 0 }
   const pass = votes.filter(v => v.verdict === 'PASS').length
