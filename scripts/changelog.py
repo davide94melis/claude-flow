@@ -218,8 +218,8 @@ def cmd_plan_done(args) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Global per-project changelog helper (SDLC #3).")
-    # --project accepted before OR after the subcommand (bootstrap header only).
-    p.add_argument("--project", default="", help="project name (for bootstrap header)")
+    # --project (bootstrap header only) lives on `common` → pass it AFTER the subcommand,
+    # e.g. `changelog.py init --file F --project NAME`.
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--project", default="", help="project name (for bootstrap header)")
     sub = p.add_subparsers(dest="cmd", required=True)

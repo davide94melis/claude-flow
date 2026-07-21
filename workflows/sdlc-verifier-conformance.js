@@ -138,13 +138,18 @@ const findings = await pipeline(
     .then(votes => {
       const v = votes.filter(Boolean)
       const refuted = v.filter(x => x.refuted).length
-      const isGap = refuted * 2 > v.length   // maggioranza refuta → gap confermato
+      // Gate conservativo: nessun voto (panel fallito) → FLAG (non silenziare come conforme);
+      // altrimenti gap se la maggioranza refuta.
+      const isGap = v.length === 0 ? true : (refuted * 2 > v.length)
       const kinds = v.filter(x => x.refuted && x.gap_kind && x.gap_kind !== 'none').map(x => x.gap_kind)
       const gap_kind = isGap ? (kinds[0] || 'drift') : 'none'
+      const reasons = v.length === 0
+        ? ['nessun voto dal panel (verifier falliti) — verifica manuale richiesta']
+        : (isGap ? v.filter(x => x.refuted).map(x => x.reason) : [])
       return {
         ref: req.ref, feature: req.feature || '', kind: req.kind, text: req.text,
         evidence: ev, gap: isGap, gap_kind,
-        reasons: isGap ? v.filter(x => x.refuted).map(x => x.reason) : [],
+        reasons,
         votes: v.length, refuted_count: refuted,
       }
     })
