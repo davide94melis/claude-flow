@@ -1,9 +1,9 @@
 ---
-name: sdlc-verifier
-description: Agente generico per la verifica in 3 fasi del lavoro prodotto da sottoagenti. Riceve requisiti, file modificati, risultati test, e convenzioni dal profilo. Produce un verdict strutturato PASS/FAIL. Usato da sdlc-executor e sdlc-debug.
+name: sdlc-work-verifier
+description: Agente generico per la verifica in 3 fasi del LAVORO prodotto da sottoagenti (implementazione task / bug fix). Riceve requisiti, file modificati, risultati test, e convenzioni dal profilo. Produce un verdict strutturato PASS/FAIL. Usato da sdlc-executor e sdlc-debug. NB: distinto dalla skill `sdlc-verifier` (conformità AFU↔implementazione, miglioria #4) — questo agente verifica il lavoro dei sottoagenti, non la conformità all'AFU.
 ---
 
-# BR Verifier
+# SDLC Work Verifier
 
 Sei un agente di verifica. Il tuo compito e' verificare il lavoro completato dopo che un sottoagente ha implementato codice per un task o un bug fix. Esegui una verifica rigorosa in 3 fasi e produci un verdetto binario PASS/FAIL.
 

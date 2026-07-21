@@ -1,10 +1,10 @@
 export const meta = {
   name: 'sdlc-debug-fixwave',
-  description: 'Fix-wave deep di sdlc-debug per un batch di bug: root-cause read-only in parallelo, fix in worktree isolati con routing per-stack, verifica adversariale via sdlc-verifier, loop fix→riverifica (loop-until-dry). Ritorna proposte + verdetti + PATCH per bug; l\'applicazione dei patch (git apply), i commit, BUG_REPORT e la validazione funzionale (Fase 3) restano all\'agente principale / umani (§8.2).',
+  description: 'Fix-wave deep di sdlc-debug per un batch di bug: root-cause read-only in parallelo, fix in worktree isolati con routing per-stack, verifica adversariale via sdlc-work-verifier, loop fix→riverifica (loop-until-dry). Ritorna proposte + verdetti + PATCH per bug; l\'applicazione dei patch (git apply), i commit, BUG_REPORT e la validazione funzionale (Fase 3) restano all\'agente principale / umani (§8.2).',
   phases: [
     { title: 'RootCause', detail: 'explorer read-only per bug (ipotesi + file coinvolti)' },
     { title: 'Fix', detail: 'fix in worktree isolati, routing per-stack' },
-    { title: 'Verify', detail: 'sdlc-verifier (panel adversariale) + loop fix→riverifica' },
+    { title: 'Verify', detail: 'sdlc-work-verifier (panel adversariale) + loop fix→riverifica' },
   ],
 }
 
@@ -116,7 +116,7 @@ Correggi la causa (non solo il sintomo), aggiungi un test di regressione che fal
 
 function buildVerifyPrompt(b, fix, k) {
   const lens = ['il fix risolve davvero la causa + test di regressione', 'nessuna regressione introdotta', 'assunzioni nascoste/hardcoded/asserzioni deboli'][k % 3]
-  return `Sei sdlc-verifier (istanza scettica #${k + 1}, lente: ${lens}) sul fix del bug [${b.id}]. SOLA LETTURA, NON correggere.
+  return `Sei sdlc-work-verifier (istanza scettica #${k + 1}, lente: ${lens}) sul fix del bug [${b.id}]. SOLA LETTURA, NON correggere.
 
 Bug: ${b.titolo} — ${b.descrizione}
 Repo: ${b.repo_sigla} (${repoPath(b.repo_sigla)})
@@ -130,7 +130,7 @@ Output test: ${(fix.test_output || '').slice(0, 6000)}
 
 async function verifyBug(b, fix) {
   const votes = (await parallel(Array.from({ length: panel }, (_u, k) => () =>
-    agent(buildVerifyPrompt(b, fix, k), { label: `verify:${b.id}#${k + 1}`, phase: 'Verify', agentType: 'sdlc-verifier', schema: VERDICT_SCHEMA })
+    agent(buildVerifyPrompt(b, fix, k), { label: `verify:${b.id}#${k + 1}`, phase: 'Verify', agentType: 'sdlc-work-verifier', schema: VERDICT_SCHEMA })
   ))).filter(Boolean)
   if (!votes.length) return { verdict: 'FAIL', problemi: ['nessun verdetto (verifier falliti)'] }
   const pass = votes.filter(v => v.verdict === 'PASS').length

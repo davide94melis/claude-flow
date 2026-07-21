@@ -339,15 +339,15 @@ phase('Verify')
 const challengeRows = matrixRows.filter(r => r.stato === 'Coperto' || r.stato === 'Mancante')
 log(`Verify: completeness-critic + adversarial su ${challengeRows.length} classificazioni (Coperto/Mancante), panel=${panel}.`)
 
-// completeness-critic e scettici = ruoli di sdlc-verifier (§9), read-only.
+// completeness-critic e scettici = ruoli di sdlc-work-verifier (§9), read-only.
 const [completeness, adversarial] = await Promise.all([
-  agent(buildCompletenessPrompt(synth), { label: 'verify:completeness', phase: 'Verify', agentType: 'sdlc-verifier', schema: COMPLETENESS_SCHEMA }),
+  agent(buildCompletenessPrompt(synth), { label: 'verify:completeness', phase: 'Verify', agentType: 'sdlc-work-verifier', schema: COMPLETENESS_SCHEMA }),
   parallel(challengeRows.map((row) => () =>
     parallel(Array.from({ length: panel }, (_unused, k) => () =>
       agent(buildSkepticPrompt(row, k), {
         label: `verify:adv:${short(row.requisito, 18)}#${k + 1}`,
         phase: 'Verify',
-        agentType: 'sdlc-verifier',
+        agentType: 'sdlc-work-verifier',
         schema: VERDICT_SCHEMA,
       })
     )).then((votes) => reconcile(row, votes.filter(Boolean)))

@@ -124,7 +124,7 @@ Classificati (JSON): ${JSON.stringify((synth && synth.delta_classified) || []).s
 }
 
 function buildAdvPrompt(item, k) {
-  return `Sei sdlc-verifier (scettico #${k + 1}). Un requisito MODIFICATO ricade su una/più task GIÀ COMPLETATE. Verifica in SOLA LETTURA se il codice di quelle task soddisfa ANCORA il requisito *modificato* (un falso "invariato" = lavoro perso; un falso "modificato" = T-fix inutili).
+  return `Sei sdlc-work-verifier (scettico #${k + 1}). Un requisito MODIFICATO ricade su una/più task GIÀ COMPLETATE. Verifica in SOLA LETTURA se il codice di quelle task soddisfa ANCORA il requisito *modificato* (un falso "invariato" = lavoro perso; un falso "modificato" = T-fix inutili).
 
 Delta [${item.ref}] (${item.funzionalita}). Cosa cambia nel requisito: ${(deltaByRef[item.ref] && deltaByRef[item.ref].cosa_cambia) || '—'}
 Posizioni codice da verificare: ${item.evidenze}
@@ -168,10 +168,10 @@ phase('Verify')
 const risky = classified.filter(d => modRefs.has(d.ref) && (d.task_completate_coinvolte || []).length)
 log(`Verify: completeness sul delta + adversarial su ${risky.length} MODIFICATO-su-task-completate.`)
 const [completeness, adversarial] = await Promise.all([
-  agent(buildCompletenessPrompt(synth), { label: 'verify:completeness', phase: 'Verify', agentType: 'sdlc-verifier', schema: COMPLETENESS_SCHEMA }),
+  agent(buildCompletenessPrompt(synth), { label: 'verify:completeness', phase: 'Verify', agentType: 'sdlc-work-verifier', schema: COMPLETENESS_SCHEMA }),
   parallel(risky.map(item => () =>
     parallel(Array.from({ length: panel }, (_u, k) => () =>
-      agent(buildAdvPrompt(item, k), { label: `verify:mod:${item.ref}#${k + 1}`, phase: 'Verify', agentType: 'sdlc-verifier', schema: VERDICT_SCHEMA })
+      agent(buildAdvPrompt(item, k), { label: `verify:mod:${item.ref}#${k + 1}`, phase: 'Verify', agentType: 'sdlc-work-verifier', schema: VERDICT_SCHEMA })
     )).then(votes => {
       const v = votes.filter(Boolean)
       const satisfied = v.filter(x => x.still_satisfied).length

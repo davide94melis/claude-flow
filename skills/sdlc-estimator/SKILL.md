@@ -228,7 +228,7 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 |---|---|
 | `parallel` / `pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
 | `agent({agentType, schema})` | "leggi `${CLAUDE_PLUGIN_ROOT}/agents/<agentType>.md` e lancia un Task" + parsing MD |
-| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-verifier` inline |
+| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-work-verifier` inline |
 | `completeness-critic` | checklist manuale già presente nella skill |
 | `loop-until-dry` | ciclo fix/riverifica già descritto |
 
@@ -317,7 +317,7 @@ Se l'utente sceglie personalizza, mostra i default in tabella e permetti di camb
 
 ## Fase 2 — Esecuzione Stima
 
-**In `deep`** (cerchio *light*, vedi "## Modalità di orchestrazione"): nessun workflow pesante. Aggiungi UN solo sub-step di **coherence-critic** dopo aver raccolto i risultati — una verifica scettica (un Task o un'istanza `sdlc-verifier`) sulla calibrazione storica (`historian`) e sulla copertura delle funzionalità AFU (`analyst` rough): ogni funzionalità ha una stima? il fattore di calibrazione è coerente coi Piani in `done/`? I **3 scenari restano DETERMINISTICI** (Regola "niente random", §6/§8.3): NON parallelizzarli né introdurre variabilità. Banner **COPERTURA RIDOTTA** se degradi a `classic`.
+**In `deep`** (cerchio *light*, vedi "## Modalità di orchestrazione"): nessun workflow pesante. Aggiungi UN solo sub-step di **coherence-critic** dopo aver raccolto i risultati — una verifica scettica (un Task o un'istanza `sdlc-work-verifier`) sulla calibrazione storica (`historian`) e sulla copertura delle funzionalità AFU (`analyst` rough): ogni funzionalità ha una stima? il fattore di calibrazione è coerente coi Piani in `done/`? I **3 scenari restano DETERMINISTICI** (Regola "niente random", §6/§8.3): NON parallelizzarli né introdurre variabilità. Banner **COPERTURA RIDOTTA** se degradi a `classic`.
 
 ### Modalita' Rough
 

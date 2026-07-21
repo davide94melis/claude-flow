@@ -7,10 +7,16 @@ Analisi del pipeline SDLC attuale e identificazione dei gap nel ciclo di vita de
 ## Pipeline Attuale
 
 ```
-AFU arriva → sdlc-reviewer → sdlc-clarify → sdlc-analyzer → sdlc-estimator → sdlc-executor → sdlc-progress-report → sdlc-debug → sdlc-updater
+AFU arriva → sdlc-reviewer → sdlc-clarify → sdlc-analyzer → sdlc-estimator → sdlc-executor → sdlc-verifier → sdlc-merge → sdlc-progress-report → sdlc-debug → sdlc-updater
                                                                                                               ↑
                                                                                                     sdlc-pipeline (orchestratore)
 ```
+
+> **Implementate nel batch 2026-07 (post-executor):**
+> - **`sdlc-verifier` (#4)** — verifica di conformità AFU↔implementazione (statica: matrice + AC→test; dinamica: FE browser + BE API-level). Gate pre-chiusura + on-demand + suggerimento proattivo dell'executor. Inietta task `T-VER-NN`. NB: l'agente omonimo di verifica del lavoro dei sottoagenti è stato rinominato `sdlc-work-verifier`.
+> - **`sdlc-merge` (#2)** — integrazione cross-piano dei branch di codice (branch di integrazione + gate per-step, conflitti git+semantici, build+test per repo, verifica finale via `sdlc-verifier`).
+>
+> Entrambe leggono/scrivono il **changelog globale** (`CHANGELOG.md`, #3). Le voci sotto restano proposte non ancora implementate.
 
 ## Gap Identificati
 

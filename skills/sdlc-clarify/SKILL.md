@@ -248,7 +248,7 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 |---|---|
 | `parallel` / `pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
 | `agent({agentType, schema})` | "leggi `${CLAUDE_PLUGIN_ROOT}/agents/<agentType>.md` e lancia un Task" + parsing MD |
-| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-verifier` inline |
+| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-work-verifier` inline |
 | `completeness-critic` | checklist manuale già presente nella skill |
 | `loop-until-dry` | ciclo fix/riverifica già descritto |
 
@@ -470,7 +470,7 @@ Dopo tutte le domande:
 
 ## Fase 4 — Rivalutazione
 
-**In `deep`** (cerchio *light*, vedi "## Modalità di orchestrazione"): nessun workflow pesante. Due sub-step leggeri: (1) un **finder** sull'estrazione delle risposte ambigue dal diff/DOCX che **classifica, non riscrive** (Regola verbatim); (2) un **adversarial-verify SOLO sulle assunzioni "Rigettata"** — un rigetto errato inietta un fatto sbagliato in `sdlc-analyzer`: un'istanza `sdlc-verifier` scettica conferma che la risposta del funzionale contraddice davvero l'assunzione prima di marcarla `Rigettata`. Banner **COPERTURA RIDOTTA** se degradi a `classic`.
+**In `deep`** (cerchio *light*, vedi "## Modalità di orchestrazione"): nessun workflow pesante. Due sub-step leggeri: (1) un **finder** sull'estrazione delle risposte ambigue dal diff/DOCX che **classifica, non riscrive** (Regola verbatim); (2) un **adversarial-verify SOLO sulle assunzioni "Rigettata"** — un rigetto errato inietta un fatto sbagliato in `sdlc-analyzer`: un'istanza `sdlc-work-verifier` scettica conferma che la risposta del funzionale contraddice davvero l'assunzione prima di marcarla `Rigettata`. Banner **COPERTURA RIDOTTA** se degradi a `classic`.
 
 Per ogni risposta ricevuta, valuta l'impatto:
 

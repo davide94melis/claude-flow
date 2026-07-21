@@ -246,7 +246,7 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 |---|---|
 | `parallel` / `pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
 | `agent({agentType, schema})` | "leggi `${CLAUDE_PLUGIN_ROOT}/agents/<agentType>.md` e lancia un Task" + parsing MD |
-| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-verifier` inline |
+| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-work-verifier` inline |
 | `completeness-critic` | checklist manuale già presente nella skill |
 | `loop-until-dry` | ciclo fix/riverifica già descritto |
 
@@ -562,7 +562,7 @@ Genera entrambi i file nella cartella del Piano in `$BASE_PATH/todo/`. Questo e'
 
 **In `deep`** — banner e judge-panel (vedi "## Modalità di orchestrazione"):
 - Mostra il banner di modalità all'avvio del lavoro pesante. Se hai dovuto degradare a `classic` (Workflow tool assente o fallito), scrivi in testa al PLAN il banner **"COPERTURA RIDOTTA — prodotto senza completeness-critic/adversarial-verify"**: gli artefatti `classic` e `deep` non sono equivalenti, la degradazione è rumorosa.
-- Dopo aver scritto il TASKS (4.2), esegui un **judge-panel** sulle task — auto-sufficienza di ogni task, granularità 1–5 gg, correttezza delle merge task `T-MERGE-NNN` e delle dipendenze: lancia `verifier_panel` verifiche scettiche (Task con prompt da `${CLAUDE_PLUGIN_ROOT}/agents/sdlc-verifier.md` adattato al planning) e correggi le task segnalate **prima** del commit. In `classic` questo passo non viene eseguito. In *testability-first* il panel verifica anche l'auto-testabilità di ogni task (non solo il range 1–5 gg); in *parallelization-first* verifica il floor minimo di verificabilità oltre alla correttezza delle merge task.
+- Dopo aver scritto il TASKS (4.2), esegui un **judge-panel** sulle task — auto-sufficienza di ogni task, granularità 1–5 gg, correttezza delle merge task `T-MERGE-NNN` e delle dipendenze: lancia `verifier_panel` verifiche scettiche (Task con prompt da `${CLAUDE_PLUGIN_ROOT}/agents/sdlc-work-verifier.md` adattato al planning) e correggi le task segnalate **prima** del commit. In `classic` questo passo non viene eseguito. In *testability-first* il panel verifica anche l'auto-testabilità di ogni task (non solo il range 1–5 gg); in *parallelization-first* verifica il floor minimo di verificabilità oltre alla correttezza delle merge task.
 
 ### 4.1 — PLAN
 

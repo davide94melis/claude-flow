@@ -239,7 +239,7 @@ In `deep`, la skill **istruisce Claude a invocare il Workflow tool**: con lo scr
 |---|---|
 | `parallel` / `pipeline` | loop sequenziale sugli stessi thunk (comportamento attuale) |
 | `agent({agentType, schema})` | "leggi `${CLAUDE_PLUGIN_ROOT}/agents/<agentType>.md` e lancia un Task" + parsing MD |
-| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-verifier` inline |
+| `adversarial-verify` / `judge-panel` | singola verifica `sdlc-work-verifier` inline |
 | `completeness-critic` | checklist manuale già presente nella skill |
 | `loop-until-dry` | ciclo fix/riverifica già descritto |
 
@@ -349,7 +349,7 @@ Se il PROGRESS.md **non esiste su `origin/main`**: NON impostare automaticamente
 
 ## Fase 3 — Generazione / Aggiornamento Excel
 
-**In `deep`** (cerchio *light*, vedi "## Modalità di orchestrazione"): nessun workflow pesante. Dopo aver generato i 3 fogli e prima del salvataggio, esegui UN solo sub-step di **completeness-critic di coerenza-dati** (un Task o `sdlc-verifier` scettico): ogni riga del TASKS è mappata in "Task"? gli stati di PROGRESS sono riconciliati col foglio? le somme per-wave/per-sviluppatore sono coerenti tra i 3 fogli? Correggi le incoerenze prima di salvare. Banner **COPERTURA RIDOTTA** se degradi a `classic`.
+**In `deep`** (cerchio *light*, vedi "## Modalità di orchestrazione"): nessun workflow pesante. Dopo aver generato i 3 fogli e prima del salvataggio, esegui UN solo sub-step di **completeness-critic di coerenza-dati** (un Task o `sdlc-work-verifier` scettico): ogni riga del TASKS è mappata in "Task"? gli stati di PROGRESS sono riconciliati col foglio? le somme per-wave/per-sviluppatore sono coerenti tra i 3 fogli? Correggi le incoerenze prima di salvare. Banner **COPERTURA RIDOTTA** se degradi a `classic`.
 
 ### Risoluzione del template (official | custom — #6)
 
