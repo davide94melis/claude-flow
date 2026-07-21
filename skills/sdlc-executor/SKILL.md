@@ -117,6 +117,39 @@ git -C "$GIT_REPO_PATH" push origin main --quiet
 
 ---
 
+## Changelog globale del progetto (#3)
+
+L'executor è il **writer primario** del changelog globale `CHANGELOG.md` (storia append-only cross-piano, sintetica, con puntatori a commit + PROGRESS). Contratto completo (formato, write-contract condiviso, read-first): **[`references/CHANGELOG-contract.md`](references/CHANGELOG-contract.md)** — rispettalo alla lettera. Helper: `python "${SCRIPTS}/changelog.py"` (stdlib, **niente jq**), dove `${SCRIPTS}` = `${CLAUDE_PLUGIN_ROOT}/scripts` (plugin) o `<claude-flow>/scripts` (SoT).
+
+**Risoluzione path:** `PROJECT_ROOT="$(dirname "$BASE_PATH")"` → `CHANGELOG_PATH="$PROJECT_ROOT/CHANGELOG.md"` (root della repo specifiche/profilo, sibling di `plans/`; un changelog per progetto).
+
+**Bootstrap + backfill (una tantum, all'avvio, dopo il pull):**
+
+```bash
+python "${SCRIPTS}/changelog.py" init --file "$CHANGELOG_PATH" --project "<PROJECT_NAME>"   # no-op se esiste
+# backfill opzionale dell'indice dai piani già presenti (nessun feed retroattivo per-task):
+#   per ogni piano in in-progress/ e done/ → upsert-plan con status/period/tasks/PROGRESS
+```
+
+**Read-first (dopo il pull, prima di lavorare):** consulta il changelog per capire cosa è già stato fatto (evita di rilavorare piani/task done, consapevolezza impatto):
+
+```bash
+[ -f "$CHANGELOG_PATH" ] && sed -n '/^## Piani/,/^## Attività/p' "$CHANGELOG_PATH"
+```
+
+**Cattura commit-ref (read-only, mai commit sul codice):** dopo che il dev ha committato+pushato e confermato (vedi "Suggerimento commit"), leggi gli short-SHA nuovi dalla base al branch della task, per repo:
+
+```bash
+for R in <repo-codice della task>; do
+  SIGLA=<sigla della repo R>
+  git -C "$R" log --pretty=%h "<branch-base>..<branch-task-repo-R>" | head -1   # SHA del commit del sotto-step
+done   # componi "SIGLA@sha" (uno per repo), es. "BE@1a2b3c4,FE@9a8b7c6"
+```
+
+Le scritture sul changelog seguono la **stessa disciplina single-writer** del PROGRESS (pull → `changelog.py` → add → commit `[sdlc-changelog] <evento>` → push) sulla repo specifiche/profilo. **Mai** auto-commit sul codice. L'helper è idempotente (doppio append = no-op).
+
+---
+
 ## Caricamento contesto progetto (CONST + PROFILE)
 
 Dopo aver risolto i path con l'helper di detection sopra, prima di eseguire qualsiasi altra fase carica i due file di costituzione del progetto:
@@ -767,6 +800,18 @@ Se l'esito e' COMPLETA:
 
 Aggiorna il file di progresso: stato "Completata", progresso 100%, note con riepilogo del lavoro svolto, log attività aggiornato.
 
+**Aggiorna il changelog globale** (vedi "Changelog globale del progetto"): appendi la voce-task e fai upsert della riga indice del piano (short-SHA catturati read-only dai branch di codice della task):
+
+```bash
+python "${SCRIPTS}/changelog.py" task --file "$CHANGELOG_PATH" --date "<YYYY-MM-DD>" \
+  --id "<T-ID>" --area "<SIGLA>" --summary "<sintesi 1-riga>" --plan "<plan>" \
+  --commits "<SIGLA@sha,...>" --progress "<progress-rel-path>"
+python "${SCRIPTS}/changelog.py" upsert-plan --file "$CHANGELOG_PATH" --plan "<plan>" \
+  --status in-progress --period "<start→>" --tasks "<done>/<tot>" \
+  --progress "<progress-rel-path>" --summary "<1 line>"
+# poi: pull → add "$CHANGELOG_PATH" → commit "[sdlc-changelog] <T-ID> done" → push (single-writer, repo specifiche/profilo)
+```
+
 **Gate smoke test** — prima di proporre la prossima task, offri allo sviluppatore degli smoke test mirati a QUESTA task appena completata. È un gate utente (mai procedere senza conferma) ed è indipendente dalla modalità di orchestrazione (`classic`/`deep`): vive qui nella prosa, a valle della verifica, e **non** va inserito nel workflow `sdlc-executor-wave` (quel workflow termina al confine "sotto-lavoro verificato" e delega applicazione patch/commit/PROGRESS all'agente principale — lo smoke gate gira dopo, qui).
 
 > La task **T-XXX** è completata e verificata.
@@ -823,6 +868,18 @@ git -C "$GIT_REPO_PATH" mv "$BASE_PATH/in-progress/<YYYY-MM-DD>_<nome>/" "$BASE_
 git -C "$GIT_REPO_PATH" add .
 git -C "$GIT_REPO_PATH" commit -m "[sdlc-executor] <nome>: tutte le task completate + tutti i bug chiusi, spostato in done"
 git -C "$GIT_REPO_PATH" push origin main --quiet
+```
+
+**Aggiorna il changelog globale** (piano completato): appendi la entry `✔ PLAN DONE` con il range commit per repo (read-only) e fai upsert della riga indice a `done` col nuovo path del PROGRESS:
+
+```bash
+# range commit per repo = short-SHA base..head sul branch della task, per ogni repo di codice
+python "${SCRIPTS}/changelog.py" plan-done --file "$CHANGELOG_PATH" --date "<YYYY-MM-DD>" \
+  --plan "<plan>" --done "<N>" --tot "<M>" --bugs "<open-bugs>" \
+  --range "<SIGLA@base..head,...>" --progress "plans/done/<plan>/PROGRESS.md"
+python "${SCRIPTS}/changelog.py" upsert-plan --file "$CHANGELOG_PATH" --plan "<plan>" \
+  --status done --tasks "<M>/<M>" --progress "plans/done/<plan>/PROGRESS.md" --summary "<1 line>"
+# poi: pull → add "$CHANGELOG_PATH" → commit "[sdlc-changelog] <plan> PLAN DONE" → push
 ```
 
 Comunica:

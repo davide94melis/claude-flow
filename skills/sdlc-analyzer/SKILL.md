@@ -117,6 +117,16 @@ Ferma l'esecuzione e avvisa:
 git -C "$GIT_REPO_PATH" pull origin main --quiet
 ```
 
+### Read-first — changelog globale (#3)
+
+Dopo il pull e **prima** di aprire i file per-piano, consulta `CHANGELOG.md` (root della repo specifiche/profilo, sibling di `plans/`) per lo storico cross-piano + jump-point — così **eviti di ri-pianificare lavoro già `done`** e sei consapevole dell'impatto sui piani esistenti (contratto: [`../sdlc-executor/references/CHANGELOG-contract.md`](../sdlc-executor/references/CHANGELOG-contract.md)):
+
+```bash
+CHANGELOG_PATH="$(dirname "$BASE_PATH")/CHANGELOG.md"
+[ -f "$CHANGELOG_PATH" ] && sed -n '/^## Piani/,/^## Attività/p' "$CHANGELOG_PATH"   # indice piani già lavorati
+[ -f "$CHANGELOG_PATH" ] && grep -A5 '^## Attività' "$CHANGELOG_PATH"                 # ultime attività
+```
+
 ### Commit e push dopo la scrittura
 
 ```bash

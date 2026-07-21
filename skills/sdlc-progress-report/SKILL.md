@@ -111,6 +111,15 @@ relpath()  { printf '%s' "${1#$GIT_REPO_PATH/}"; }
 show_main() { git -C "$GIT_REPO_PATH" show "origin/main:$(relpath "$1")" 2>/dev/null; }
 ```
 
+### Read-first — changelog globale (#3)
+
+Dopo la sync e **prima** di aggregare, consulta `CHANGELOG.md` (root della repo specifiche/profilo) come **cross-check storico** dei piani/attività — non sostituisce l'aggregazione, la contestualizza (contratto: [`../sdlc-executor/references/CHANGELOG-contract.md`](../sdlc-executor/references/CHANGELOG-contract.md)). Leggi dal ref remoto (coerente col modello fail-loud):
+
+```bash
+CHANGELOG_PATH="$(dirname "$BASE_PATH")/CHANGELOG.md"
+show_main "$CHANGELOG_PATH" | sed -n '/^## Piani/,/^## Attività/p'   # indice piani (da origin/main)
+```
+
 ### Commit e push dopo la scrittura
 
 ```bash

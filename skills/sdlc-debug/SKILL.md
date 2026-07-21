@@ -98,6 +98,18 @@ Crea `.sdlc-local.json` (nuovo nome raccomandato) con:
 git -C "<profiles_repo>" pull origin main --quiet
 ```
 
+### Read-first — changelog globale (#3)
+
+Dopo il pull e **prima** di aprire i file per-piano, consulta `CHANGELOG.md` (root della repo specifiche/profilo, sibling di `plans/`) per il **contesto sulle modifiche recenti** al piano su cui stai lavorando i bug (contratto: [`../sdlc-executor/references/CHANGELOG-contract.md`](../sdlc-executor/references/CHANGELOG-contract.md)). Alla chiusura di un bug, appendi la voce `[BUG] <id> fixed` secondo il write-contract:
+
+```bash
+CHANGELOG_PATH="<profiles_repo>/<profilo>/CHANGELOG.md"
+[ -f "$CHANGELOG_PATH" ] && grep -A5 '^## Attività' "$CHANGELOG_PATH"   # modifiche recenti
+# alla chiusura bug (stessa disciplina single-writer: pull → helper → add → commit [sdlc-changelog] → push):
+# python "${SCRIPTS}/changelog.py" add-activity --file "$CHANGELOG_PATH" --date "<YYYY-MM-DD>" \
+#   --line "[BUG] <id> fixed — *plan: <plan>* — commit: \`<SIGLA@sha>\` — → PROGRESS"
+```
+
 ### Commit e push dopo la scrittura
 
 ```bash

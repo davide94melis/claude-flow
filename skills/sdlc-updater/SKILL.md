@@ -107,6 +107,15 @@ Ferma l'esecuzione e avvisa:
 git -C "$GIT_REPO_PATH" pull origin main --quiet
 ```
 
+### Read-first — changelog globale (#3)
+
+Dopo il pull e **prima** di aprire i file per-piano, consulta `CHANGELOG.md` (root della repo specifiche/profilo, sibling di `plans/`) per il **contesto delta** — cosa è cambiato di recente sui piani (contratto: [`../sdlc-executor/references/CHANGELOG-contract.md`](../sdlc-executor/references/CHANGELOG-contract.md)):
+
+```bash
+CHANGELOG_PATH="$(dirname "$BASE_PATH")/CHANGELOG.md"
+[ -f "$CHANGELOG_PATH" ] && grep -A5 '^## Attività' "$CHANGELOG_PATH"   # attività recenti (contesto delta)
+```
+
 ### Commit e push dopo la scrittura
 
 ```bash
