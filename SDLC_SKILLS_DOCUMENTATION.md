@@ -1,10 +1,10 @@
 # SDLC Skills Suite — Documentazione Completa
 
-Suite di 9 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement: dal setup del profilo progetto alla review della documentazione funzionale, dalla gestione delle risposte del funzionale all'analisi gap, dalla stima del team all'esecuzione delle task, dalla gestione degli aggiornamenti al debug post-rilascio, fino alla reportistica Excel.
+Suite di 12 skill complementari per Claude Code che automatizzano l'intero ciclo di vita di un Business Requirement (AFU, Analisi Funzionale Utente): dal setup del profilo progetto alla review della documentazione funzionale, dalla gestione delle risposte del funzionale all'analisi gap, dalla stima del team all'esecuzione delle task, dalla gestione degli aggiornamenti al debug post-rilascio, alla reportistica Excel, dal brand kit ad alta fedelta' per i mockup alla verifica di conformita' AFU↔implementazione, fino all'integrazione cross-piano del codice.
 
 ## Modalita' Operative
 
-Le 9 skill SDLC operano in **due modalita' mutuamente esclusive** discriminate dall'auto-detect del file `.br-local.json` (nella repo applicativa del developer):
+Le 12 skill SDLC operano in **due modalita' mutuamente esclusive** discriminate dall'auto-detect del file `.br-local.json` (nella repo applicativa del developer):
 
 | Modalita' | Trigger `.br-local.json` | Storage profilo + plan | Stati plan |
 |---|---|---|---|
@@ -18,12 +18,14 @@ Ogni skill rileva la modalita' in apertura e si comporta di conseguenza. Le sezi
 
 ### Schema `afu-manifest.json` v2 (solo standalone)
 
-Contratto fra Solaria e le skill SDLC Claude Code. Schema canonical in `claude-flow/templates/afu-manifest.schema.json`. Estende lo schema base con 4 campi opzionali prodotti dal FunctionalReviewer / skill review/clarify / playbook generator Solaria-side in Fase 1c:
+Contratto fra Solaria e le skill SDLC Claude Code. Schema canonical in `claude-flow/templates/afu-manifest.schema.json`. Estende lo schema base con campi opzionali prodotti Solaria-side in Fase 1 (FunctionalWeaver, FunctionalReviewer, skill review/clarify, playbook generator, Coherence Assessor):
 
 - `coverage` — `{overall_percent, by_section{...}}` percentuali di copertura AFU
 - `gate_outcome` — `"GO" | "NO-GO"` esito quality gate; solo i plan con GO sono handoff'able
 - `review_clarify_status` — `"open" | "closed"` stato analisi dettaglio post-GO
 - `tests` — `{playbook_md, playbook_xlsx}` riferimenti al playbook di test funzionale
+- `coherence` — `{report_md, report_en_md}` riferimenti al **report di coerenza mockup↔AFU** (Contratto UI) prodotto dal Coherence Assessor (agente 06) Solaria-side via il Mockup Designer; presente ogni volta che i mockup sono generati al GATE-1 — sempre prodotto, non opt-in (miglioria #1)
+- `screen_index` — indice delle schermate del Contratto UI dichiarate nell'AFU come ID canonici `SC-F<NN>-NN` (prodotto dal FunctionalWeaver in `### Schermate & Interazioni`, consumato da Mockup Designer, Coherence Assessor e da `sdlc-verifier` per la verifica dinamica)
 
 ### Cartella `dataset/` (solo standalone, Solaria-side)
 
@@ -150,7 +152,7 @@ Ogni progetto ha due file nella folder `constitution/`:
 - **`CONST.json`** — Principi e standard di archetipo (OWASP, WCAG, test coverage, code style, git workflow, architectural patterns). Policy stabile, gestita manualmente.
 - **`PROFILE.json`** — Dettagli specifici del progetto (tech stack, repositories, dominio, design system, glossario). Auto-aggiornato da `sdlc-analyzer`.
 
-Tutte le 9 skill SDLC caricano entrambi i file all'avvio. CONST funziona come vincolo per ogni output (PLAN, TASKS, REVIEW, fix), PROFILE come "lingua" del progetto.
+Tutte le 12 skill SDLC caricano entrambi i file all'avvio. CONST funziona come vincolo per ogni output (PLAN, TASKS, REVIEW, fix), PROFILE come "lingua" del progetto.
 
 Per migrare un profilo legacy (formato `profile.json` singolare), eseguire `python claude-flow/scripts/migrate-profile-split.py --apply`.
 
@@ -179,6 +181,26 @@ Ogni skill può eseguire in **`classic`** (default, sequenziale) o **`deep`** (W
 **Deploy:** `scripts/sync-installed.sh --apply` copia skill, agent e `workflows/*.js` in `~/.claude/`.
 
 Dettaglio completo: `docs/ORCHESTRATION_INTEGRATION_DESIGN.md`. Validazione empirica facoltativa (golden-test, saltata per decisione): `docs/GOLDEN_TEST_ANALYZER.md`.
+
+---
+
+## Changelog globale per progetto (#3)
+
+Ogni progetto ha un **`CHANGELOG.md` append-only** alla root della repo specifiche/profilo (sibling di `plans/`): la storia sintetica **cross-piano** di "cosa e' stato fatto", con puntatori (commit-ref + jump ai `PROGRESS.md`). E' complementare, non duplica: `PROGRESS.md` = stato corrente per-piano; l'Excel di `sdlc-progress-report` = dashboard per-dev; **`CHANGELOG.md` = storia append-only cross-piano** con puntatori.
+
+**Formato** (human-first + machine-anchored): sezione `## Piani` (indice `Plan | Status | Period | Tasks done/tot | PROGRESS | Summary`) + sezione `## Attività` (feed newest-first raggruppato per data `### YYYY-MM-DD`, con ancore stabili per il grep "read-first" senza parsing fragile).
+
+**Write-contract (chi scrive cosa):**
+
+| Writer | Evento → voce |
+|---|---|
+| `sdlc-executor` | task completata / piano completato / spostamento stato (+ cattura short-SHA read-only dal codice) |
+| `sdlc-debug` | bug chiuso (`[BUG]`) |
+| `sdlc-updater` | delta piano/AFU (`[UPDATE]`) |
+| `sdlc-merge` | piani mergiati (`⇄ MERGE`) |
+| `sdlc-verifier` | task iniettate (`[VERIFY] +N task`) |
+
+**Read-first:** dopo il `git pull` e prima di aprire i file per-piano, le skill leggono `CHANGELOG.md` per storia + jump-point (analyzer/updater/verifier/merge/debug/progress-report). Helper condiviso `${SCRIPTS}/changelog.py` (stdlib, grep-compatibile, niente jq); disciplina **single-writer** identica al PROGRESS (pull → write → commit → push sulla repo specifiche/profilo; **mai auto-commit sul codice**; idempotente). Solo **EN** (dev-facing). Contratto completo: `skills/sdlc-executor/references/CHANGELOG-contract.md`.
 
 ---
 
@@ -874,6 +896,104 @@ Generare un `brand.md` ad alta fedeltà (design contract **agnostico**) per il M
 - **classic**: pipeline sequenziale; fidelity-diff invocabile on-demand.
 - **deep**: fan-out estrazione componenti per-area + `completeness-critic` + fidelity-diff automatico.
 
+---
+
+## 11. SDLC Verifier
+
+**Skill**: `sdlc-verifier`
+**Path**: `~/.claude/skills/sdlc-verifier/SKILL.md`
+**Trigger**: "verifica la conformita'", "verifica il piano contro l'AFU", "gate di conformita'", "conformance check", "verifica implementazione vs AFU"
+
+> **Nota naming (rename)**: questa **skill** e' `sdlc-verifier` (conformita' AFU↔implementazione). L'**agente** che verifica in 3 fasi il lavoro dei sottoagenti (usato da `sdlc-executor` e `sdlc-debug`) e' stato **rinominato `sdlc-work-verifier`** per evitare la collisione con questa skill. Non confonderli.
+
+### Scopo
+
+Chiudere il loop dell'SDLC — `AFU → sdlc-analyzer (Piano) → sdlc-executor (codice) → sdlc-verifier (verifica vs AFU) → inietta task → executor` — verificando che quanto pianificato e implementato sia **coerente con la richiesta reale dell'AFU**, e iniettando nuovi task `T-VER-NN` per ogni incongruenza. Cattura due classi di incoerenza:
+
+1. **Miss dell'analyzer** — requisiti AFU mai coperti dal Piano (orfani).
+2. **Drift dell'executor** — requisiti marcati `done` ma il codice/comportamento non li soddisfa vs l'intento reale dell'AFU.
+
+**Read-only sul codice**: nessun commit sui repo di codice; scrive solo `TASKS.md` / `PROGRESS.md` / `VERIFICATION.md` (+ changelog #3) nella repo specifiche/profilo, con disciplina single-writer.
+
+### Metodo di verifica (due livelli)
+
+- **Livello 1 — Codice (statico), sempre**: riusa la Matrice di verifica di `sdlc-analyzer` + l'agente `sdlc-codebase-explorer` (read-only). Mappa ogni requisito / criterio di accettazione (`AC-F<NN>-NN`) / elemento del Contratto UI (`SC-F<NN>-NN`, miglioria #1) a evidenza nel codice (`Coperto / Parziale / Mancante / Discrepanza`) e traccia **AC→test** (ogni AC deve avere un test; AC senza test = gap). Nessuna esecuzione dei test — si verifica l'esistenza e la corrispondenza.
+- **Livello 2 — Dinamico (visivo/funzionale), quando possibile**: pilota l'**app in esecuzione**. FE via **Playwright / Chrome DevTools** (schermate/campi/valori/colonne/widget/trigger/trasversali del Contratto UI + screenshot come evidenza); BE **API-level** (chiama gli endpoint reali e confronta request/response + codici errore con `CONTRACTS.md` e l'AFU). Cascade tool: detect → primario → alternative → fallback statico con banner **"COPERTURA RIDOTTA (no dynamic)"**. Mai credenziali reali di produzione.
+
+### Incongruenze → task iniettati
+
+| Classe incongruenza | Azione |
+|---|---|
+| Requisito AFU orfano (miss analyzer) | nuovo task `T-VER-NN` |
+| Requisito `done` ma gap/discrepanza (drift) | nuovo task (riapre il requisito) |
+| AC senza test | nuovo task (aggiungi test) |
+| Fallimento dinamico (UI/API divergono dall'AFU) | nuovo task con evidenza (screenshot/response) |
+| Over-implementation (extra oltre l'AFU) | **solo report**, decisione al TL — nessun task automatico |
+
+L'iniezione ha sempre un **gate di approvazione**: presenta `VERIFICATION.md` + i task proposti, attende conferma, poi appende `T-VER-NN` a `TASKS.md` (con ID AFU chiuso per tracciabilita'), aggiorna `PROGRESS.md` e appende l'evento `[VERIFY] +N task` al changelog globale (#3). Mai iniezione silenziosa; mai riaprire un Piano `done` senza conferma.
+
+### Trigger e scope
+
+- **Gate pre-chiusura (default)**: quando tutte le task sono `done`, gira PRIMA che l'executor sposti il Piano in `done/`. Incongruenze → task iniettati → il Piano resta `in-progress` finche' non chiude pulito.
+- **On-demand**: invocabile in qualsiasi momento; su un Piano gia' in `done/` con incongruenze → riapre (con conferma) e inietta.
+- **Run scoped**: intero Piano | feature `F-NN` | wave | set di task.
+
+### Report artifact — `VERIFICATION.md`
+
+Scritto (EN, dev-facing) nella cartella del Piano: una riga per requisito con `AFU ref | Static (evidenza codice) | Dynamic (pass/fail + evidenza) | Gap | → task`, una sezione **Over-implementation** (report-only, decisione al TL), la **Tool coverage**, e un **verdetto** `CONFORME | CONFORME-CON-RISERVE | NON-CONFORME (+N task)`.
+
+### Modalita' (classic / deep)
+
+- **classic**: statico + AC→test + dinamico on-demand.
+- **deep**: Workflow `sdlc-verifier-conformance.js` — explorer paralleli per area + **adversarial-verify** per requisito (istanze scettiche che tentano di REFUTARE la copertura, riducono i falsi "coperto") + **completeness-critic** ("nessun requisito AFU non verificato"). Il workflow propone; l'agente principale (single-writer) presenta il gate e scrive. Fallback a `classic` con banner COPERTURA RIDOTTA.
+
+### Integrazioni
+
+- **#1 Contratto UI** — fonte della verifica dinamica FE (schermate/campi/valori/widget/trigger/trasversali via `screen_index` / `SC-ID`).
+- **#3 Changelog** — letto per primo (cosa e' `done` + commit + jump ai PROGRESS); appende `[VERIFY] +N task` all'iniezione.
+- **`sdlc-analyzer`** — riusa Matrice di verifica + `sdlc-codebase-explorer`. **`sdlc-executor`** — consuma i `T-VER-NN`, ospita il suggerimento proattivo scoped e rispetta il gate pre-chiusura. **`sdlc-merge`** — invoca questa skill come verifica finale del codice integrato.
+
+---
+
+## 12. SDLC Merge
+
+**Skill**: `sdlc-merge`
+**Path**: `~/.claude/skills/sdlc-merge/SKILL.md`
+**Trigger**: "mergia i piani", "integra i piani completati", "merge dei piani", "integrazione cross-piano"
+
+### Scopo
+
+Quando piu' Piani vengono lavorati **in parallelo**, integrare il loro **codice** (i branch nei repo di codice) nel main senza rompere nulla. Orchestra l'integrazione cross-piano con: branch di integrazione isolato, ordine impact/conflict-aware, risoluzione dei conflitti git **e** semantici, build+test per repo, e verifica finale di conformita' via `sdlc-verifier` (#4).
+
+> "Merge di piani" = integrazione del **codice** dei Piani (i loro branch nei repo di codice), **non** degli artefatti del Piano (gia' in `done/`).
+>
+> **Invarianti**: esplorazione read-only; merge **solo sul branch di integrazione** con conferma; **mai auto-merge su main** senza conferma; **mai `--force`**; nessuna integrazione lasciata rotta (rollback su test rossi). Single-writer sulla repo specifiche/profilo per report + changelog.
+
+### Flusso (gate per-step)
+
+1. **Selezione Piani** da integrare (multi-select dai Piani in `done/`) + discovery branch/commit per repo (dalla colonna Branch di `PROGRESS.md`/`TASKS.md`, formato `<SIGLA>:<branch>`, + commit-ref dal changelog #3).
+2. **Ordine impact/conflict-aware**: overlap analysis (stessi file/entita'/enum/contratti, da changelog + lettura read-only via `sdlc-codebase-explorer`) + dipendenze cross-piano → propone un ordine che minimizza i conflitti; conferma utente.
+3. **Branch di integrazione per repo**: `integration/<YYYY-MM-DD>_<slug>` dal main/base di ogni repo. **Main isolato** fino alla promozione confermata.
+4. **Merge di ogni Piano nell'ordine**: conflitti git → i sottoagenti propongono, l'agente principale verifica, l'utente conferma; conflitti semantici (modifiche incompatibili allo stesso simbolo/API/entita'/enum) → evidenziati per decisione (risoluzione guidata o task di remediation, stile #4). Dopo ogni Piano: **build + test** per repo; se rompe → fix via sottoagenti o **rollback** del merge di quel Piano — mai lasciare l'integrazione rotta.
+5. **Verifica finale**: invoca `sdlc-verifier` (#4) sul risultato integrato → conferma che il codice combinato soddisfi ancora **tutte** le AFU dei Piani mergiati (statica + dinamica).
+6. **Promozione**: branch di integrazione → main come step confermato (o lasciato a una PR). Mai `--force`, mai silenzioso.
+7. **Report + changelog**: scrive `INTEGRATION.md` (EN) e appende l'entry `⇄ MERGE` al changelog globale (#3).
+
+### Report artifact — `INTEGRATION.md`
+
+Scritto (EN) nella repo specifiche/profilo (es. `plans/integrations/<YYYY-MM-DD>_<slug>/`): tabella per-step (`Step | Plan | Repo | Merge | Git conflicts | Semantic conflicts | Build | Tests | Rollback`) + razionale dell'ordine + decisioni sui conflitti semantici + verdetto finale di conformita' (`sdlc-verifier`) + stato della promozione.
+
+### Modalita' (classic / deep)
+
+- **classic**: overlap analysis + gate per-step sequenziali.
+- **deep**: Workflow `sdlc-merge-integrate.js` — overlap analysis parallela per repo/area + **adversarial-verify** delle risoluzioni + **completeness-critic** ("tutti i Piani integrati, nessun commit perso") + `isolation:'worktree'` per provare i merge in isolamento. Il workflow propone ordine + risoluzioni + verdetti; l'agente principale (single-writer) applica con i gate, build+test e la promozione confermata. Fallback a `classic` con banner COPERTURA RIDOTTA.
+
+### Integrazioni
+
+- **#3 Changelog** — letto (cosa ha cambiato ogni Piano + commit-ref) per overlap analysis e discovery branch; scrive l'entry `⇄ MERGE`.
+- **#4 `sdlc-verifier`** — verifica finale di conformita' del risultato integrato prima della promozione.
+- **`sdlc-analyzer`/`sdlc-executor`** — riuso di `sdlc-codebase-explorer` e `sdlc-work-verifier`; i branch/Piani da integrare sono prodotti dall'executor (le merge-task interne al Piano sono gia' integrate per-Piano).
+
 ## Ciclo di Vita delle Task
 
 ```
@@ -922,3 +1042,6 @@ Le dipendenze cross-stream sono gestite tramite **merge task esplicite** (`T-MER
 | "ci sono dei bug" / "bug dal funzionale" / "lavora il bug" / "debug br" | sdlc-debug |
 | "genera il report excel" / "aggiorna l'excel" / "stato avanzamento" / "esporta il progresso" | sdlc-progress-report |
 | "stima il br" / "quanti sviluppatori servono" / "simulazione team" / "stima effort" | sdlc-estimator |
+| "genera il brand kit" / "genera il design spec" / "brand.md per i mockup" / "design contract" | sdlc-brandkit |
+| "verifica la conformita'" / "verifica il piano contro l'AFU" / "gate di conformita'" / "conformance check" | sdlc-verifier |
+| "mergia i piani" / "integra i piani completati" / "merge dei piani" / "integrazione cross-piano" | sdlc-merge |
