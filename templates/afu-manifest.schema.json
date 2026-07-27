@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/davide94melis/claude-flow/schemas/afu-manifest.schema.json",
   "title": "AFU Manifest v2",
-  "description": "Schema del manifest che Solaria allega ad ogni AFU package consegnato al team tecnico. Versione semver in 'versione', delta narrativo in 'changelog', collegamento al predecessore in 'parent_version'. v2 (2026-05) aggiunge i campi opzionali 'coverage', 'gate_outcome', 'review_clarify_status', 'tests' prodotti da FunctionalReviewer / skill review/clarify / playbook generator Solaria-side nella Fase 1c.",
+  "description": "Schema del manifest che Solaria allega ad ogni AFU package consegnato al team tecnico. Versione semver in 'versione', delta narrativo in 'changelog', collegamento al predecessore in 'parent_version'. v2 (2026-05) aggiunge i campi opzionali 'coverage', 'gate_outcome', 'review_clarify_status', 'tests' prodotti da FunctionalReviewer / skill review/clarify / playbook generator Solaria-side nella Fase 1c. Il discriminatore 'schema_version' (2 = feature-first) rende obbligatori 'feature_index' e 'screen_index'; 'coherence' e' richiesto all'handoff quando l'AFU dichiara schermate (enforcement lato Orchestrator). I manifest legacy senza 'schema_version' restano validi (retro-compat) ma non sono piu' prodotti ex novo.",
   "type": "object",
   "required": [
     "nome",
@@ -15,6 +15,11 @@
     "priorita"
   ],
   "properties": {
+    "schema_version": {
+      "type": "integer",
+      "enum": [1, 2],
+      "description": "Discriminatore di versione dello SCHEMA (distinto da 'versione', che e' la semver del contenuto AFU). Assente o 1 = manifest legacy v1 (retro-compatibile: ancora valido ma non piu' prodotto ex novo). 2 = manifest feature-first: richiede 'feature_index' e 'screen_index' (vedi allOf); 'coherence' e' richiesto all'handoff quando 'screen_index' e' non vuoto (enforcement lato Orchestrator, non a livello di schema, per non invalidare i draft pre-mockup). I nuovi manifest DEVONO dichiarare schema_version: 2 (impostato dall'Orchestrator)."
+    },
     "nome": {
       "type": "string",
       "pattern": "^[a-z0-9-]+$",
@@ -137,7 +142,7 @@
     },
     "coherence": {
       "type": "object",
-      "description": "Riferimenti al report di coerenza mockup<->AFU (Contratto UI) prodotto dal Coherence Assessor Solaria-side via il Mockup Designer, presente OGNI VOLTA che i mockup sono generati al GATE-1 (il report e' sempre prodotto, non opt-in a differenza di a11y). Path relativi a requirements/.",
+      "description": "Riferimenti al report di coerenza mockup<->AFU (Contratto UI) prodotto dal Coherence Assessor Solaria-side via il Mockup Designer, presente OGNI VOLTA che i mockup sono generati al GATE-1 (il report e' sempre prodotto, non opt-in a differenza di a11y). Path relativi a requirements/. RICHIESTO ALL'HANDOFF quando 'screen_index' e' non vuoto: l'Orchestrator blocca l'handoff senza un coherence report con verdetto COERENTE/COERENTE-CON-ASSUNZIONI (a livello di schema resta opzionale per non invalidare i draft pre-mockup).",
       "properties": {
         "report_md": {
           "type": "string",
@@ -225,5 +230,16 @@
       "additionalProperties": false
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "schema_version": { "const": 2 } },
+        "required": ["schema_version"]
+      },
+      "then": {
+        "required": ["feature_index", "screen_index"]
+      }
+    }
+  ],
   "additionalProperties": false
 }

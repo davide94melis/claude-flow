@@ -6,12 +6,15 @@
 
 ## 1. Meta
 - Project: <name> · Stack: <detected stack> · UI library: <lib + version>
-- Source commit: <sha> · Generated: <YYYY-MM-DD> by sdlc-brandkit
-- Token sources: <files / DOM> · Fidelity target: quasi-pixel-perfect (AA)
+- Source commit: <short-sha> · Generated: <YYYY-MM-DD> by sdlc-brandkit
+- Token sources: <repo-relative paths / DOM> · Fidelity target: quasi-pixel-perfect (AA)
+> PATHS: usa solo path relativi al repo (strip del prefisso repo-root) e SHA corti. MAI path assoluti locali — POSIX (`/Users/...`), `file://`, Windows (`C:\...`, `file:///C:/...`), UNC (`\\host\share`).
 
 ## 2. Design tokens
-See `tokens.css` (inline it verbatim in every mockup). Summary of the notable values:
-<key tokens table>
+See `tokens.css` (inline it verbatim in every mockup) — it is the SINGLE SOURCE of token values.
+> The "notable values" summary table is OPTIONAL. If present it MUST be auto-generated from `tokens.css`
+> (never hand-maintained) to prevent drift (e.g. `#2c8287` vs `#14b8a6`).
+<key tokens table — AUTO-GENERATED from tokens.css; do not hand-edit>
 
 ## 3. Base / reset CSS
 ```css
