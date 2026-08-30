@@ -1,6 +1,6 @@
 # Claude Flow — BR Skills per Claude Code
 
-Suite di 10 skill e 5 agenti generici per Claude Code che automatizzano il ciclo di vita dei Business Requirements: dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione task, dalla gestione dei bug segnalati dai funzionali all'aggiornamento incrementale e al reporting Excel, con un orchestratore pipeline che coordina il tutto. Include profili progetto centralizzati per scalare a tutti i progetti.
+Suite di 12 skill e 5 agenti generici per Claude Code che automatizzano il ciclo di vita dei Business Requirements (AFU): dalla review della documentazione funzionale alla gestione delle risposte del funzionale, dall'analisi gap all'esecuzione task, dalla gestione dei bug segnalati dai funzionali all'aggiornamento incrementale e al reporting Excel, dal brand kit ad alta fedelta' per i mockup alla verifica di conformita' AFU↔implementazione, fino all'integrazione cross-piano del codice. Include profili progetto centralizzati per scalare a tutti i progetti.
 
 ## Skills
 
@@ -90,17 +90,25 @@ Stima il team necessario per completare un BR entro una deadline. Due modalita':
 
 **Trigger**: `stima il br`, `quanti sviluppatori servono`, `simulazione team`, `stima effort`
 
-### sdlc-pipeline
-
-Orchestratore unico per il ciclo di vita dei BR. Legge lo stato dal `manifest.json` di ogni BR, rileva il ruolo dell'utente (TL/PM o Dev) e mostra una dashboard con lo stato di ogni BR, proponendo il prossimo step e delegando alle skill appropriate. **Aggrega il progresso da tutti i feature branch remoti** per la dashboard.
-
-**Trigger**: `sdlc-pipeline`, `pipeline br`, `le mie task`, `stato dei br`
-
 ### sdlc-brandkit
 
 Genera il `brand.md` ad alta fedeltà (design contract agnostico) per i mockup del Mockup Designer: ispeziona un frontend qualsiasi (token, componenti, pagine), cattura screenshot golden da una POC se disponibile, ed emette `brand.md` + `tokens.css` + `assets/{screenshots,snippets}`. Standalone o via hook da `sdlc-profile-setup`. Output nel **contesto** (SPEC/project repo), mai nel `dataset/` di Solaria. Include il componente riutilizzabile [`scripts/fidelity-diff`](scripts/fidelity-diff/) (render + PNG-diff, zero dipendenze immagine: decode/diff in-browser via canvas) invocato in `deep` e on-demand in `classic`.
 
 **Trigger**: `genera il brand kit`, `genera il design spec`, `brand.md per i mockup`, `specifiche di stile per i mockup`, `design contract`
+
+### sdlc-verifier
+
+Verifica la **conformita' tra l'AFU e l'implementazione** (Piano + codice) e chiude il loop `AFU → analyzer → executor → verifier → inietta task`. Due livelli: **statico** (matrice AFU↔codice riusando la Matrice di `sdlc-analyzer` + tracciamento `AC→test`) e **dinamico** (app in esecuzione: FE via Playwright/Chrome DevTools, BE API-level). Per ogni incongruenza inietta task `T-VER-NN` con gate di approvazione; read-only sul codice. Gira come gate pre-chiusura (default), on-demand e scoped (Piano | `F-NN` | wave | set di task). L'over-implementation e' solo report (decisione al TL).
+
+> **Rename**: l'agente di verifica in 3 fasi del lavoro dei sottoagenti e' ora `sdlc-work-verifier` (vedi Agenti Generici), rinominato per non collidere con questa skill.
+
+**Trigger**: `verifica la conformita'`, `verifica il piano contro l'AFU`, `gate di conformita'`, `conformance check`, `verifica implementazione vs AFU`
+
+### sdlc-merge
+
+Integra il **codice di piu' Piani completati** (i branch nei repo di codice) in un branch di integrazione, risolvendo conflitti git **e** semantici con ordine impact/conflict-aware, build+test per repo e verifica finale di conformita' via `sdlc-verifier`. Main isolato, gate per-step, mai `--force`, mai auto-merge su main senza conferma, rollback su test rossi. Scrive `INTEGRATION.md` e l'entry `⇄ MERGE` nel changelog globale.
+
+**Trigger**: `mergia i piani`, `integra i piani completati`, `merge dei piani`, `integrazione cross-piano`
 
 ## Agenti Generici
 
@@ -108,9 +116,9 @@ Genera il `brand.md` ad alta fedeltà (design contract agnostico) per i mockup d
 
 Esploratore di codebase profilo-aware. Usato da `sdlc-analyzer` e `sdlc-updater` per la gap analysis. Riceve il profilo progetto e naviga il codice in modo mirato, producendo output strutturato.
 
-### sdlc-verifier
+### sdlc-work-verifier
 
-Verificatore in 3 fasi profilo-aware. Usato da `sdlc-executor` e `sdlc-debug` per verificare il lavoro dei sottoagenti. Produce verdict PASS/FAIL strutturato usando le convenzioni dal profilo.
+Verificatore in 3 fasi profilo-aware. Usato da `sdlc-executor` e `sdlc-debug` per verificare il lavoro dei sottoagenti. Produce verdict PASS/FAIL strutturato usando le convenzioni dal profilo. *(Rinominato da `sdlc-verifier` per evitare la collisione con la nuova skill `sdlc-verifier` di conformita' AFU↔implementazione — sono cose diverse.)*
 
 ### sdlc-estimation-analyst
 
@@ -154,9 +162,9 @@ cp -r skills/sdlc-* ~/.claude/skills/
 cp -r agents/sdlc-* ~/.claude/agents/
 ```
 
-Questo copia tutte le 10 skill e i 5 agenti generici (sdlc-reviewer, sdlc-clarify, sdlc-analyzer, sdlc-executor, sdlc-updater, sdlc-progress-report, sdlc-debug, sdlc-profile-setup, sdlc-estimator, sdlc-pipeline).
+Questo copia tutte le 12 skill e i 5 agenti generici (sdlc-reviewer, sdlc-clarify, sdlc-analyzer, sdlc-executor, sdlc-updater, sdlc-progress-report, sdlc-debug, sdlc-profile-setup, sdlc-estimator, sdlc-brandkit, sdlc-verifier, sdlc-merge).
 
-Aggiungi i trigger nel tuo `~/.claude/CLAUDE.md`:
+Le skill si aprono con il comando slash `/nome-skill` (es. `/sdlc-analyzer`) o con una frase in linguaggio naturale (es. *"usa le skill sdlc per lavorare questo"*). In alternativa, **solo su install manuale**, puoi aggiungere righe di trigger opzionali nel tuo `~/.claude/CLAUDE.md` per l'auto-attivazione dalle frasi:
 
 ```markdown
 # sdlc-reviewer
@@ -195,9 +203,17 @@ When the user says "crea profilo progetto", "setup profilo", "nuovo profilo", "c
 - **sdlc-estimator** (`~/.claude/skills/sdlc-estimator/SKILL.md`) - stima team e simulazioni what-if per BR. Trigger: "stima il br", "quanti sviluppatori servono", "simulazione team", "stima effort"
 When the user says "stima il br", "quanti sviluppatori servono", "simulazione team", "stima effort", "stima team", or similar phrases about estimating team size or effort for a BR, invoke the Skill tool with `skill: "sdlc-estimator"` before doing anything else.
 
-# sdlc-pipeline
-- **sdlc-pipeline** (`~/.claude/skills/sdlc-pipeline/SKILL.md`) - pipeline POM completo per gestione BR con manifest JSON e viste per ruolo. Trigger: "sdlc-pipeline", "pipeline br", "le mie task"
-When the user says "sdlc-pipeline", "pipeline br", "le mie task", or similar phrases about the BR pipeline or viewing assigned tasks, invoke the Skill tool with `skill: "sdlc-pipeline"` before doing anything else.
+# sdlc-brandkit
+- **sdlc-brandkit** (`~/.claude/skills/sdlc-brandkit/SKILL.md`) - genera il brand.md ad alta fedelta' (design contract) + tokens.css + assets per i mockup. Trigger: "genera il brand kit", "genera il design spec", "design contract"
+When the user says "genera il brand kit", "genera il design spec", "brand.md per i mockup", "design contract", or similar phrases about generating a high-fidelity design contract for mockups, invoke the Skill tool with `skill: "sdlc-brandkit"` before doing anything else.
+
+# sdlc-verifier
+- **sdlc-verifier** (`~/.claude/skills/sdlc-verifier/SKILL.md`) - verifica di conformita' tra l'AFU e l'implementazione (piano + codice), statica + dinamica; inietta task T-VER. Trigger: "verifica la conformita'", "verifica il piano contro l'AFU", "gate di conformita'"
+When the user says "verifica la conformita'", "verifica il piano contro l'AFU", "gate di conformita'", "conformance check", "verifica implementazione vs AFU", or similar phrases about verifying conformance between the AFU and the implementation, invoke the Skill tool with `skill: "sdlc-verifier"` before doing anything else.
+
+# sdlc-merge
+- **sdlc-merge** (`~/.claude/skills/sdlc-merge/SKILL.md`) - integra il codice di piu' Piani completati in un branch di integrazione, con verifica finale via sdlc-verifier. Trigger: "mergia i piani", "integra i piani completati", "integrazione cross-piano"
+When the user says "mergia i piani", "integra i piani completati", "merge dei piani", "integrazione cross-piano", or similar phrases about integrating the code of multiple completed plans, invoke the Skill tool with `skill: "sdlc-merge"` before doing anything else.
 ```
 
 ## Migrazione dal naming legacy (br-*)
@@ -232,7 +248,7 @@ git push origin main
 | Legacy | Nuovo |
 |---|---|
 | Skill folders `br-{reviewer,clarify,analyzer,executor,updater,debug,progress-report,estimator,profile-setup}` | `sdlc-*` |
-| Agent files `br-{codebase-explorer,estimation-{analyst,historian,scenario},verifier}.md` | `sdlc-*.md` |
+| Agent files `br-{codebase-explorer,estimation-{analyst,historian,scenario},verifier}.md` | `sdlc-*.md` (l'agente `br-verifier` è ora `sdlc-work-verifier`) |
 | `REVIEW_BR.md` / `REVIEW_BR.docx` | `CLARIFY.md` / `CLARIFY.docx` |
 | `GAP_REPORT_BR.md` | `PLAN.md` |
 | `PIANO_IMPLEMENTAZIONE_BR.md` | `TASKS.md` |
@@ -310,11 +326,11 @@ BR nuovo ──→ sdlc-reviewer ──→ Review qualità documentazione + DOCX
             sdlc-executor ──→ Lavora task aggiornate
 ```
 
-`sdlc-pipeline` puo' essere usato come orchestratore unico: rileva lo stato di ogni BR e propone automaticamente il prossimo step, delegando alla skill appropriata.
+Dopo l'esecuzione, `sdlc-verifier` fa da **gate di conformita'** AFU↔codice (iniettando task `T-VER-NN` per le incongruenze) prima della chiusura del piano; quando piu' Piani sono lavorati in parallelo, `sdlc-merge` ne integra il codice nel main. Ogni evento completato viene registrato nel `CHANGELOG.md` globale del progetto.
 
 ## Aggregazione Cross-Branch del Progresso
 
-Quando piu' sviluppatori lavorano in parallelo su feature branch diversi, ognuno aggiorna il file PROGRESS.md sul proprio branch. Per garantire visibilita' del progresso a tutti senza attendere le merge, le skill di lettura (sdlc-executor, sdlc-pipeline, sdlc-progress-report) eseguono un'**aggregazione cross-branch**:
+Quando piu' sviluppatori lavorano in parallelo su feature branch diversi, ognuno aggiorna il file PROGRESS.md sul proprio branch. Per garantire visibilita' del progresso a tutti senza attendere le merge, le skill di lettura (sdlc-executor, sdlc-progress-report) eseguono un'**aggregazione cross-branch**:
 
 1. `git fetch origin` per sincronizzare
 2. Lettura del piano per estrarre i nomi branch di ogni task (colonna Branch nel backlog) oppure il nome del BR per la ricerca per pattern (retrocompatibilita')

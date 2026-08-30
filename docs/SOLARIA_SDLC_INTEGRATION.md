@@ -138,7 +138,7 @@ Regole (definite nel System Prompt dell'Orchestrator, sezione `DATASET LAYOUT`, 
 
 Il team Solaria deve produrre i seguenti agenti, tutti via API Anthropic (no Claude Code), che operano contro la project_repo via GitHub API. Le skill SDLC originali in `~/.claude/skills/` restano intatte: il team Solaria mantiene fork adattati Solaria-side.
 
-Il roster e' composto da **6 agenti**: **00** AFU Orchestrator, **01** FunctionalWeaver, **02** FunctionalReviewer, **03** Mockup Designer, **04** Playbook Generator, **05** Accessibility Assistant (sub-agente di 03, non di 00). Mockup Designer (03) e Playbook Generator (04) sono invocati solo su opt-in dell'analista ai gate post-GO (GATE-1 / GATE-2); l'Accessibility Assistant (05) e' attivato da 03 e quindi solo se GATE-1 e' attivo.
+Il roster e' composto da **7 agenti**: **00** AFU Orchestrator, **01** FunctionalWeaver, **02** FunctionalReviewer, **03** Mockup Designer, **04** Playbook Generator, **05** Accessibility Assistant (sub-agente di 03, non di 00), **06** Coherence Assessor (sub-agente di 03: coerenza mockup↔AFU). Mockup Designer (03) e Playbook Generator (04) sono invocati solo su opt-in dell'analista ai gate post-GO (GATE-1 / GATE-2); Accessibility Assistant (05) e Coherence Assessor (06) sono attivati da 03 e quindi solo se GATE-1 e' attivo.
 
 ### A. FunctionalWeaver (Fase 1c — generazione AFU dal dataset)
 
@@ -175,6 +175,17 @@ Il roster e' composto da **6 agenti**: **00** AFU Orchestrator, **01** Functiona
 **Output**: report di remediation WCAG 2.1 AA (read-only sull'assessment: non scrive i file, restituisce a 03 le correzioni da applicare)
 **Caratteristica chiave**: assessor **read-only** di conformita' WCAG 2.1 AA. Non modifica direttamente i mockup: 03 applica le remediation restituite.
 **Implementazione**: prompt engineering scorer WCAG 2.1 AA con API Anthropic, output strutturato consumato da 03.
+
+### C-ter. Coherence Assessor (06) (sub-agente di 03 — coerenza mockup↔AFU)
+
+**Quando**: invocato **dal Mockup Designer (03)** durante il *coherence pass*, dopo la generazione dei mockup HTML dal Contratto UI (quindi solo se GATE-1 e' attivo). E' un sub-agente di 03, **non** dell'Orchestrator.
+
+**Input**: i mockup HTML prodotti da 03 + il **Contratto UI** dell'AFU (schermate `SC-F<NN>-NN`, componenti tipizzati con campi/colonne/widget, trigger & navigazione) + i requisiti trasversali applicabili (MFA/OTP, legali/consenso, NFR con impatto UI, a11y)
+**Output**:
+- report di remediation ritornato a 03 (issue per schermata: elemento del contratto → `COVERED / ASSUMED / OPEN-QUESTION / FIXED`, divergenza mancante/inventato/difforme/trasversale-violato, fix passo-passo) — 03 applica e richiede il re-check fino a `COERENTE`
+- il report persistibile `requirements/mockup-coherence-report.md` (+ copia EN `mockup-coherence-report.en.md`), committato dall'Orchestrator (single writer) e referenziato in `afu-manifest.json.coherence`
+**Caratteristica chiave**: assessor **read-only** — verifica il "cosa" (contenuto mockup vs AFU), complementare all'Accessibility Assistant (05) che verifica il "come" (WCAG). Non modifica i mockup: 03 applica le remediation. Alimenta la verifica dinamica di `sdlc-verifier` a valle, che ricontrolla lo stesso Contratto UI sull'app reale.
+**Implementazione**: prompt engineering (rubric di coerenza per Contratto UI) con API Anthropic, output strutturato consumato da 03.
 
 ### D. Skill review + clarify forkate Solaria-side (Fase 1c post-GO + F2/F2b)
 
@@ -226,6 +237,7 @@ Campi opzionali invariati: `parent_version`, `changelog`.
 | `gate_outcome` | enum `GO | NO-GO` | FunctionalReviewer (F1c) | sdlc-reviewer / sdlc-analyzer (gate handoff: solo GO procede) |
 | `review_clarify_status` | enum `open | closed` | skill review/clarify forkate (F1c post-GO) | sdlc-reviewer / sdlc-analyzer (gate handoff: solo closed procede) |
 | `tests` | `{playbook_md, playbook_xlsx}` | Playbook Generator (F1c) | sdlc-analyzer (header PLAN.md), sdlc-executor (log informativo F2c) — **OPZIONALE**: presente solo se l'analista ha attivato GATE-2 e il playbook e' stato generato; altrimenti il campo e' omesso. |
+| `coherence` | `{report_md, report_en_md}` | Coherence Assessor (06) via Mockup Designer (F1c) | sdlc-analyzer / sdlc-verifier (Contratto UI) — presente **ogni volta che i mockup sono generati** (GATE-1), non opt-in |
 
 > Le voci `mockups/...` in `files[]` sono **opzionali** allo stesso modo: presenti solo se l'analista ha attivato GATE-1. Un package solo-AFU elenca in `files[]` la sola AFU.
 
@@ -256,7 +268,12 @@ Esempio completo:
   "tests": {
     "playbook_md": "tests/playbook.md",
     "playbook_xlsx": "tests/playbook.xlsx"
-  }
+  },
+  "coherence": {
+    "report_md": "mockup-coherence-report.md",
+    "report_en_md": "mockup-coherence-report.en.md"
+  },
+  "screen_index": ["SC-F01-01", "SC-F01-02", "SC-F02-01"]
 }
 ```
 
@@ -264,6 +281,7 @@ Esempio completo:
 - `legal_baseline`: `{ "applicable": bool, "jurisdiction": "EU-IT", "items": [ { "id": "cookie-consent", "status": "included" | "already_present" | "scoped_out" } ] }`
 - `feature_index`: `["F-01", "F-02", ...]` — navigazione feature-first.
 - `rule_index`: `["RB-<AREA>-NN", ...]` — indice regole di business.
+- `screen_index`: `["SC-F<NN>-NN", ...]` — indice schermate del Contratto UI (prodotto dal FunctionalWeaver in `### Schermate & Interazioni`, consumato da Mockup Designer, Coherence Assessor 06 e `sdlc-verifier`).
 
 `coverage.by_section` resta INVARIATO (le 7 chiavi canoniche: funzionalita, attori, casi_uso, flussi, regole_business, vincoli_tecnici, criteri_accettazione) per back-compat 1:1 col Reviewer.
 
