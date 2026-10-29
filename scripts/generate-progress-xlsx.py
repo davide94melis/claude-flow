@@ -4,12 +4,15 @@ progress Excel report (sdlc-progress-report skill; SDLC feedback round #6/#3/#4)
 
 Renders ANY progress manifest (official default or per-project custom) into PROGRESS.xlsx
 from a plan's TASKS.md + PROGRESS.md (+ optional PLAN.md header for deadline/cadence).
+The markdown is read with the shared `sdlc_plans` package, so this Excel and the dashboard
+say the same numbers: a value that cannot be read (effort, progress) stays EMPTY and is
+left out of the sums and averages, never counted as 0.
 
 Centralized model: the caller (skill) fetches TASKS/PROGRESS from origin/main and passes
 their paths here; this script never touches git.
 
 Subcommands:
-  render   parse inputs, render sheets per manifest, save xlsx.
+  render   read inputs (sdlc_plans), render sheets per manifest, save xlsx.
   analyze  read a TL-provided .xlsx and emit a draft manifest (best-effort field bindings).
 
 Anti-zeroing guard (#4): render refuses (exit 3) to overwrite an existing xlsx whose Task
@@ -22,6 +25,9 @@ import re
 import sys
 import unicodedata
 from datetime import date, datetime, timedelta
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from sdlc_plans import Task, read_plan, read_schedule  # noqa: E402
 
 DEFAULT_MANIFEST = {
     "version": 1,
@@ -68,128 +74,12 @@ DONE = "Completata"
 STATUS_ACTIVE = {"In corso"}
 STATUS_BLOCKED = {"Bloccata"}
 STATUS_INACTIVE = {"Annullata", "Sospesa"}
-STATUS_CANON = {
-    "completata": "Completata", "in corso": "In corso", "bloccata": "Bloccata",
-    "da iniziare": "Da iniziare", "annullata": "Annullata", "sospesa": "Sospesa",
-}
-
-
-def canon_status(s):
-    """Map a free-form status to a canonical label (case/accent tolerant) so downstream
-    exact comparisons don't drop a task from cadence/summary/per-dev on a stray-case value."""
-    return STATUS_CANON.get(norm(s), (s or "").strip() or "Da iniziare")
 
 
 def norm(s):
     s = (s or "").strip().lower()
     s = "".join(c for c in unicodedata.normalize("NFD", s) if unicodedata.category(c) != "Mn")
     return s.strip()
-
-
-def parse_md_tables(text):
-    """Return list of tables; each table = list of row-dicts keyed by RAW header text."""
-    tables, headers, sep_seen = [], None, False
-    cur = []
-    for line in (text or "").split("\n"):
-        st = line.strip()
-        if st.startswith("|") and st.endswith("|"):
-            cells = [c.strip() for c in st.strip("|").split("|")]
-            if headers is None:
-                headers, sep_seen, cur = cells, False, []
-                continue
-            if not sep_seen and set("".join(cells)) <= set("-: "):
-                sep_seen = True
-                continue
-            row = {headers[i]: (cells[i] if i < len(cells) else "") for i in range(len(headers))}
-            cur.append(row)
-        else:
-            if headers is not None and cur:
-                tables.append((headers, cur))
-            headers, sep_seen, cur = None, False, []
-    if headers is not None and cur:
-        tables.append((headers, cur))
-    return tables
-
-
-def _rowmap(headers):
-    return {norm(h): h for h in headers}
-
-
-def _pick(row, hmap, *keys):
-    for k in keys:
-        if k in hmap:
-            return row.get(hmap[k], "")
-    return ""
-
-
-def parse_tasks(tasks_text):
-    """Parse TASKS.md: the table whose headers contain an 'ID' column."""
-    out = {}
-    for headers, rows in parse_md_tables(tasks_text):
-        hmap = _rowmap(headers)
-        if "id" not in hmap:
-            continue
-        for row in rows:
-            tid = _pick(row, hmap, "id").strip()
-            if not re.match(r"^T-[A-Z0-9-]+$", tid):
-                continue
-            out[tid] = {
-                "id": tid,
-                "stream": _pick(row, hmap, "stream"),
-                "activity": _pick(row, hmap, "attivita", "activity"),
-                "description": _pick(row, hmap, "descrizione", "description"),
-                "owner": _pick(row, hmap, "owner", "sviluppatore"),
-                "area": _pick(row, hmap, "area"),
-                "priority": _pick(row, hmap, "priorita", "priority"),
-                "wave": _pick(row, hmap, "wave"),
-                "dependencies": _pick(row, hmap, "dipendenze", "dependencies"),
-                "effort": _pick(row, hmap, "effort", "stima"),
-                "branch": _pick(row, hmap, "branch"),
-                "progress": "0", "status": "Da iniziare", "note": "",
-            }
-    return out
-
-
-def parse_progress(progress_text, tasks):
-    """Merge PROGRESS.md status/progress/branch/note into tasks (by ID)."""
-    for headers, rows in parse_md_tables(progress_text):
-        hmap = _rowmap(headers)
-        if "id" not in hmap:
-            continue
-        for row in rows:
-            tid = _pick(row, hmap, "id").strip()
-            if tid not in tasks:
-                continue
-            prog = _pick(row, hmap, "progresso", "progress")
-            m = re.search(r"(\d+)", str(prog))
-            if m:
-                tasks[tid]["progress"] = m.group(1)
-            status = _pick(row, hmap, "stato", "status").strip()
-            if status:
-                tasks[tid]["status"] = canon_status(status)
-            br = _pick(row, hmap, "branch").strip()
-            if br:
-                tasks[tid]["branch"] = br
-            note = _pick(row, hmap, "note", "nota").strip()
-            if note:
-                tasks[tid]["note"] = note
-    return tasks
-
-
-def parse_plan_dates(plan_text):
-    start = deadline = None
-    for label, key in (("data inizio ufficiale", "start"), ("deadline", "deadline")):
-        m = re.search(label + r"\s*[:：]?\s*`?(\d{4}-\d{2}-\d{2})`?", plan_text or "", re.IGNORECASE)
-        if m:
-            try:
-                d = datetime.strptime(m.group(1), "%Y-%m-%d").date()
-            except ValueError:
-                d = None
-            if key == "start":
-                start = d
-            else:
-                deadline = d
-    return start, deadline
 
 
 def workdays(d1, d2):
@@ -203,11 +93,6 @@ def workdays(d1, d2):
     return n
 
 
-def to_float(x):
-    m = re.search(r"[-+]?\d*\.?\d+", str(x).replace(",", "."))
-    return float(m.group(0)) if m else 0.0
-
-
 def to_int(x):
     m = re.search(r"\d+", str(x))
     return int(m.group(0)) if m else 0
@@ -218,6 +103,92 @@ def load_manifest(spec):
         return DEFAULT_MANIFEST
     with open(spec, encoding="utf-8") as fh:
         return json.load(fh)
+
+
+# ---------- records ----------
+QUALITY_TITLE = "QUALITÀ DELLA LETTURA"
+# A cell that holds only one of these is a placeholder, not a value.
+DASH_PLACEHOLDERS = frozenset("\u2014\u2013-")
+
+
+def _dash_of(raw):
+    """The bare dash if `raw` is only a dash placeholder (markup and spaces stripped), else ''."""
+    bare = raw.replace("*", "").replace("`", "").strip()
+    return bare if bare in DASH_PLACEHOLDERS else ""
+
+
+def _text(cell):
+    """Cell value; a lone dash placeholder is shown as written, as 0.2.0 did."""
+    return cell.value or _dash_of(cell.raw)
+
+
+def _owner(task):
+    """Owner name; with no real owner a lone dash placeholder (TASKS first, then PROGRESS)
+    is shown as written, while `agent`, `TBD`, `n/a`... are not owners and stay empty."""
+    if task.owner.value:
+        return task.owner.value
+    return _dash_of(task.owner_tasks.raw.strip() or task.owner_progress.raw)
+
+
+def task_to_record(task: Task) -> dict[str, object]:
+    """Flat record of a task for the sheets. A missing effort or progress stays None
+    (never 0); a placeholder note stays empty so it never overwrites a manual note."""
+    return {
+        "id": task.id,
+        "stream": _text(task.stream),
+        "activity": _text(task.activity),
+        "description": _text(task.description),
+        "owner": _owner(task),
+        "area": _text(task.area),
+        "priority": _text(task.priority),
+        "wave": _text(task.wave),
+        "dependencies": _text(task.dependencies_cell),
+        "effort": task.effort.days,
+        "branch": _text(task.branch),
+        "progress": task.progress,
+        "status": task.status,
+        "note": task.note.value,
+    }
+
+
+def sum_effort(records):
+    """Sum of the efforts that were read; the others do not count."""
+    return sum(r["effort"] for r in records if r["effort"] is not None)
+
+
+def sum_effort_progress(records):
+    """Progress-weighted effort over the tasks that have both values."""
+    return sum(
+        r["effort"] * r["progress"] / 100.0
+        for r in records
+        if r["effort"] is not None and r["progress"] is not None
+    )
+
+
+def mean_progress(records):
+    """Mean of the progress values that were declared, as 'NN%'; '' if there is none."""
+    known = [r["progress"] for r in records if r["progress"] is not None]
+    return f"{round(sum(known) / len(known))}%" if known else ""
+
+
+def quality_rows(pt, schedule):
+    """Closing section of the Riepilogo: how well the plan files could be read."""
+    rows = [
+        ("", ""),
+        (QUALITY_TITLE, None),
+        ("Righe viste / lette", f"{pt.rows_seen} / {pt.rows_read}"),
+        ("Effort non leggibile o non dichiarato (task)", sum(1 for t in pt.tasks if t.effort.days is None)),
+        ("Progresso non dichiarato (task)", sum(1 for t in pt.tasks if t.progress is None)),
+        ("Stati fuori vocabolario (task)", sum(1 for t in pt.tasks if not t.status_known)),
+        ("Avvisi di lettura", len(pt.warnings) + len(schedule.warnings)),
+    ]
+    if pt.degraded:
+        rows.append((
+            "ATTENZIONE",
+            f"righe non lette: {pt.rows_seen - pt.rows_read} — dettaglio con: "
+            f"python <plugin>/scripts/sdlc-plans.py read --plan {pt.plan} --tasks … --progress …",
+        ))
+    return rows
 
 
 # ---------- rendering ----------
@@ -234,9 +205,9 @@ def render(args):
     progress_text = open(args.progress, encoding="utf-8").read() if args.progress and os.path.exists(args.progress) else ""
     plan_text = open(args.plan, encoding="utf-8").read() if args.plan and os.path.exists(args.plan) else ""
 
-    tasks = parse_tasks(tasks_text)
-    parse_progress(progress_text, tasks)
-    records = [tasks[k] for k in sorted(tasks)]
+    pt = read_plan(args.plan_id, tasks_text, progress_text)
+    schedule = read_schedule({"PLAN.md": plan_text})
+    records = [task_to_record(t) for t in sorted(pt.tasks, key=lambda t: t.id)]
 
     manifest = load_manifest(args.manifest)
 
@@ -253,7 +224,7 @@ def render(args):
     prog_hdr = norm(field_header.get("progress", "progresso"))
     note_hdr = norm(field_header.get("note", "note"))
 
-    non_null = any(to_int(r["progress"]) > 0 or r["status"] == DONE for r in records)
+    non_null = any((r["progress"] or 0) > 0 or r["status"] == DONE for r in records)
     existing_non_null = False
     prev_notes = {}
     if os.path.exists(args.out):
@@ -312,13 +283,13 @@ def render(args):
                 for ci, col in enumerate(cols, 1):
                     field = col.get("field")
                     val = r.get(field, "") if field else ""
-                    if field == "progress":
-                        val = f"{to_int(val)}%"
+                    if field == "progress" and val is not None:
+                        val = f"{val}%"
                     cell = ws.cell(ri, ci, val)
                     if col.get("wrap"):
                         cell.alignment = Alignment(wrap_text=True, vertical="top")
-                    if col.get("format") == "progress_bands" and field:
-                        p = to_int(r.get(field, 0))
+                    if col.get("format") == "progress_bands" and field and r.get(field) is not None:
+                        p = r[field]
                         key = "zero" if p == 0 else "low" if p < 50 else "mid" if p < 100 else "full"
                         cell.fill = PatternFill("solid", fgColor=bands[key])
                     if col.get("format") == "status_colors" and field:
@@ -329,7 +300,7 @@ def render(args):
         elif stype == "by_developer":
             _render_by_developer(ws, records, header_font, header_fill)
         elif stype == "summary":
-            _render_summary(ws, records, plan_text, today, manifest, header_font)
+            _render_summary(ws, records, schedule, quality_rows(pt, schedule), today, manifest, header_font)
     wb.save(args.out)
     print(f"Written {args.out} ({len(records)} tasks, manifest='{manifest.get('name')}')")
     return 0
@@ -346,31 +317,30 @@ def _render_by_developer(ws, records, header_font, header_fill):
         by.setdefault(r["owner"] or "—", []).append(r)
     ri = 2
     for owner, rs in sorted(by.items()):
-        eff = sum(to_float(x["effort"]) for x in rs)
-        effc = sum(to_float(x["effort"]) for x in rs if x["status"] == DONE)
-        avg = round(sum(to_int(x["progress"]) for x in rs) / max(len(rs), 1))
+        eff = sum_effort(rs)
+        effc = sum_effort(x for x in rs if x["status"] == DONE)
         vals = [owner, rs[0]["area"], len(rs),
                 sum(1 for x in rs if x["status"] == DONE),
                 sum(1 for x in rs if x["status"] in STATUS_ACTIVE),
                 sum(1 for x in rs if x["status"] == "Da iniziare"),
                 sum(1 for x in rs if x["status"] in STATUS_BLOCKED),
-                f"{avg}%", round(eff, 1), round(effc, 1)]
+                mean_progress(rs), round(eff, 1), round(effc, 1)]
         for ci, v in enumerate(vals, 1):
             ws.cell(ri, ci, v)
         ri += 1
 
 
-def _render_summary(ws, records, plan_text, today, manifest, header_font):
+def _render_summary(ws, records, schedule, quality, today, manifest, header_font):
     total = len(records)
     done = sum(1 for r in records if r["status"] == DONE)
     active = sum(1 for r in records if r["status"] in STATUS_ACTIVE)
     todo = sum(1 for r in records if r["status"] == "Da iniziare")
     blocked = sum(1 for r in records if r["status"] in STATUS_BLOCKED)
     inactive = sum(1 for r in records if r["status"] in STATUS_INACTIVE)
-    overall = round(sum(to_int(r["progress"]) for r in records) / max(total, 1))
-    eff_tot = sum(to_float(r["effort"]) for r in records)
-    eff_done = sum(to_float(r["effort"]) for r in records if r["status"] == DONE)  # done-only: reconciles with Per Sviluppatore
-    eff_progress = sum(to_float(r["effort"]) * to_int(r["progress"]) / 100.0 for r in records)  # progress-weighted: cadence measure
+    overall = mean_progress(records)
+    eff_tot = sum_effort(records)
+    eff_done = sum_effort(r for r in records if r["status"] == DONE)  # done-only: reconciles with Per Sviluppatore
+    eff_progress = sum_effort_progress(records)  # progress-weighted: cadence measure
 
     def pct(n):
         return f"{round(100 * n / max(total, 1))}%"
@@ -378,22 +348,22 @@ def _render_summary(ws, records, plan_text, today, manifest, header_font):
     lines = [
         ("Data generazione", today.isoformat()),
         ("", ""),
-        ("STATO COMPLESSIVO", ""),
+        ("STATO COMPLESSIVO", None),
         ("Task totali", total),
         ("Completate", f"{done} ({pct(done)})"),
         ("In corso", f"{active} ({pct(active)})"),
         ("Da iniziare", f"{todo} ({pct(todo)})"),
         ("Bloccate", f"{blocked} ({pct(blocked)})"),
         ("Annullate/Sospese", f"{inactive} ({pct(inactive)})"),
-        ("Progresso complessivo", f"{overall}%"),
+        ("Progresso complessivo", overall),
         ("", ""),
-        ("EFFORT", ""),
+        ("EFFORT", None),
         ("Effort totale stimato (gg)", round(eff_tot, 1)),
         ("Effort completato (gg)", round(eff_done, 1)),
         ("Effort rimanente (gg)", round(eff_tot - eff_done, 1)),
     ]
 
-    start, deadline = parse_plan_dates(plan_text)
+    start, deadline = schedule.start, schedule.deadline
     if start and deadline:
         n_tot = workdays(start, deadline)
         n_elapsed = workdays(start, min(today, deadline))
@@ -416,7 +386,7 @@ def _render_summary(ws, records, plan_text, today, manifest, header_font):
             proj_str, slip = "n/d (velocità 0)", "n/d"
         lines += [
             ("", ""),
-            ("CADENZA VERSO LA DEADLINE (baseline lineare, weekend esclusi)", ""),
+            ("CADENZA VERSO LA DEADLINE (baseline lineare, weekend esclusi)", None),
             ("Data inizio ufficiale", start.isoformat()),
             ("Deadline", deadline.isoformat()),
             ("Giorni lavorativi totali", n_tot),
@@ -433,9 +403,10 @@ def _render_summary(ws, records, plan_text, today, manifest, header_font):
     else:
         lines += [("", ""), ("CADENZA", "date non fornite nell'header del PLAN — blocco ANTICIPO/RITARDO omesso")]
 
+    lines += quality
     for ri, (k, v) in enumerate(lines, 1):
         a = ws.cell(ri, 1, k)
-        if k and not v:
+        if v is None:  # section title
             a.font = header_font
         ws.cell(ri, 2, v)
     ws.column_dimensions["A"].width = 44
@@ -476,6 +447,7 @@ def main(argv=None):
     r.add_argument("--tasks", required=True)
     r.add_argument("--progress")
     r.add_argument("--plan")
+    r.add_argument("--plan-id", default="plan", help="label of the plan in reading warnings")
     r.add_argument("--manifest", default="official")
     r.add_argument("--out", required=True)
     r.add_argument("--today")

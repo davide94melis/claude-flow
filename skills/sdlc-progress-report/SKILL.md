@@ -262,11 +262,13 @@ Cerca cartelle dei Piani nella struttura `plans/` centralizzata in `deloitte-pro
 
 ```bash
 git -C "$GIT_REPO_PATH" fetch origin main || { echo "STOP: 'git fetch origin main' fallito — sync non riuscita."; exit 1; }
-# Cartelle Piano da origin/main: quelle che contengono un TASKS.md (path repo-relative)
-git -C "$GIT_REPO_PATH" ls-tree -r --name-only origin/main \
-  | grep -E "(^|/)plans/(todo|in-progress|done)/[^/]+/TASKS\.md$" \
-  | sed -E 's#/TASKS\.md$##'
+# Cartelle Piano da origin/main, anche annidate (es. plans/in-progress/<wave>/<sotto-piano>/).
+# Una riga per piano: percorso, stato, wave (vuota se non c'è), file presenti.
+git -C "$GIT_REPO_PATH" -c core.quotePath=false ls-tree -r --name-only origin/main \
+  | python "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc-plans.py" discover --stdin
 ```
+
+Quando proponi il piano all'utente, mostra wave e sotto-piano. Ignora le righe il cui stato (seconda colonna) è `draft`: `plans/draft/` è l'area Solaria e le skill SDLC la ignorano.
 
 Serve trovare:
 - **TASKS** (`TASKS.md`) — obbligatorio
@@ -276,20 +278,27 @@ Serve trovare:
 **Se trovi cartelle dei Piani**, proponile:
 
 > Ho trovato:
-> - `$BASE_PATH/in-progress/2026-04-28_booking-v2/`
+> - `plans/in-progress/wave-1/booking-v2/` (stato: in-progress · wave: wave-1 · sotto-piano: booking-v2)
 >   - `TASKS.md`
 >   - `PROGRESS.md`
 >
 > Uso questa cartella per generare l'Excel?
 
-Se non trovi nulla, chiedi i path manualmente.
+Dopo la conferma dell'utente, imposta il piano scelto (da qui in poi `PLAN_REL` e `PLAN_DIR` valgono per tutte le fasi):
+
+```bash
+PLAN_REL="<prima colonna dell'output di discover>"   # percorso relativo al repo, anche annidato: …/<stato>/<wave>/<sotto-piano>
+PLAN_DIR="$GIT_REPO_PATH/$PLAN_REL"                  # percorso assoluto: file su disco (Excel) e show_main
+```
+
+Se non trovi nulla, chiedi i path manualmente (e imposta `PLAN_REL` e `PLAN_DIR` allo stesso modo).
 
 ### Verifica Excel esistente
 
 Cerca nella stessa cartella del Piano se esiste gia' un file Excel:
 
 ```bash
-ls "$BASE_PATH/in-progress"/*/PROGRESS.xlsx "$BASE_PATH/todo"/*/PROGRESS.xlsx "$BASE_PATH/done"/*/PROGRESS.xlsx 2>/dev/null
+ls "$PLAN_DIR/PROGRESS.xlsx" 2>/dev/null
 ```
 
 - **Se esiste** → modalità aggiornamento (solo i dati cambiano, struttura preservata)
@@ -318,7 +327,7 @@ git -C "$GIT_REPO_PATH" fetch origin main || { echo "STOP: 'git fetch origin mai
 Leggi il PROGRESS.md **da `origin/main`** (non dal working tree — immune a branch/working-tree drift), usando l'helper `show_main`:
 
 ```bash
-show_main "$BASE_PATH/<stato>/<data>_<nome>/PROGRESS.md"
+show_main "$PLAN_DIR/PROGRESS.md"
 ```
 
 Se l'output è **vuoto**, il file non esiste su `origin/main`: NON dedurre automaticamente "tutto 0%" — applica la **guardia anti-azzeramento** (Fase 3). Il renderer riceve i contenuti di TASKS/PROGRESS letti qui da `origin/main` (vedi Fase 3/4).
@@ -385,12 +394,13 @@ Il report è generato dallo **script committato** `generate-progress-xlsx.py` (r
 2. invoca il renderer.
 
 ```bash
-PLAN_DIR="$BASE_PATH/<stato>/<YYYY-MM-DD>_<nome>"
+# PLAN_REL e PLAN_DIR sono già impostati in Fase 1 (piano scelto, anche annidato)
 show_main "$PLAN_DIR/TASKS.md"    > /tmp/pr_tasks.md
 show_main "$PLAN_DIR/PROGRESS.md" > /tmp/pr_progress.md   # può essere vuoto se assente su origin/main
 show_main "$PLAN_DIR/PLAN.md"     > /tmp/pr_plan.md       # header date (#3-consumo)
 python ${CLAUDE_PLUGIN_ROOT}/scripts/generate-progress-xlsx.py render \
   --tasks /tmp/pr_tasks.md --progress /tmp/pr_progress.md --plan /tmp/pr_plan.md \
+  --plan-id "$PLAN_REL" \
   --manifest "${TPL_MODE:+$( [ "$TPL_MODE" = custom ] && echo "$GIT_REPO_PATH/$TPL_PATH" || echo official )}" \
   --out "$PLAN_DIR/PROGRESS.xlsx"
 RC=$?
@@ -506,7 +516,7 @@ Se l'header del `PLAN.md` contiene `Data inizio ufficiale` e `Deadline` (prodott
 ### Nome e posizione file
 
 Salva nella stessa cartella del Piano all'interno della repo centralizzata:
-- **Path**: `$BASE_PATH/<stato>/<YYYY-MM-DD>_<nome>/PROGRESS.xlsx`
+- **Path**: `$PLAN_DIR/PROGRESS.xlsx`
 - **Aggiornamento**: sovrascrivi il file esistente
 
 ### Modalità aggiornamento
@@ -522,7 +532,11 @@ Se il file esiste già, non ricrearlo da zero. Aggiorna solo:
 
 La generazione/aggiornamento dell'Excel è delegata allo script committato `generate-progress-xlsx.py` (vedi Fase 3), che:
 
-1. parsa TASKS.md (tabella task) e PROGRESS.md (stato/percentuale/branch/note), materializzati da `origin/main`;
+1. parsa TASKS.md (tabella task) e PROGRESS.md (stato/percentuale/branch/note), materializzati da `origin/main`:
+   - la lettura è `sdlc_plans`, la stessa della dashboard; per diagnosticarla: `python "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc-plans.py" read --plan "$PLAN_REL" --tasks … --progress …` (usa il launcher `sdlc-plans.py`, non `python -m sdlc_plans`: alcuni Python, per esempio le distribuzioni embeddable, ignorano `PYTHONPATH`);
+   - effort e progresso illeggibili restano celle vuote, mai 0;
+   - l'owner del PROGRESS vince su quello del TASKS se non è un segnaposto;
+   - il Riepilogo ha la sezione «Qualità della lettura»;
 2. applica il manifest risolto (official di default o custom da `PROFILE.json`);
 3. se l'Excel esiste, **preserva le note manuali** (colonna Note) mappate per ID;
 4. applica la **guardia anti-azzeramento** (exit 3) — vedi Fase 3;
@@ -543,7 +557,7 @@ git -C "$GIT_REPO_PATH" push origin main --quiet
 
 ### Comunicazione finale
 
-> Excel [creato / aggiornato]: `$BASE_PATH/in-progress/<YYYY-MM-DD>_<nome>/PROGRESS.xlsx`
+> Excel [creato / aggiornato]: `$PLAN_DIR/PROGRESS.xlsx`
 >
 > Riepilogo:
 > - Task totali: N (X completate, Y in corso, Z da iniziare)
