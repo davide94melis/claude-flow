@@ -6,7 +6,7 @@
 | `T-002` | core | Alice | BE | — | P0 | Import | Import da file a\|b | `T-001` | ~~`3 gg`~~ **0** |
 | **T-003** | core | Bruno | FE | — | P1 | Maschera | Form di ricerca | T-002 | `4 gg` **+3,0 gg** → **7,0 gg** |
 | T-004 | core | Bruno | FE | — | P1 | Esportazione | CSV | T-003 | (in T-003) |
-| T-051-fix | core | Carla | BE | — | P2 | Correzione | Fix import | T-002, crb/T-010 | 1.0-1.5 |
+| T-051-fix | core | Carla | BE | — | P2 | Correzione | Fix import | T-002, ext/T-010 | 1.0-1.5 |
 
 ## Seconda tranche
 

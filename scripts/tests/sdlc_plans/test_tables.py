@@ -53,12 +53,37 @@ def test_fewer_cells_are_padded_without_warning():
     assert s.tables[0].rows[0].cells == ("T-001", "Alice", "") and s.warnings == ()
 
 def test_separator_under_a_body_row_starts_a_new_table_with_warning():
-    s = scan_tables(HDR + "| T-001 | A | 1 |\n|---|---|---|\n| T-002 | B | 2 |\n")
+    # R8 per una riga il cui primo valore non e' un ID di task (per gli ID vale R28c, sotto).
+    s = scan_tables(HDR + "| x | A | 1 |\n|---|---|---|\n| T-002 | B | 2 |\n")
     assert [t.header_line for t in s.tables] == [1, 3]
     assert s.tables[0].rows == ()
-    assert s.tables[1].headers == ("T-001", "A", "1")
+    assert s.tables[1].headers == ("x", "A", "1")
     assert [r.cells[0] for r in s.tables[1].rows] == ["T-002"]
     assert [w[:2] for w in s.warnings] == [("table_header_inside_table", 3)]
+
+def test_row_with_a_task_id_first_never_starts_a_table_even_above_a_separator_line():
+    # R28c: una riga `| - | - | - |` tra due task e' una riga del corpo, non un separatore.
+    s = scan_tables(HDR + "| T-001 | A | 1 |\n| T-002 | B | 2 |\n| - | - | - |\n| T-003 | C | 3 |\n")
+    assert len(s.tables) == 1 and s.tables[0].header_line == 1
+    assert [r.cells[0] for r in s.tables[0].rows] == ["T-001", "T-002", "-", "T-003"]
+    assert s.warnings == () and s.orphan_rows == ()
+
+def test_task_id_first_cell_is_recognised_with_markup_and_prefix():
+    for first in ("`T-002`", "**T-002**", "QA-T-002"):
+        s = scan_tables(HDR + f"| T-001 | A | 1 |\n| {first} | B | 2 |\n|---|---|---|\n| T-003 | C | 3 |\n")
+        assert len(s.tables) == 1, first
+        assert [r.cells[0] for r in s.tables[0].rows][-1] == "T-003", first
+
+def test_struck_or_combined_task_id_first_never_starts_a_table_either():
+    # Stessa regola per un ID barrato o combinato: la riga sotto, di soli trattini, non perde i task dopo.
+    for first in ("~~T-002~~", "~~`T-002`~~", "`T-002+T-003`", "[T-002](x)", "T-002 (bis)"):
+        s = scan_tables(HDR + f"| T-001 | A | 1 |\n| {first} | B | 2 |\n| - | - | - |\n| T-004 | C | 3 |\n")
+        assert len(s.tables) == 1 and s.warnings == (), first
+        assert [r.cells[0] for r in s.tables[0].rows][-1] == "T-004", first
+
+def test_separator_under_a_non_id_row_still_starts_a_table():
+    s = scan_tables(HDR + "| T-001 | A | 1 |\n| ID | Effort | Owner |\n|---|---|---|\n| T-002 | 5 | B |\n")
+    assert [t.header_line for t in s.tables] == [1, 4]
 
 def test_glued_header_and_separator_under_open_table_start_a_new_table():
     s = scan_tables(HDR + "| T-001 | A | 1 |\n| ID | Effort | Owner |\n|---|---|---|\n| T-002 | 5 | Bruno |\n")

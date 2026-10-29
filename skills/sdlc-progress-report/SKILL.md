@@ -265,14 +265,17 @@ git -C "$GIT_REPO_PATH" fetch origin main || { echo "STOP: 'git fetch origin mai
 # Cartelle Piano da origin/main, anche annidate (es. plans/in-progress/<wave>/<sotto-piano>/).
 # Una riga per piano: percorso, stato, wave (vuota se non c'è), file presenti.
 git -C "$GIT_REPO_PATH" -c core.quotePath=false ls-tree -r --name-only origin/main \
-  | python "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc-plans.py" discover --stdin
+  | python "${CLAUDE_PLUGIN_ROOT}/scripts/sdlc-plans.py" discover --stdin \
+  | awk -F'\t' -v prefix="$(relpath "$BASE_PATH")/" 'index($1, prefix) == 1'   # solo i piani sotto BASE_PATH
 ```
+
+L'ultimo filtro tiene solo le righe il cui percorso (prima colonna) inizia con il prefisso di `$BASE_PATH` relativo alla repo (`plans/` in standalone, `<profilo>/plans/` in modalita' legacy): in modalita' legacy la repo dei profili contiene i piani di altri progetti, che non vanno proposti.
 
 Quando proponi il piano all'utente, mostra wave e sotto-piano. Ignora le righe il cui stato (seconda colonna) è `draft`: `plans/draft/` è l'area Solaria e le skill SDLC la ignorano.
 
 Serve trovare:
 - **TASKS** (`TASKS.md`) — obbligatorio
-- **File di Progresso** (`PROGRESS.md`) — opzionale; se non esiste **e** non c'è un `PROGRESS.xlsx` pre-esistente, le task partono da 0% (piano non iniziato). Se un `PROGRESS.xlsx` con progresso non-nullo esiste già, la guardia anti-azzeramento (Fase 3) impedisce l'azzeramento.
+- **File di Progresso** (`PROGRESS.md`) — opzionale; se non esiste **e** non c'è un `PROGRESS.xlsx` pre-esistente (piano non iniziato), le celle di avanzamento restano vuote (mai 0) e lo stato è «Da iniziare». Se un `PROGRESS.xlsx` con progresso non-nullo esiste già, la guardia anti-azzeramento (Fase 3) impedisce l'azzeramento.
 - **PLAN** (`PLAN.md`) — opzionale, usato per arricchire le descrizioni
 
 **Se trovi cartelle dei Piani**, proponile:
@@ -352,7 +355,7 @@ Dal PROGRESS.md e dal piano, estrai per ogni task:
 | Stato | PROGRESS.md — colonna Stato (Da iniziare / In corso / Completata / Bloccata / Annullata / Sospesa) |
 | Note | PROGRESS.md — colonna Note |
 
-Se il PROGRESS.md **non esiste su `origin/main`**: NON impostare automaticamente 0% a tutte le task se esiste già un `PROGRESS.xlsx` con progresso non-nullo → vedi la **guardia anti-azzeramento** (Fase 3). Solo per un piano **genuinamente non iniziato** (nessun `PROGRESS.xlsx` pre-esistente, tipicamente piano in `todo/`) le task partono legittimamente da 0% / "Da iniziare".
+Se il PROGRESS.md **non esiste su `origin/main`**: NON impostare automaticamente 0% a tutte le task se esiste già un `PROGRESS.xlsx` con progresso non-nullo → vedi la **guardia anti-azzeramento** (Fase 3). Solo per un piano **genuinamente non iniziato** (nessun `PROGRESS.xlsx` pre-esistente, tipicamente piano in `todo/`) l'avanzamento resta legittimamente vuoto (mai 0) e lo stato è "Da iniziare".
 
 ---
 
@@ -397,7 +400,7 @@ Il report è generato dallo **script committato** `generate-progress-xlsx.py` (r
 # PLAN_REL e PLAN_DIR sono già impostati in Fase 1 (piano scelto, anche annidato)
 show_main "$PLAN_DIR/TASKS.md"    > /tmp/pr_tasks.md
 show_main "$PLAN_DIR/PROGRESS.md" > /tmp/pr_progress.md   # può essere vuoto se assente su origin/main
-show_main "$PLAN_DIR/PLAN.md"     > /tmp/pr_plan.md       # header date (#3-consumo)
+show_main "$PLAN_DIR/PLAN.md"     > /tmp/pr_plan.md       # date: forma fissa o intestazione (#3-consumo)
 python ${CLAUDE_PLUGIN_ROOT}/scripts/generate-progress-xlsx.py render \
   --tasks /tmp/pr_tasks.md --progress /tmp/pr_progress.md --plan /tmp/pr_plan.md \
   --plan-id "$PLAN_REL" \
@@ -507,7 +510,7 @@ Formatta questa sezione come testo leggibile, non come tabella. Usa merge di cel
 
 ### Blocco ANTICIPO/RITARDO nel Foglio Riepilogo (#3-consumo)
 
-Se l'header del `PLAN.md` contiene `Data inizio ufficiale` e `Deadline` (prodotti dall'analyzer, WS1), il renderer aggiunge automaticamente al Foglio "Riepilogo" un blocco **CADENZA VERSO LA DEADLINE** con: giorni lavorativi (totali/trascorsi/rimanenti, weekend esclusi), cadenza richiesta (**gg-effort/giorno** primaria + **task/giorno** secondaria), effort atteso a oggi (baseline lineare) vs effort effettivo, **ANTICIPO o RITARDO** (delta gg-effort), **data-fine proiettata** e **scarto vs deadline** (giorni lavorativi). Baseline **lineare** (classic); se non ci sono date, il blocco è omesso. La baseline wave-aware eventualmente descritta nel TASKS ("Cadenza verso la deadline", WS1) resta un riferimento prosa: il numerico ANTICIPO/RITARDO usa la baseline lineare e lo dichiara.
+Se il `PLAN.md` ha `Data inizio ufficiale` e `Deadline` nella forma fissa (tabella `Chiave | Valore`) o nell'intestazione (righe `Etichetta: valore`, prodotte dall'analyzer, WS1), il renderer aggiunge automaticamente al Foglio "Riepilogo" un blocco **CADENZA VERSO LA DEADLINE** con: giorni lavorativi (totali/trascorsi/rimanenti, weekend esclusi), cadenza richiesta (**gg-effort/giorno** primaria + **task/giorno** secondaria), effort atteso a oggi (baseline lineare) vs effort effettivo, **ANTICIPO o RITARDO** (delta gg-effort), **data-fine proiettata** e **scarto vs deadline** (giorni lavorativi). Baseline **lineare** (classic); se le due date non ci sono nella forma fissa o nell'intestazione, il blocco è omesso: il renderer legge solo il `PLAN.md` e **non** usa la prosa (né del `PLAN.md` né dell'`ESTIMATE.md`) per ricavare le date. La baseline wave-aware eventualmente descritta nel TASKS ("Cadenza verso la deadline", WS1) resta un riferimento prosa: il numerico ANTICIPO/RITARDO usa la baseline lineare e lo dichiara.
 
 ---
 
@@ -540,7 +543,7 @@ La generazione/aggiornamento dell'Excel è delegata allo script committato `gene
 2. applica il manifest risolto (official di default o custom da `PROFILE.json`);
 3. se l'Excel esiste, **preserva le note manuali** (colonna Note) mappate per ID;
 4. applica la **guardia anti-azzeramento** (exit 3) — vedi Fase 3;
-5. calcola il blocco ANTICIPO/RITARDO dall'header PLAN (#3-consumo);
+5. calcola il blocco ANTICIPO/RITARDO dalle date del PLAN (forma fissa o intestazione, #3-consumo);
 6. salva il file.
 
 Dipendenza: `openpyxl` (`pip install openpyxl` se assente).
@@ -550,8 +553,9 @@ Dipendenza: `openpyxl` (`pip install openpyxl` se assente).
 Dopo aver salvato l'Excel, fai commit e push nella repo centralizzata:
 
 ```bash
-git -C "$GIT_REPO_PATH" add "<profilo>/plans/"
-git -C "$GIT_REPO_PATH" commit -m "[sdlc-progress-report] <nome>: aggiornato Excel avanzamento"
+PLAN_NAME="${PLAN_REL##*/}"   # ultimo segmento di PLAN_REL: nome del piano (o del sotto-piano)
+git -C "$GIT_REPO_PATH" add "$PLAN_REL"
+git -C "$GIT_REPO_PATH" commit -m "[sdlc-progress-report] $PLAN_NAME: aggiornato Excel avanzamento"
 git -C "$GIT_REPO_PATH" push origin main --quiet
 ```
 

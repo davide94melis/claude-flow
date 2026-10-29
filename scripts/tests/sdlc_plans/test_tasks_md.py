@@ -22,7 +22,7 @@ def test_variants_in_nested_subplan(plans_fixtures):
     assert by["T-002"].description.value == "Import da file a/b"
     assert by["T-001"].priority.value == "P0" and by["T-010"].priority.value == "P1"
     assert by["T-010"].area.value == "BE" and by["T-010"].activity.value == "Notifiche"
-    assert by["T-051-FIX"].dependencies == ("T-002", "crb/T-010")
+    assert by["T-051-FIX"].dependencies == ("T-002", "ext/T-010")
     assert by["T-001"].dependencies == ()
     assert (pt.rows_seen, pt.rows_read) == (7, 7)
 
@@ -100,20 +100,23 @@ def test_id_shaped_but_invalid_row_in_task_table_is_dropped_with_warning():
     dropped = _codes_of(pt.warnings, "row_dropped")
     assert [(w.file, w.line, w.detail.split(":")[0]) for w in dropped] == [("TASKS.md", 4, "t-002"), ("TASKS.md", 5, "t-003")]
 
-def test_unrecognized_table_without_id_header_warns_once_and_is_not_degraded():
+def test_unrecognized_table_without_id_header_in_a_file_without_task_table_is_degraded():
+    # R28e (corregge R13b): nessuna tabella di task nel file e righe con ID valido nella prima
+    # colonna: ogni riga e' vista e non letta (`row_dropped`), la lettura e' degradata.
     text = "| Task | Chi | Giorni |\n|---|---|---|\n| T-001 | A | 1 |\n| T-002 | B | 2 |\n"
     pt = read_plan("p", text, None)
-    assert (pt.tasks, pt.rows_seen, pt.rows_read, pt.degraded) == ((), 0, 0, False)
-    (w,) = pt.warnings
-    assert (w.code, w.file, w.line) == ("table_not_recognized", "TASKS.md", 1)
-    assert "Task | Chi | Giorni" in w.detail and "2 ID di task" in w.detail
+    assert (pt.tasks, pt.rows_seen, pt.rows_read, pt.degraded) == ((), 2, 0, True)
+    assert [(w.code, w.file, w.line, w.detail.split(":")[0]) for w in pt.warnings] == [
+        ("row_dropped", "TASKS.md", 3, "T-001"), ("row_dropped", "TASKS.md", 4, "T-002"),
+    ]
+    assert "Task | Chi | Giorni" in pt.warnings[0].detail
 
-def test_unrecognized_table_with_id_column_but_no_owner_or_effort_warns():
+def test_unrecognized_table_with_id_column_but_no_owner_or_effort_is_degraded_in_tasks_md():
     text = "| ID | Stato |\n|---|---|\n| T-001 | Aperta |\n"
-    pt = read_plan("p", text, None)
-    assert (pt.tasks, pt.rows_seen, pt.rows_read, pt.degraded) == ((), 0, 0, False)
+    pt = read_plan("p", text, None)   # TASKS.md: nessun ripiego sullo stato (vale solo per PROGRESS.md)
+    assert (pt.tasks, pt.rows_seen, pt.rows_read, pt.degraded) == ((), 1, 0, True)
     (w,) = pt.warnings
-    assert (w.code, w.line) == ("table_not_recognized", 1) and "1 ID di task" in w.detail
+    assert (w.code, w.line) == ("row_dropped", 3) and w.detail.startswith("T-001: ")
 
 def test_unrecognized_table_uses_id_column_when_present_else_first_column():
     only_first_has_ids = "| Chi | ID |\n|---|---|\n| T-001 | D-01 |\n"
@@ -140,6 +143,8 @@ def test_fixture_files_produce_no_table_not_recognized(plans_fixtures):
     for rel in tasks_files:
         pt = read_plan("p", _txt(plans_fixtures, rel), None)
         assert pt.tasks and not _codes_of(pt.warnings, "table_not_recognized"), rel
-    for path in plans_fixtures.rglob("PROGRESS.md"):
+    progress_files = list(plans_fixtures.rglob("PROGRESS.md"))
+    assert progress_files, "nessun PROGRESS.md nelle fixture: il controllo sarebbe vuoto"
+    for path in progress_files:
         text = path.read_text(encoding="utf-8")
         assert not _codes_of(read_task_rows("p", "PROGRESS.md", text).warnings, "table_not_recognized"), path

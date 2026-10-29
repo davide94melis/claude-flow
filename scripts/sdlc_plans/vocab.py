@@ -162,18 +162,32 @@ def canon_status(cell: str) -> tuple[str, bool]:
 # ID di task
 # ---------------------------------------------------------------------------
 
-TASK_ID_RE = re.compile(r"^T-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$")
+# Un ID di task e' `T-<sigla>`, con un prefisso alfanumerico facoltativo (`QA-T-001`).
+# `T-` resta maiuscolo: `qa-t-001` ha la forma di un ID ma non e' valido.
+TASK_ID_RE = re.compile(r"^(?:[A-Za-z0-9]+-)?T-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*$")
+# Un ID di task dentro un testo: `T-` non preceduto da una lettera o da una cifra.
+TASK_TOKEN_RE = re.compile(r"(?<![A-Za-z0-9])(?:[A-Za-z0-9]+-)?T-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*")
+# Il nucleo dell'ID: la parte da `T-` in poi.
+_ID_CORE_PREFIX = "-T-"
 
 
 def normalize_id(cell: str) -> str | None:
     """ID di task in forma canonica, ``None`` se la cella non e' un ID.
 
-    Toglie backtick, ``*`` e spazi ai bordi; tutto cio' che segue ``T-`` va in maiuscolo.
+    Toglie backtick, ``*`` e spazi ai bordi; l'ID va tutto in maiuscolo, prefisso compreso.
     """
     text = cell.strip().strip("`*").strip()
     if not TASK_ID_RE.match(text):
         return None
-    return "T-" + text[2:].upper()
+    return text.upper()
+
+
+def id_core(task_id: str) -> str:
+    """La parte dell'ID da ``T-`` in poi: ``QA-T-MERGE-1`` -> ``T-MERGE-1``, ``T-001`` resta com'e'."""
+    if task_id.startswith("T-"):
+        return task_id
+    _, separator, rest = task_id.partition(_ID_CORE_PREFIX)
+    return f"T-{rest}" if separator else task_id
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +198,7 @@ OWNER_PLACEHOLDERS: frozenset[str] = frozenset(
     {"agent", "tbd", "-", "\u2014", "\u2013", "n/a", "na", "?", "nessuno", ""}
 )
 
-_OWNER_CUT_RE = re.compile(r"\(| — | - |;|,")
+_OWNER_CUT_RE = re.compile(r"\(| — | – | - |;|,")
 
 
 def is_placeholder(text: str) -> bool:

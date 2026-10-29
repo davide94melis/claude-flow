@@ -19,9 +19,16 @@ NOTE_UNDECLARED = "non dichiarato"
 NOTE_NO_NUMBER = "nessun numero leggibile"
 NOTE_NOT_PLAUSIBLE = "valore non plausibile"
 NOTE_READ = "letta"
+NOTE_UNKNOWN_UNIT = "unità non riconosciuta"
 
 _NUM = r"\d+(?:[.,]\d+)?"
-_UNIT = r"(?:gg|g|d)"
+# Unita' di giorni accettate (senza distinguere le maiuscole): le alternative piu' lunghe prima.
+_DAY_UNITS = frozenset({
+    "gg", "g", "d", "giorni", "giorno", "giornate", "giornata", "days", "day", "gu", "md", "gg/uomo",
+})
+_UNIT = r"(?:gg/uomo|giornat[ae]|giorn[io]|days?|gg|gu|md|g|d)"
+# Un numero seguito da `%` o da una parola: se non e' un'unita' di giorni la cella non e' in giorni.
+_UNIT_AFTER_NUMBER_RE = re.compile(rf"{_NUM}\s*(?P<unit>%|[^\W\d_]+(?:/[^\W\d_]+)?)")
 # Trattino lungo (U+2014) e medio (U+2013): intervallo, mai segno meno.
 _LONG_DASHES = "–—"
 
@@ -33,7 +40,7 @@ _DATE_RE = re.compile(
     r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)"
     r"|(?<![\d/])\d{1,2}/\d{1,2}(?:/\d{2,4})?(?![\d/])"
 )
-_TASK_ID_RE = re.compile(r"(?<![A-Za-z0-9])[Tt]-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*")
+_TASK_ID_RE = re.compile(r"(?<![A-Za-z0-9])(?:[A-Za-z0-9]+-)?[Tt]-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*")
 _QUOTA_RE = re.compile(
     rf"quota\s+(?:dei|del|della|delle|degli|di)\s+[+-]?\s*{_NUM}(?:\s*{_UNIT}\b)?",
     re.IGNORECASE,
@@ -122,10 +129,21 @@ def _is_undeclared(cell: str) -> bool:
     return not cleaned or not _drop_parens(cleaned).strip()
 
 
+def _unknown_unit(text: str) -> str | None:
+    """La prima unita' che segue un numero e non e' di giorni (``ore``, ``sett``, ``%``...)."""
+    for match in _UNIT_AFTER_NUMBER_RE.finditer(text):
+        if match["unit"].lower() not in _DAY_UNITS:
+            return match["unit"]
+    return None
+
+
 def _read_tokens(cell: str, text: str, applied: tuple[str, ...]) -> Effort:
     tokens = list(_TOKEN_RE.finditer(text))
     if not tokens:
         return Effort(cell, None, NOTE_NO_NUMBER)
+    unit = _unknown_unit(text)
+    if unit is not None:
+        return Effort(cell, None, f"{NOTE_UNKNOWN_UNIT}: {unit}")
     total = 0.0
     has_range = False
     for token in tokens:
@@ -146,9 +164,11 @@ def parse_effort(cell: str) -> Effort:
     """Legge la cella Effort: ``raw`` e' la cella originale, ``days`` mai 0 per un dato mancante.
 
     Con ``days=None`` la nota dice perche' (``non dichiarato``, ``nessun numero
-    leggibile``, ``valore non plausibile: <n>``). Un numero semplice ha nota vuota;
-    un valore letto con regole (barrati, intervallo, freccia, somma...) ha nota
-    ``letta; <regole>``.
+    leggibile``, ``valore non plausibile: <n>``, ``unità non riconosciuta: <u>``).
+    Un numero semplice ha nota vuota; un valore letto con regole (barrati,
+    intervallo, freccia, somma...) ha nota ``letta; <regole>``. Un numero seguito da
+    un'unita' che non e' di giorni (``4 ore``, ``2 sett``) o da ``%`` non e' un
+    numero di giorni.
     """
     if _is_undeclared(cell):
         return Effort(cell, None, NOTE_UNDECLARED)

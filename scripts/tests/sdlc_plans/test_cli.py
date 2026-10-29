@@ -82,6 +82,16 @@ def test_cli_discover_stdin_accepts_crlf_and_blank_lines():
     assert r.stdout.decode("utf-8").splitlines() == NESTED_TSV
 
 
+def test_cli_discover_stdin_with_undecodable_bytes_does_not_crash():
+    # R29: un byte non UTF-8 sulla riga di un percorso non deve far cadere la scoperta dei piani.
+    raw = "\n".join(NESTED).encode("utf-8") + b"\nplans/todo/2026-10-05_x\xff\xfe/TASKS.md\n"
+    r = cli_bytes("discover", "--stdin", stdin=raw)
+    assert r.returncode == 0, r.stderr
+    assert b"Traceback" not in r.stderr
+    lines = r.stdout.decode("utf-8").splitlines()
+    assert lines[:2] == NESTED_TSV and len(lines) == 3
+
+
 def test_cli_discover_stdin_empty_input_prints_nothing():
     r = cli("discover", "--stdin", stdin="")
     assert (r.returncode, r.stdout, r.stderr) == (0, "", "")

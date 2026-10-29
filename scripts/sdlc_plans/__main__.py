@@ -23,9 +23,13 @@ from .tasks import read_plan
 
 
 def _use_utf8() -> None:
-    """Forza UTF-8 sui flussi standard: le pipe di Windows usano la codepage locale."""
+    """Forza UTF-8 sui flussi standard: le pipe di Windows usano la codepage locale.
+
+    Lo stdin sostituisce i byte non UTF-8 invece di cadere: un percorso illeggibile
+    non deve far perdere l'elenco di tutti gli altri piani.
+    """
     for stream, options in (
-        (sys.stdin, {"encoding": "utf-8"}),
+        (sys.stdin, {"encoding": "utf-8", "errors": "replace"}),
         (sys.stdout, {"encoding": "utf-8", "newline": "\n"}),
         (sys.stderr, {"encoding": "utf-8", "newline": "\n"}),
     ):

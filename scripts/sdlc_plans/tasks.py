@@ -9,20 +9,22 @@ branch e note, con gli avvisi di coerenza tra i due file. Solo libreria standard
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 
 from .effort import NOTE_UNDECLARED, parse_effort
 from .model import Cell, ParseWarning, PlanTasks, Task
-from .tables import Table, scan_tables
+from .tables import Row, Table, scan_tables
 from .vocab import (
-    TASK_ID_RE, canon_status, clean_markup, is_placeholder, normalize_id, owner_base,
+    TASK_ID_RE, TASK_TOKEN_RE, canon_status, clean_markup, id_core, is_placeholder,
+    normalize_id, owner_base,
 )
 
 TASKS_FILE = "TASKS.md"
 PROGRESS_FILE = "PROGRESS.md"
 
 WARN_ROW_DROPPED = "row_dropped"
+WARN_ROW_STRUCK = "row_struck"
 WARN_DUPLICATE_ID = "duplicate_id"
 WARN_EFFORT_UNREADABLE = "effort_unreadable"
 WARN_TABLE_NOT_RECOGNIZED = "table_not_recognized"
@@ -41,9 +43,17 @@ MERGE_ID_PREFIX = "T-MERGE"
 _EMPTY = Cell("", "")
 # Forma di un ID di task senza guardare le maiuscole: `t-002` ha la forma ma non e' un ID valido.
 _ID_SHAPE_RE = re.compile(TASK_ID_RE.pattern, re.IGNORECASE)
-# ID di task, con prefisso di repo facoltativo (`crb/T-010`).
-_DEPENDENCY_RE = re.compile(r"(?:[\w.-]+/)?T-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*")
-_PERCENT_RE = re.compile(r"[0-9]+")
+# ID di task, con prefisso di repo facoltativo (`ext/T-010`) e prefisso dell'ID (`QA-T-001`).
+# Il limite a sinistra evita che `XT-005` valga `T-005`.
+_DEPENDENCY_RE = re.compile(
+    r"(?<![A-Za-z0-9-])(?:[\w.-]+/)?(?:[A-Za-z0-9]+-)?T-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*"
+)
+# Una cella ID tutta barrata: `~~T-004~~`, anche con backtick dentro o attorno.
+_STRUCK_CELL_RE = re.compile(r"^~~.+~~$")
+_STRIKE_RE = re.compile(r"~~.*?~~")
+_ARROW_RE = re.compile(r"→|->")
+# Un solo intero, con `%` facoltativo.
+_INTEGER_PERCENT_RE = re.compile(r"\s*(\d+)\s*%?\s*")
 
 
 @dataclass(frozen=True)
@@ -81,6 +91,24 @@ def _is_task_table(table: Table) -> bool:
     return "id" in fields and ("owner" in fields or "effort" in fields)
 
 
+def _is_progress_table(table: Table) -> bool:
+    """Ripiego del PROGRESS.md: il campo ``id`` e almeno uno tra ``status`` e ``progress``."""
+    fields = table.fields
+    return "id" in fields and ("status" in fields or "progress" in fields)
+
+
+def _task_table_rule(filename: str, tables: tuple[Table, ...]) -> Callable[[Table], bool]:
+    """Quali tabelle sono di task in questo file.
+
+    La regola e' quella standard. Solo nel PROGRESS.md, se nessuna tabella la
+    soddisfa, valgono le tabelle con ID e stato o avanzamento (spesso senza Owner ed
+    Effort): una tabella di task standard, se c'e', non viene mai scalzata da una di contorno.
+    """
+    if filename != PROGRESS_FILE or any(_is_task_table(table) for table in tables):
+        return _is_task_table
+    return _is_progress_table
+
+
 def _row_cells(table: Table, cells: tuple[str, ...]) -> dict[str, Cell]:
     """Celle per campo canonico; se due colonne hanno lo stesso campo vale la prima."""
     by_field: dict[str, Cell] = {}
@@ -97,13 +125,18 @@ def _warning(
     return ParseWarning(code, plan, filename, line, f"{task_id}: {detail}" if task_id else detail)
 
 
+def _id_column(table: Table) -> int:
+    """Colonna degli ID: quella del campo ``id``, altrimenti la prima."""
+    return table.fields.index("id") if "id" in table.fields else 0
+
+
 def _unrecognized_table_warning(plan: str, filename: str, table: Table) -> ParseWarning | None:
     """Avviso informativo per una tabella non di task che ha ID di task nella colonna ID.
 
-    Colonna ID: quella del campo ``id``, altrimenti la prima. Un solo avviso per
-    tabella, sulla riga dell'intestazione; non cambia i conteggi delle righe.
+    Un solo avviso per tabella, sulla riga dell'intestazione; non cambia i conteggi
+    delle righe. Vale quando il file ha una tabella di task: senza, le righe contano.
     """
-    column = table.fields.index("id") if "id" in table.fields else 0
+    column = _id_column(table)
     count = sum(1 for row in table.rows if normalize_id(row.cells[column]) is not None)
     if not count:
         return None
@@ -115,76 +148,142 @@ def _unrecognized_table_warning(plan: str, filename: str, table: Table) -> Parse
     )
 
 
+def _is_struck(raw: str) -> bool:
+    """Vero se tutta la cella e' barrata (``~~T-004~~``, anche con backtick o ``**`` attorno)."""
+    return bool(_STRUCK_CELL_RE.match(raw.strip().strip("`*").strip()))
+
+
+class _FileReader:
+    """Raccoglie righe, conteggi e avvisi di un file man mano che ne legge le tabelle."""
+
+    def __init__(self, plan: str, filename: str) -> None:
+        self._plan = plan
+        self._filename = filename
+        self.rows: dict[str, TaskRow] = {}
+        self.warnings: list[ParseWarning] = []
+        # riga -> ID della task (None: intestazione o riga senza ID) per le righe delle
+        # tabelle di task: solo li' si tengono gli avvisi della lettura delle tabelle.
+        self.task_lines: dict[int, str | None] = {}
+        self.seen = 0
+        self.read = 0
+
+    def _warn(self, code: str, line: int, task_id: str | None, detail: str) -> None:
+        self.warnings.append(_warning(self._plan, self._filename, code, line, task_id, detail))
+
+    def task_table(self, table: Table) -> None:
+        self.task_lines[table.header_line] = None
+        for row in table.rows:
+            cells = _row_cells(table, row.cells)
+            task_id = normalize_id(cells["id"].raw)
+            self.task_lines[row.line] = task_id
+            if task_id is None:
+                self._unusable_id(row.line, cells["id"])
+            else:
+                self._add_row(row.line, task_id, cells)
+
+    def _unusable_id(self, line: int, id_cell: Cell) -> None:
+        """Cella ID di una tabella di task che non e' un ID valido.
+
+        Tutta barrata: la task e' stata tolta, nota informativa e la riga non conta. Con
+        un ID di task dentro (forma sbagliata, piu' ID, link, parole attorno): vista e non
+        letta. Altro (``TOTALE``, ``Q-01``, vuota): ignorata.
+        """
+        if _is_struck(id_cell.raw):
+            self._warn(WARN_ROW_STRUCK, line, id_cell.value, "ID barrato: la riga non conta come task")
+        elif _ID_SHAPE_RE.match(id_cell.value) or TASK_TOKEN_RE.search(id_cell.value):
+            self.seen += 1
+            self._warn(
+                WARN_ROW_DROPPED, line, id_cell.value,
+                "la cella ID contiene un ID di task ma non e' un ID valido (serve un solo ID, "
+                "con `T-` maiuscolo e nessun altro carattere): riga non letta",
+            )
+
+    def _add_row(self, line: int, task_id: str, cells: dict[str, Cell]) -> None:
+        self.seen += 1
+        self.read += 1
+        if task_id in self.rows:
+            self._warn(
+                WARN_DUPLICATE_ID, line, task_id,
+                f"ID ripetuto (prima a riga {self.rows[task_id].line}): vale la prima riga",
+            )
+        else:
+            self.rows[task_id] = TaskRow(task_id, line, cells)
+
+    def other_table(self, table: Table, has_task_table: bool) -> None:
+        """Tabella non di task.
+
+        Se il file ha una tabella di task, e' una tabella di contorno: al piu' un avviso
+        informativo. Se il file non ne ha, ogni riga con un ID di task valido e' vista e
+        non letta (un avviso ``row_dropped`` per riga).
+        """
+        if has_task_table:
+            unrecognized = _unrecognized_table_warning(self._plan, self._filename, table)
+            if unrecognized is not None:
+                self.warnings.append(unrecognized)
+            return
+        column = _id_column(table)
+        for row in table.rows:
+            task_id = normalize_id(row.cells[column])
+            if task_id is not None:
+                self.seen += 1
+                self._warn(
+                    WARN_ROW_DROPPED, row.line, task_id,
+                    f"riga con ID di task in una tabella non riconosciuta ({' | '.join(table.headers)}): "
+                    "servono la colonna ID e almeno una tra Owner ed Effort (nel PROGRESS.md anche "
+                    "Stato o Avanzamento): non letta",
+                )
+
+    def orphan_rows(self, orphans: tuple[Row, ...]) -> None:
+        for row in orphans:
+            task_id = normalize_id(row.cells[0])
+            if task_id is None:
+                continue
+            self.seen += 1
+            self.task_lines[row.line] = task_id
+            self._warn(
+                WARN_ROW_DROPPED, row.line, task_id,
+                "riga con ID di task fuori da una tabella (nessuna intestazione sopra): non letta",
+            )
+
+    def table_warnings(self, scan_warnings: tuple[tuple[str, int, str], ...]) -> None:
+        for code, line, detail in scan_warnings:
+            if line in self.task_lines:
+                self._warn(code, line, self.task_lines[line], detail)
+
+    def result(self, has_task_table: bool) -> FileRows:
+        ordered = tuple(sorted(self.warnings, key=lambda w: w.line or 0))
+        return FileRows(tuple(self.rows.values()), self.seen, self.read, ordered, has_task_table)
+
+
 def read_task_rows(plan: str, filename: str, text: str | None) -> FileRows:
     """Legge le righe di task di un file.
 
-    Tabelle di task dello stesso file si uniscono nell'ordine. Una riga entra se
-    la sua cella ID e' un ID di task. Sono viste e non lette (avviso
-    ``row_dropped``, lettura degradata): le righe orfane con un ID di task nella
-    prima cella e le righe di una tabella di task il cui ID ha la forma di un ID
-    ma non e' valido (``t-002``). Una tabella non di task con ID di task nella
-    colonna ID da' un avviso informativo ``table_not_recognized`` e non cambia i
-    conteggi. Gli avvisi della lettura delle tabelle si tengono se cadono in una
-    tabella di task.
+    Tabelle di task dello stesso file si uniscono nell'ordine (nel PROGRESS.md, se
+    nessuna e' standard, valgono quelle con ID e stato o avanzamento). Una riga entra
+    se la sua cella ID e' un ID di task. Sono viste e non lette (avviso ``row_dropped``,
+    lettura degradata): le righe orfane con un ID di task nella prima cella, le righe
+    di una tabella di task la cui cella ID contiene un ID di task ma non e' un ID valido
+    (``t-002``, ``T-001+T-002``) e, se il file non ha nessuna tabella di task, le righe
+    con ID valido delle altre tabelle. Una cella ID tutta barrata non conta: avviso
+    informativo ``row_struck``. In un file con una tabella di task, le altre tabelle con
+    ID di task nella colonna ID danno un avviso informativo ``table_not_recognized`` e
+    non cambiano i conteggi. Gli avvisi della lettura delle tabelle si tengono se cadono
+    in una tabella di task.
     """
     if not text:
         return FileRows((), 0, 0, ())
     scan = scan_tables(text)
-    warnings: list[ParseWarning] = []
-    rows: dict[str, TaskRow] = {}
-    # riga -> ID della task (None: intestazione o riga senza ID) per le righe delle tabelle di task
-    task_lines: dict[int, str | None] = {}
-    seen = read = 0
-    has_task_table = False
-
+    is_task_table = _task_table_rule(filename, scan.tables)
+    has_task_table = any(is_task_table(table) for table in scan.tables)
+    reader = _FileReader(plan, filename)
     for table in scan.tables:
-        if not _is_task_table(table):
-            unrecognized = _unrecognized_table_warning(plan, filename, table)
-            if unrecognized is not None:
-                warnings.append(unrecognized)
-            continue
-        has_task_table = True
-        task_lines[table.header_line] = None
-        for row in table.rows:
-            cells = _row_cells(table, row.cells)
-            task_id = normalize_id(cells["id"].raw)
-            task_lines[row.line] = task_id
-            if task_id is None:
-                if _ID_SHAPE_RE.match(cells["id"].value):
-                    seen += 1
-                    warnings.append(_warning(
-                        plan, filename, WARN_ROW_DROPPED, row.line, cells["id"].value,
-                        "ID con la forma di una task ma non valido (serve `T-` maiuscolo e "
-                        "nessun altro carattere): riga non letta",
-                    ))
-                continue
-            seen += 1
-            read += 1
-            if task_id in rows:
-                warnings.append(_warning(
-                    plan, filename, WARN_DUPLICATE_ID, row.line, task_id,
-                    f"ID ripetuto (prima a riga {rows[task_id].line}): vale la prima riga",
-                ))
-            else:
-                rows[task_id] = TaskRow(task_id, row.line, cells)
-
-    for row in scan.orphan_rows:
-        task_id = normalize_id(row.cells[0])
-        if task_id is None:
-            continue
-        seen += 1
-        task_lines[row.line] = task_id
-        warnings.append(_warning(
-            plan, filename, WARN_ROW_DROPPED, row.line, task_id,
-            "riga con ID di task fuori da una tabella (nessuna intestazione sopra): non letta",
-        ))
-
-    for code, line, detail in scan.warnings:
-        if line in task_lines:
-            warnings.append(_warning(plan, filename, code, line, task_lines[line], detail))
-
-    ordered = tuple(sorted(warnings, key=lambda w: w.line or 0))
-    return FileRows(tuple(rows.values()), seen, read, ordered, has_task_table)
+        if is_task_table(table):
+            reader.task_table(table)
+        else:
+            reader.other_table(table, has_task_table)
+    reader.orphan_rows(scan.orphan_rows)
+    reader.table_warnings(scan.warnings)
+    return reader.result(has_task_table)
 
 
 def _parse_dependencies(cell: str) -> tuple[str, ...]:
@@ -198,8 +297,8 @@ def _parse_dependencies(cell: str) -> tuple[str, ...]:
 
 
 def _is_merge_id(task_id: str) -> bool:
-    """Le task di unione dei branch hanno un ID che inizia con ``T-MERGE``."""
-    return task_id.startswith(MERGE_ID_PREFIX)
+    """Le task di unione dei branch hanno un ID che inizia con ``T-MERGE`` (dopo l'eventuale prefisso)."""
+    return id_core(task_id).startswith(MERGE_ID_PREFIX)
 
 
 def _resolve_status(*candidates: Cell) -> tuple[str, str, bool]:
@@ -325,15 +424,21 @@ def _progress_status(cell: Cell) -> tuple[str, str, bool] | None:
 def _parse_percent(cell: Cell) -> tuple[int | None, str]:
     """Avanzamento dalla cella: ``(percentuale, dettaglio dell'avviso o "")``.
 
-    Vale il primo intero; sopra 100 diventa 100 con un avviso. Cella vuota: nessun
-    dato e nessun avviso; testo senza numeri: nessun dato e un avviso.
+    Si tolgono i segmenti barrati, gli ID di task e tutto cio' che precede l'ultima
+    freccia (``30% -> 60%``); la cella e' leggibile solo se resta un solo intero, con
+    ``%`` facoltativo. Sopra 100 diventa 100 con un avviso. Cella vuota o segnaposto:
+    nessun dato e nessun avviso; altro (``3/5``, ``12,5%``, ``In attesa di T-004``):
+    nessun dato e un avviso. Mai un numero inventato dal testo attorno.
     """
     if not cell.value:
         return None, ""
-    match = _PERCENT_RE.search(cell.value)
+    text = _STRIKE_RE.sub(" ", cell.value)
+    text = TASK_TOKEN_RE.sub(" ", text)
+    text = _ARROW_RE.split(text)[-1]
+    match = _INTEGER_PERCENT_RE.fullmatch(text)
     if match is None:
-        return None, f"{cell.value} non contiene un numero: avanzamento non letto"
-    number = int(match.group())
+        return None, f"{cell.value}: avanzamento non letto (serve un solo numero intero, con % facoltativo)"
+    number = int(match.group(1))
     if number > 100:
         return 100, f"{cell.value} limitato a 100"
     return number, ""
@@ -440,7 +545,7 @@ def _unmatched_warnings(plan: str, task: Task, progress_has_table: bool) -> list
 def _dependency_warnings(plan: str, task: Task, known_ids: set[str]) -> list[ParseWarning]:
     """Un avviso per ogni dipendenza non qualificata verso un ID che il piano non ha.
 
-    Le dipendenze con prefisso di repo (``crb/T-010``) puntano a un altro piano e
+    Le dipendenze con prefisso di repo (``ext/T-010``) puntano a un altro piano e
     non si controllano.
     """
     found = []

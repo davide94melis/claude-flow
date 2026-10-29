@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .vocab import canonical_field
+from .vocab import TASK_TOKEN_RE, canonical_field, normalize_id
 
 WARN_COLUMN_COUNT_MISMATCH = "column_count_mismatch"
 WARN_TABLE_CONTINUED_AFTER_BLANK = "table_continued_after_blank"
@@ -116,7 +116,14 @@ class _Scanner:
         return TableScan(tuple(self._tables), tuple(self._orphans), tuple(self._warnings))
 
     def _starts_table(self, index: int, cells: list[str]) -> bool:
-        """Una riga di tabella con subito sotto un separatore e' un'intestazione."""
+        """Una riga di tabella con subito sotto un separatore e' un'intestazione.
+
+        Fa eccezione la riga il cui primo valore e' un ID di task valido, o contiene
+        comunque un ID di task (barrato, combinato, con un link): e' una riga di dati, e
+        la riga di trattini sotto (``| - | - |``) e' una riga come le altre.
+        """
+        if normalize_id(cells[0]) is not None or TASK_TOKEN_RE.search(cells[0]):
+            return False
         if index + 1 >= len(self._lines):
             return False
         below = self._lines[index + 1]
@@ -185,6 +192,8 @@ def scan_tables(text: str) -> TableScan:
     testo la chiude e le righe di tabella successive diventano orfane. Una riga di
     tabella con un separatore subito sotto inizia sempre una nuova tabella; se ne
     interrompe una aperta, senza riga vuota in mezzo, scatta l'avviso
-    ``table_header_inside_table``. Ogni riga, orfana o no, ha almeno una cella.
+    ``table_header_inside_table``. Non vale per una riga con un ID di task nella
+    prima cella (anche barrato o combinato): e' una riga di dati e non apre mai una
+    tabella. Ogni riga, orfana o no, ha almeno una cella.
     """
     return _Scanner(_prepare_lines(text)).scan()

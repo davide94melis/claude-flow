@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -126,3 +127,67 @@ def test_attenzione_hint_names_the_launcher_and_the_plan_id(tmp_path):
     assert attenzione.startswith("righe non lette: 1")
     assert f"sdlc-plans.py read --plan {plan_id}" in attenzione
     assert "python -m sdlc_plans" not in attenzione
+
+
+def test_attenzione_hint_shell_quotes_the_plan_id(tmp_path):
+    """Un id con spazi o caratteri speciali nel suggerimento va tra apici, come per la shell."""
+    d = tmp_path / "plan"; d.mkdir()
+    (d / "TASKS.md").write_text(
+        "| ID | Owner | Effort |\n|---|---|---|\n| T-001 | A | 1 |\n\n### Wave 2\n| T-002 | C | 1 |\n",
+        encoding="utf-8",
+    )
+    plan_id = "plans/in progress/it's a plan; x"
+    wb = render(NEW, d, tmp_path / "q.xlsx", plan_id=plan_id)
+    attenzione = dict(sheet_rows(wb, "Riepilogo"))["ATTENZIONE"]
+    assert f"sdlc-plans.py read --plan {shlex.quote(plan_id)} " in attenzione
+    assert f"--plan {plan_id} " not in attenzione
+
+
+def test_riepilogo_section_titles_are_visible_on_the_dark_fill(tmp_path, plans_fixtures):
+    """Il titolo di sezione e' bianco in grassetto: senza lo sfondo scuro non si legge."""
+    d = plans_fixtures / "flat/plans/in-progress/2026-09-01_alpha"   # con date: ha anche il blocco CADENZA
+    ws = render(NEW, d, tmp_path / "s.xlsx")["Riepilogo"]
+    titles = {row[0].value: row[0] for row in ws.iter_rows() if row[1].value is None and row[0].value}
+    assert {"STATO COMPLESSIVO", "EFFORT", "QUALITÀ DELLA LETTURA"} <= set(titles)
+    assert any(name.startswith("CADENZA VERSO LA DEADLINE") for name in titles)
+    for name, cell in titles.items():
+        assert cell.font.bold and cell.font.color.rgb.endswith("FFFFFF"), name
+        assert cell.fill.fill_type == "solid" and cell.fill.fgColor.rgb.endswith("404040"), name
+    plain = next(row[0] for row in ws.iter_rows() if row[0].value == "Task totali")
+    assert plain.fill.fill_type is None
+
+
+def test_riepilogo_section_titles_keep_the_values_of_0_2_0(tmp_path, plans_fixtures):
+    d = plans_fixtures / "flat/plans/in-progress/2026-09-01_alpha"
+    ro = sheet_rows(render(LEGACY, d, tmp_path / "o.xlsx"), "Riepilogo")
+    rn = sheet_rows(render(NEW, d, tmp_path / "n.xlsx"), "Riepilogo")
+    assert rn[:len(ro)] == ro
+
+
+def _plan_with_plan_md(tmp_path, plan_md):
+    d = tmp_path / "plan"; d.mkdir()
+    (d / "TASKS.md").write_text("| ID | Owner | Effort |\n|---|---|---|\n| T-001 | A | 2 |\n", encoding="utf-8")
+    (d / "PLAN.md").write_text(plan_md, encoding="utf-8")
+    return dict(sheet_rows(render(NEW, d, tmp_path / "c.xlsx"), "Riepilogo"))
+
+
+def test_cadence_block_is_omitted_when_plan_md_dates_are_only_prose(tmp_path):
+    """R25: date incidentali nella prosa di PLAN.md non diventano una scadenza."""
+    summary = _plan_with_plan_md(
+        tmp_path,
+        "Data inizio ufficiale: 2026-09-01\nDeadline: non fornita\n\n"
+        "Ambiente di produzione aggiornato il 12/03/2026.\nUAT: 2026-11-06\nGo-live 2026-12-01\n",
+    )
+    assert not any(str(k).startswith("CADENZA VERSO") for k in summary)
+    assert "blocco ANTICIPO/RITARDO omesso" in summary["CADENZA"]
+
+
+def test_cadence_block_uses_the_header_dates_and_the_fixed_form_of_plan_md(tmp_path):
+    header = _plan_with_plan_md(tmp_path, "Data inizio ufficiale: 2026-09-01\nDeadline: 2026-10-30\n")
+    assert header["Deadline"] == "2026-10-30" and header["Data inizio ufficiale"] == "2026-09-01"
+    (tmp_path / "f").mkdir()
+    fixed = _plan_with_plan_md(
+        tmp_path / "f",
+        "| Chiave | Valore |\n|---|---|\n| start | 2026-09-02 |\n| deadline | 2026-11-13 |\n",
+    )
+    assert fixed["Deadline"] == "2026-11-13" and fixed["Data inizio ufficiale"] == "2026-09-02"

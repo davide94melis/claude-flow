@@ -5,10 +5,12 @@ Ogni campo si risolve per conto suo, al primo livello che lo da':
 1. **forma fissa**: una tabella ``Chiave | Valore`` (formato che ``sdlc-analyzer`` e
    ``sdlc-estimator`` scrivono: e' un contratto), in ogni documento nell'ordine dato;
 2. **intestazione**: righe ``Etichetta: valore`` di ``PLAN.md``;
-3. **testo**: prosa di ``ESTIMATE.md`` e poi ``PLAN.md`` (milestone e fattore).
+3. **testo**: prosa di ``ESTIMATE.md`` soltanto (milestone, scadenza e fattore).
 
-Ogni valore porta la fonte da cui viene. Un dato non trovato resta ``None``: mai un
-valore inventato. Solo libreria standard.
+``PLAN.md`` da' la forma fissa e l'intestazione, mai il testo: la sua prosa e' piena di
+date che non sono scadenze (aggiornamenti di ambienti, collaudi passati). Ogni valore
+porta la fonte da cui viene. Un dato non trovato resta ``None``: mai un valore
+inventato. Solo libreria standard.
 """
 from __future__ import annotations
 
@@ -286,7 +288,7 @@ def _read_header(b: _Builder, doc: _Doc) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Livello 3: testo (milestone, scadenza, fattore)
+# Livello 3: testo di ESTIMATE.md (milestone, scadenza, fattore)
 # ---------------------------------------------------------------------------
 
 def _kind_of(keyword: str) -> str:
@@ -356,10 +358,6 @@ def _resolve_factor_from_text(b: _Builder, docs: list[_Doc]) -> None:
         return
 
 
-def _text_rank(doc: _Doc) -> int:
-    return 0 if _is_file(doc.name, ESTIMATE_FILE) else 1
-
-
 # ---------------------------------------------------------------------------
 # Interfaccia pubblica
 # ---------------------------------------------------------------------------
@@ -368,8 +366,9 @@ def read_schedule(docs: Mapping[str, str | None]) -> Schedule:
     """Calendario di un piano dai suoi documenti (nome del file -> testo).
 
     ``docs`` e' nell'ordine di priorita' del chiamante (``PLAN.md`` prima di
-    ``ESTIMATE.md``): vale per la forma fissa. Il testo si legge sempre prima in
-    ``ESTIMATE.md``. I documenti con testo ``None`` si saltano.
+    ``ESTIMATE.md``): vale per la forma fissa. Il testo (milestone, scadenza dalla
+    prosa, fattore) si legge solo in ``ESTIMATE.md``; ``PLAN.md`` da' forma fissa e
+    intestazione. I documenti con testo ``None`` si saltano.
     """
     b = _Builder()
     loaded = [_load(name, text) for name, text in docs.items() if text is not None]
@@ -377,7 +376,7 @@ def read_schedule(docs: Mapping[str, str | None]) -> Schedule:
         _read_fixed(b, doc)
     for doc in loaded:
         _read_header(b, doc)
-    text_docs = sorted(loaded, key=_text_rank)
+    text_docs = [doc for doc in loaded if _is_file(doc.name, ESTIMATE_FILE)]
     for doc in text_docs:
         _read_milestones(b, doc)
     _resolve_deadline_from_text(b)

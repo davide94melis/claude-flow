@@ -3,7 +3,8 @@
 progress Excel report (sdlc-progress-report skill; SDLC feedback round #6/#3/#4).
 
 Renders ANY progress manifest (official default or per-project custom) into PROGRESS.xlsx
-from a plan's TASKS.md + PROGRESS.md (+ optional PLAN.md header for deadline/cadence).
+from a plan's TASKS.md + PROGRESS.md (+ optional PLAN.md for deadline/cadence: its fixed
+Chiave | Valore form or its header; the prose of PLAN.md is never read for dates).
 The markdown is read with the shared `sdlc_plans` package, so this Excel and the dashboard
 say the same numbers: a value that cannot be read (effort, progress) stays EMPTY and is
 left out of the sums and averages, never counted as 0.
@@ -22,6 +23,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import sys
 import unicodedata
 from datetime import date, datetime, timedelta
@@ -186,7 +188,7 @@ def quality_rows(pt, schedule):
         rows.append((
             "ATTENZIONE",
             f"righe non lette: {pt.rows_seen - pt.rows_read} — dettaglio con: "
-            f"python <plugin>/scripts/sdlc-plans.py read --plan {pt.plan} --tasks … --progress …",
+            f"python <plugin>/scripts/sdlc-plans.py read --plan {shlex.quote(pt.plan)} --tasks … --progress …",
         ))
     return rows
 
@@ -300,7 +302,9 @@ def render(args):
         elif stype == "by_developer":
             _render_by_developer(ws, records, header_font, header_fill)
         elif stype == "summary":
-            _render_summary(ws, records, schedule, quality_rows(pt, schedule), today, manifest, header_font)
+            _render_summary(
+                ws, records, schedule, quality_rows(pt, schedule), today, manifest, header_font, header_fill,
+            )
     wb.save(args.out)
     print(f"Written {args.out} ({len(records)} tasks, manifest='{manifest.get('name')}')")
     return 0
@@ -330,7 +334,7 @@ def _render_by_developer(ws, records, header_font, header_fill):
         ri += 1
 
 
-def _render_summary(ws, records, schedule, quality, today, manifest, header_font):
+def _render_summary(ws, records, schedule, quality, today, manifest, header_font, header_fill):
     total = len(records)
     done = sum(1 for r in records if r["status"] == DONE)
     active = sum(1 for r in records if r["status"] in STATUS_ACTIVE)
@@ -401,14 +405,17 @@ def _render_summary(ws, records, schedule, quality, today, manifest, header_font
             ("Scarto vs deadline (gg lav.; +=ritardo, -=anticipo)", slip),
         ]
     else:
-        lines += [("", ""), ("CADENZA", "date non fornite nell'header del PLAN — blocco ANTICIPO/RITARDO omesso")]
+        lines += [("", ""), (
+            "CADENZA",
+            "date non fornite nella forma fissa o nell'intestazione del PLAN — blocco ANTICIPO/RITARDO omesso",
+        )]
 
     lines += quality
     for ri, (k, v) in enumerate(lines, 1):
         a = ws.cell(ri, 1, k)
-        if v is None:  # section title
-            a.font = header_font
-        ws.cell(ri, 2, v)
+        b = ws.cell(ri, 2, v)
+        if v is None:  # section title: white bold text on the dark header band
+            a.font, a.fill, b.fill = header_font, header_fill, header_fill
     ws.column_dimensions["A"].width = 44
     ws.column_dimensions["B"].width = 40
 

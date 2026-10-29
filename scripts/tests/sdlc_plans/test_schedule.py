@@ -199,12 +199,12 @@ def test_milestone_date_belongs_to_the_nearest_keyword_on_the_line():
     s = read_schedule({"ESTIMATE.md": "UAT: n/d, Go-live 2026-12-01\n"})
     assert [(m.kind, m.day) for m in s.milestones] == [("go-live", date(2026, 12, 1))]
 
-def test_same_milestone_in_both_files_is_listed_once():
-    s = read_schedule({"PLAN.md": "Dev drop 16/10/2026\n", "ESTIMATE.md": "DEV drop: 2026-10-16\n"})
+def test_same_milestone_mentioned_twice_is_listed_once():
+    s = read_schedule({"ESTIMATE.md": "DEV drop: 2026-10-16\nin sintesi: Dev drop 16/10/2026\n"})
     assert [(m.kind, m.day, m.source) for m in s.milestones] == [("dev-drop", date(2026, 10, 16), "testo · ESTIMATE.md")]
 
 def test_same_kind_with_different_dates_keeps_both():
-    s = read_schedule({"PLAN.md": "UAT 2026-11-20\n", "ESTIMATE.md": "UAT 2026-11-06\n"})
+    s = read_schedule({"ESTIMATE.md": "UAT 2026-11-06\nUAT 2026-11-20\n"})
     assert [m.day for m in s.milestones] == [date(2026, 11, 6), date(2026, 11, 20)]
     assert s.deadline == date(2026, 11, 6) and s.sources["deadline"] == "testo · ESTIMATE.md"
 
@@ -224,9 +224,25 @@ def test_kind_from_fixed_form_stays_when_text_gives_the_deadline():
     assert (s.deadline, s.deadline_kind) == (date(2026, 11, 6), "altro")
     assert s.from_text == ("deadline",)
 
-def test_text_is_read_from_both_files_estimate_first():
-    s = read_schedule({"PLAN.md": "UAT: 2026-11-06\n", "ESTIMATE.md": "DEV drop: 2026-10-16\n"})
-    assert [m.kind for m in s.milestones] == ["dev-drop", "uat"]
+def test_text_level_reads_only_estimate_md_never_plan_md_prose():
+    # R25 (spec 5.6): la prosa di PLAN.md non da' date; PLAN.md vale per forma fissa e intestazione.
+    s = read_schedule({"PLAN.md": "UAT: 2026-11-06\nGo-live 2026-12-01\n÷2\n", "ESTIMATE.md": "DEV drop: 2026-10-16\n"})
+    assert [m.kind for m in s.milestones] == ["dev-drop"]
+    assert (s.deadline, s.factor) == (date(2026, 10, 16), None)
+    only_plan = read_schedule({"PLAN.md": "UAT: 2026-11-06\nGo-live 2026-12-01\nfattore: 3\n÷2\n"})
+    assert only_plan.milestones == () and only_plan.deadline is None and only_plan.factor is None
+    assert only_plan.sources == {} and only_plan.from_text == () and only_plan.warnings == ()
+
+def test_declared_absent_deadline_is_not_invented_from_incidental_plan_prose():
+    plan = "Deadline: non fornita\n\nAmbiente di produzione aggiornato il 12/03/2026.\nCollaudo del 2026-04-02.\n"
+    s = read_schedule({"PLAN.md": plan})
+    assert s.deadline is None and s.milestones == () and s.deadline_kind is None
+    assert s.sources["deadline"] == "intestazione · PLAN.md: non fornita"
+
+def test_fixed_form_and_header_still_come_from_plan_md_while_text_comes_from_estimate():
+    s = read_schedule({"PLAN.md": "Data inizio: 2026-09-01\nDeadline: non fornita\n", "ESTIMATE.md": "UAT: 2026-11-06\n÷3\n"})
+    assert s.start == date(2026, 9, 1) and s.sources["start"] == "intestazione · PLAN.md"
+    assert (s.deadline, s.deadline_kind, s.factor) == (date(2026, 11, 6), "uat", 3.0)
 
 
 # --- testo: fattore --------------------------------------------------------
@@ -249,17 +265,19 @@ def test_text_factor_zero_is_ignored():
     s = read_schedule({"ESTIMATE.md": "÷0 poi ÷3\n"})
     assert s.factor == 3.0 and s.warnings == ()
 
-def test_text_factor_estimate_decides_before_plan():
+def test_text_factor_comes_from_estimate_even_when_plan_md_prose_differs():
     s = read_schedule({"PLAN.md": "÷2\n", "ESTIMATE.md": "÷3\n"})
-    assert s.factor == 3.0 and s.sources["productivity_factor"] == "testo · ESTIMATE.md"
+    assert s.factor == 3.0 and s.sources["productivity_factor"] == "testo · ESTIMATE.md" and s.warnings == ()
 
-def test_text_factor_plan_is_used_when_estimate_has_none():
-    s = read_schedule({"PLAN.md": "÷2\n", "ESTIMATE.md": "nessun fattore\n"})
-    assert s.factor == 2.0 and s.sources["productivity_factor"] == "testo · PLAN.md"
+def test_text_factor_in_plan_md_prose_is_not_used_when_estimate_has_none():
+    s = read_schedule({"PLAN.md": "÷2\nfattore: 4\n", "ESTIMATE.md": "nessun fattore\n"})
+    assert s.factor is None and "productivity_factor" not in s.sources and s.warnings == ()
 
-def test_text_factor_ambiguous_first_document_stops_the_search():
+def test_text_factor_ambiguity_is_judged_on_estimate_alone():
     s = read_schedule({"PLAN.md": "÷2\n", "ESTIMATE.md": "÷3 ÷4\n"})
     assert s.factor is None and _codes(s) == ["factor_ambiguous"] and s.warnings[0].file == "ESTIMATE.md"
+    s = read_schedule({"PLAN.md": "÷2 ÷5\n", "ESTIMATE.md": "÷3\n"})
+    assert s.factor == 3.0 and s.warnings == ()
 
 
 # --- input -----------------------------------------------------------------
@@ -271,8 +289,9 @@ def test_empty_and_none_documents_give_an_empty_schedule():
         assert s.sources == {} and s.from_text == () and s.milestones == () and s.warnings == ()
 
 def test_crlf_and_bom_do_not_change_the_result():
-    text = "\ufeffData inizio: 2026-09-01\r\nDeadline: 30/10/2026\r\nUAT: 2026-11-06\r\n÷3\r\n"
-    s = read_schedule({"PLAN.md": text})
+    plan = "\ufeffData inizio: 2026-09-01\r\nDeadline: 30/10/2026\r\n"
+    estimate = "\ufeffUAT: 2026-11-06\r\n÷3\r\n"
+    s = read_schedule({"PLAN.md": plan, "ESTIMATE.md": estimate})
     assert (s.start, s.deadline, s.factor) == (date(2026, 9, 1), date(2026, 10, 30), 3.0)
     assert [m.day for m in s.milestones] == [date(2026, 11, 6)]
     s = read_schedule({"PLAN.md": FIXED.replace("\n", "\r\n")})
@@ -341,12 +360,12 @@ def test_merge_does_not_inherit_kind_when_own_has_one():
     assert m.from_text == ("deadline",)
 
 def test_merge_milestones_and_warnings_are_combined_and_sorted():
-    own = read_schedule({"PLAN.md": "UAT: 2026-11-06\nGo-live: 31/02/2026\n"})
+    own = read_schedule({"ESTIMATE.md": "UAT: 2026-11-06\nGo-live: 31/02/2026\n"})
     wave = read_schedule({"ESTIMATE.md": "DEV drop: 2026-10-16\nUAT: 2026-11-06\n"})
     m = merge_schedule(own, wave, "wave w")
     assert [(x.kind, x.day, x.source) for x in m.milestones] == [
         ("dev-drop", date(2026, 10, 16), "wave w · testo · ESTIMATE.md"),
-        ("uat", date(2026, 11, 6), "testo · PLAN.md"),
+        ("uat", date(2026, 11, 6), "testo · ESTIMATE.md"),
     ]
     assert _codes(m) == ["date_invalid"]
 

@@ -1,3 +1,5 @@
+import pytest
+
 from sdlc_plans.model import Cell
 from sdlc_plans.tasks import read_plan
 
@@ -143,10 +145,12 @@ def test_percent_rules_and_warning_details():
         "| T-005 | A | 250 | In corso |  |  |  |\n| T-006 | A | 12,5% | In corso |  |  |  |\n",
     )
     by = _by_id(pt)
-    assert [by[f"T-00{n}"].progress for n in range(1, 7)] == [45, None, None, None, 100, 12]
+    # R26: un solo intero, con % facoltativo; "12,5%" non e' un intero e non si arrotonda in silenzio.
+    assert [by[f"T-00{n}"].progress for n in range(1, 7)] == [45, None, None, None, 100, None]
     unreadable = _warns(pt, "progress_unreadable")
-    assert [w.detail.split(":")[0] for w in unreadable] == ["T-002", "T-005"]
+    assert [w.detail.split(":")[0] for w in unreadable] == ["T-002", "T-005", "T-006"]
     assert unreadable[1].detail == "T-005: 250 limitato a 100"
+    assert unreadable[2].detail.startswith("T-006: 12,5%")
     assert {w.file for w in unreadable} == {"PROGRESS.md"}
 
 
@@ -261,3 +265,42 @@ def test_source_lines_list_tasks_row_then_progress_row():
     by = _by_id(pt)
     assert by["T-001"].source_lines == (("TASKS.md", 3),)
     assert by["T-002"].source_lines == (("TASKS.md", 4), ("PROGRESS.md", 3))
+
+
+# ---------------------------------------------------------------------------
+# R26: l'avanzamento si legge solo se resta un solo intero (con % facoltativo)
+# ---------------------------------------------------------------------------
+
+def _progress_of(cell):
+    """Avanzamento e avvisi `progress_unreadable` per una cella del PROGRESS di T-001."""
+    pt = _read("| T-001 | A | 1 |  |  |  |\n", f"| T-001 | A | {cell} | In corso |  |  |  |\n")
+    return pt.tasks[0].progress, [w.detail for w in _warns(pt, "progress_unreadable")]
+
+
+@pytest.mark.parametrize("cell,expected", [
+    ("60%", 60), ("60", 60), ("60 %", 60), ("**60%**", 60), ("0%", 0), ("100", 100),
+    ("~~30%~~ 60%", 60), ("30% → 60%", 60), ("30% -> 60%", 60), ("**30%** → **60%**", 60),
+    ("T-004 60%", 60), ("~~`3/5`~~ 40%", 40),
+])
+def test_progress_cell_with_one_integer_is_read(cell, expected):
+    assert _progress_of(cell) == (expected, [])
+
+
+@pytest.mark.parametrize("cell", ["—", "-", "", "  "])
+def test_empty_or_dash_progress_is_none_without_warning(cell):
+    assert _progress_of(cell) == (None, [])
+
+
+@pytest.mark.parametrize("cell", [
+    "3/5", "In attesa di T-004", "12,5%", "30 60", "circa 60%", "~~30%~~", "60% e 70%", "QA-T-004", "T-004 → ",
+])
+def test_progress_cell_that_is_not_one_integer_is_none_with_warning(cell):
+    progress, details = _progress_of(cell)
+    assert progress is None
+    (detail,) = details
+    assert detail.startswith("T-001: " + cell.strip())
+
+
+@pytest.mark.parametrize("cell,detail", [("120%", "T-001: 120% limitato a 100"), ("250", "T-001: 250 limitato a 100")])
+def test_progress_over_100_is_clamped_with_warning(cell, detail):
+    assert _progress_of(cell) == (100, [detail])
