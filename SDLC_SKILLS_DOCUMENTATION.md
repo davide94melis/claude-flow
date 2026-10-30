@@ -698,9 +698,9 @@ Prima di ogni operazione legge `.br-local.json`, esegue `git pull` sulla repo pr
 
 #### Fase 1 — Individuazione File Sorgente
 
-Cerca automaticamente nella struttura `<profiles_repo>/<profilo>/plans/`:
+Cerca automaticamente nella struttura `<profiles_repo>/<profilo>/plans/`, anche i piani annidati (`plans/<stato>/<wave>/<sotto-piano>/`): la scoperta passa da `scripts/sdlc-plans.py` (`discover`), lo stesso lettore `sdlc_plans` della dashboard:
 - **Piano di Implementazione** (obbligatorio)
-- **File di Progresso** (opzionale — se non esiste, tutte le task partono da 0%)
+- **File di Progresso** (opzionale — se non esiste, l'avanzamento resta vuoto: mai 0)
 - **Gap Report** (opzionale — usato per arricchire le descrizioni)
 
 Verifica se esiste gia un file `PROGRESS.xlsx`:
@@ -709,7 +709,7 @@ Verifica se esiste gia un file `PROGRESS.xlsx`:
 
 #### Fase 2 — Estrazione Dati
 
-Legge piano e progresso, estrae per ogni task: ID, nome attivita, descrizione completa, owner, area (BE/FE), priorita (P0/P1/P2), wave, dipendenze, effort stimato, branch, progresso %, stato, note.
+Legge piano e progresso, estrae per ogni task: ID, nome attivita, descrizione completa, owner, area (BE/FE), priorita (P0/P1/P2), wave, dipendenze, effort stimato, branch, progresso %, stato, note. Effort e progresso mancanti o illeggibili restano celle vuote (mai 0) e non entrano nelle somme e nelle medie; il Riepilogo ha la sezione «Qualità della lettura» con righe viste/lette e avvisi.
 
 #### Fase 3 — Generazione Excel
 
@@ -767,7 +767,7 @@ Riga "TOTALE" in fondo con le somme.
 
 #### Fase 4 — Salvataggio
 
-Salva `PROGRESS.xlsx` nella stessa cartella del piano (`<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/`). In modalita aggiornamento preserva eventuali note manuali aggiunte dall'utente. Dalla feedback-round #6/#3/#4 il report è generato dallo script committato `scripts/generate-progress-xlsx.py` (manifest-driven: layout ufficiale di default o template custom per-progetto persistito in `PROFILE.json.progress_report_template`), con lettura da `origin/main`, guardia anti-azzeramento e blocco ANTICIPO/RITARDO se il PLAN ha le date. Comunica riepilogo: task totali, completate, in corso, progresso complessivo, eventuali task bloccate.
+Salva `PROGRESS.xlsx` nella stessa cartella del piano (`<profiles_repo>/<profilo>/plans/in-progress/<data>_<nome>/`). In modalita aggiornamento preserva eventuali note manuali aggiunte dall'utente. Dalla feedback-round #6/#3/#4 il report è generato dallo script committato `scripts/generate-progress-xlsx.py` (manifest-driven: layout ufficiale di default o template custom per-progetto persistito in `PROFILE.json.progress_report_template`), con lettura da `origin/main`, guardia anti-azzeramento e blocco ANTICIPO/RITARDO se il PLAN ha le date nella forma fissa o nell'intestazione (la prosa del PLAN non conta). Comunica riepilogo: task totali, completate, in corso, progresso complessivo, eventuali task bloccate.
 
 ### Dipendenze
 
